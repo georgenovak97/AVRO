@@ -1,0 +1,10 @@
+{
+    "type": "extension",
+    "name": "AVRO",
+    "description": "pyRevit tools for Revit by George Novak",
+    "author": "George Novak",
+    "author-url": "https://avro.pro",
+    "website": "https://avro.pro",
+    "image": "",
+    "repo": "https://github.com/georgenovak97/AVRO.extension"
+}
