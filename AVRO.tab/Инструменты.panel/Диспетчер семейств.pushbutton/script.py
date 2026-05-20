@@ -24,7 +24,7 @@ import System
 from System.Windows import (
     Thickness, HorizontalAlignment, Visibility,
     MessageBox, MessageBoxButton, MessageBoxImage,
-    TextWrapping, FrameworkElement
+    TextWrapping, FrameworkElement,
 )
 from System.Windows.Controls import (
     TreeViewItem, Border, StackPanel, TextBlock, Image
@@ -203,8 +203,8 @@ def _load_xaml():
 
 
 _UI_CONTROL_NAMES = [
-    "SearchBox", "BtnClearSearch", "CategoryTree",
-    "BtnSettings", "BtnReload", "BtnLoadSelected",
+    "SearchBox", "BtnClearSearch",
+    "CategoryTree", "BtnSettings", "BtnReload", "BtnLoadSelected",
     "FamilyPanel", "BreadcrumbText", "CountText", "StatusText",
 ]
 
