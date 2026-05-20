@@ -10,6 +10,8 @@ import codecs
 CONFIG_DIR  = os.path.join(os.getenv("APPDATA", ""), "pyRevit", "AVRO")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
+APP_NAME = u"Диспетчер семейств"
+
 DEFAULTS = {
     "library_path": "",           # единственная корневая папка библиотеки
     "thumbnail_size": 156,

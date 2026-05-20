@@ -713,7 +713,7 @@ class FamilyManagerDialog(object):
                 u"Список в памяти. Проверьте права или "
                 u"%APPDATA%\\pyRevit\\AVRO\\cache.log.".format(
                     save_msg),
-                u"Диспетчер семейств",
+                config.APP_NAME,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning)
         self._build_tree(self._scan)
