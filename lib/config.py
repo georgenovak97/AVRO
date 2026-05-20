@@ -18,6 +18,7 @@ DEFAULTS = {
     "recent_families": [],        # last 20 loaded .rfa paths
     "library_cache_hash": "",     # md5 of library path, set after scan
     "library_cache_count": 0,
+    "ui_theme": "light",          # light | dark
 }
 
 

@@ -62,6 +62,7 @@ import family_scanner as scanner
 import rfa_preview
 import rfa_version
 import library_cache as libcache
+import ui_theme
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -185,12 +186,29 @@ def _family_name_candidates(fi):
     return names
 
 
-COL_CARD     = _brush(0xFF, 0xFF, 0xFF)
-COL_CARD_HOV = _brush(0xE8, 0xF4, 0xFC)
-COL_CARD_SEL = _brush(0xCC, 0xE8, 0xFF)
-COL_TEXT     = _brush(0x1E, 0x1E, 0x1E)
-COL_MUTED    = _brush(0x5A, 0x5A, 0x5A)
-COL_BORDER   = _brush(0xAB, 0xAB, 0xAB)
+COL_CARD            = None
+COL_CARD_HOV        = None
+COL_CARD_SEL        = None
+COL_CARD_SEL_BORDER = None
+COL_TEXT            = None
+COL_MUTED           = None
+COL_BORDER          = None
+
+
+def _sync_card_colors(palette):
+    global COL_CARD, COL_CARD_HOV, COL_CARD_SEL, COL_CARD_SEL_BORDER
+    global COL_TEXT, COL_MUTED, COL_BORDER
+    brushes = ui_theme.card_brushes(palette)
+    COL_CARD = brushes["card"]
+    COL_CARD_HOV = brushes["hover"]
+    COL_CARD_SEL = brushes["sel"]
+    COL_CARD_SEL_BORDER = brushes["sel_border"]
+    COL_BORDER = brushes["border"]
+    COL_TEXT = brushes["text"]
+    COL_MUTED = brushes["muted"]
+
+
+_sync_card_colors(ui_theme.LIGHT)
 
 # ---------------------------------------------------------------------------
 # Load XAML
@@ -204,8 +222,9 @@ def _load_xaml():
 
 _UI_CONTROL_NAMES = [
     "SearchBox", "BtnClearSearch",
-    "CategoryTree", "BtnSettings", "BtnReload", "BtnLoadSelected",
-    "FamilyPanel", "BreadcrumbText", "CountText", "StatusText",
+    "CategoryTree", "BtnThemeToggle", "BtnSettings", "BtnReload",
+    "BtnLoadSelected", "FamilyPanel", "BreadcrumbText", "CountText",
+    "StatusText",
 ]
 
 
@@ -468,12 +487,51 @@ class FamilyManagerDialog(object):
         self._placement_status_msg = None
         self._reopen_ui_state = None
         self._suppress_tree_events = False
+        self._dark_theme = config.load().get("ui_theme", "light") == "dark"
 
     def _init_window(self):
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
+        self._apply_ui_theme(self._dark_theme, persist=False)
         self.win.Closing += self._on_window_closing
+
+    def _apply_ui_theme(self, dark, persist=True):
+        palette = ui_theme.DARK if dark else ui_theme.LIGHT
+        self._dark_theme = dark
+        ui_theme.apply_window_theme(self.win, palette)
+        _sync_card_colors(palette)
+        self._update_theme_toggle_button()
+        self._refresh_cards_theme()
+        if persist:
+            config.set_value("ui_theme", "dark" if dark else "light")
+
+    def _update_theme_toggle_button(self):
+        btn = self.ui.BtnThemeToggle
+        if self._dark_theme:
+            btn.Content = u"\u2600"
+            btn.ToolTip = u"Светлая тема"
+        else:
+            btn.Content = u"\u263E"
+            btn.ToolTip = u"Тёмная тема (Revit 2024)"
+
+    def _refresh_cards_theme(self):
+        for path in self._card_by_path:
+            self._set_card_selected(path, path in self._selected_paths)
+        for card in self._card_by_path.values():
+            sp = card.Child
+            if sp is None:
+                continue
+            for child in sp.Children:
+                if not isinstance(child, TextBlock):
+                    continue
+                if child.TextWrapping == TextWrapping.Wrap:
+                    child.Foreground = COL_TEXT
+                else:
+                    child.Foreground = COL_MUTED
+
+    def _on_theme_toggle(self, sender, e):
+        self._apply_ui_theme(not self._dark_theme)
 
     def _restore_ui_after_reopen(self):
         if not self._scan.get("all"):
@@ -660,6 +718,7 @@ class FamilyManagerDialog(object):
         u.SearchBox.TextChanged            += self._on_search
         u.BtnClearSearch.Click             += self._on_clear_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
+        u.BtnThemeToggle.Click             += self._on_theme_toggle
         u.BtnSettings.Click                += self._on_settings
         u.BtnReload.Click                  += self._on_reload
         u.BtnLoadSelected.Click            += lambda s, e: self._load_selected()
@@ -1008,7 +1067,7 @@ class FamilyManagerDialog(object):
             return
         if selected:
             card.Background = COL_CARD_SEL
-            card.BorderBrush = _brush(0x33, 0x99, 0xFF)
+            card.BorderBrush = COL_CARD_SEL_BORDER
         else:
             card.Background = COL_CARD
             card.BorderBrush = COL_BORDER

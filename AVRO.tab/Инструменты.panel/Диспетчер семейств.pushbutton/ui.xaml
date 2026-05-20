@@ -7,14 +7,14 @@
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI"
         FontSize="12"
-        Background="#F0F0F0">
+        Background="{DynamicResource BgWindow}">
 
     <Window.Resources>
-        <!-- Revit-like light palette -->
         <SolidColorBrush x:Key="BgWindow"      Color="#F0F0F0"/>
         <SolidColorBrush x:Key="BgPanel"       Color="#FFFFFF"/>
         <SolidColorBrush x:Key="BgSidebar"     Color="#E4E4E4"/>
         <SolidColorBrush x:Key="BgToolbar"     Color="#F5F5F5"/>
+        <SolidColorBrush x:Key="BgInput"       Color="#FFFFFF"/>
         <SolidColorBrush x:Key="BorderMain"    Color="#ABABAB"/>
         <SolidColorBrush x:Key="BorderLight"   Color="#D0D0D0"/>
         <SolidColorBrush x:Key="TextMain"      Color="#1E1E1E"/>
@@ -24,39 +24,44 @@
         <SolidColorBrush x:Key="BtnFace"       Color="#E1E1E1"/>
         <SolidColorBrush x:Key="BtnFaceHov"    Color="#CCE4F7"/>
         <SolidColorBrush x:Key="BtnBorder"     Color="#707070"/>
+        <SolidColorBrush x:Key="BtnPressed"    Color="#B9D7F5"/>
+        <SolidColorBrush x:Key="BtnPrimary"    Color="#E1E1E1"/>
+        <SolidColorBrush x:Key="TreeHoverBg"   Color="#EDEDED"/>
+        <SolidColorBrush x:Key="ClearBtnHover" Color="#E8E8E8"/>
+        <SolidColorBrush x:Key="ClearBtnPressed" Color="#D0D0D0"/>
 
         <Style TargetType="TreeView">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
         <Style TargetType="TreeViewItem">
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
             <Setter Property="Padding" Value="2,2"/>
             <Setter Property="FontSize" Value="12"/>
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource SelBg}"/>
-                    <Setter Property="BorderBrush" Value="{StaticResource SelBorder}"/>
+                    <Setter Property="Background" Value="{DynamicResource SelBg}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource SelBorder}"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EDEDED"/>
+                    <Setter Property="Background" Value="{DynamicResource TreeHoverBg}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderMain}"/>
+            <Setter Property="Background" Value="{DynamicResource BgInput}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderMain}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="4,3"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="RevitButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource BtnFace}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+            <Setter Property="Background" Value="{DynamicResource BtnFace}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,5"/>
             <Setter Property="MinHeight" Value="24"/>
@@ -72,10 +77,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BtnFaceHov}"/>
+                                <Setter Property="Background" Value="{DynamicResource BtnFaceHov}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#B9D7F5"/>
+                                <Setter Property="Background" Value="{DynamicResource BtnPressed}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5"/>
@@ -87,7 +92,7 @@
         </Style>
 
         <Style x:Key="RevitButtonPrimary" TargetType="Button" BasedOn="{StaticResource RevitButton}">
-            <Setter Property="Background" Value="#E1E1E1"/>
+            <Setter Property="Background" Value="{DynamicResource BtnPrimary}"/>
             <Setter Property="FontWeight" Value="Normal"/>
         </Style>
 
@@ -97,11 +102,26 @@
             <Setter Property="MinHeight" Value="22"/>
         </Style>
 
+        <Style x:Key="ThemeToggleButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="MaxWidth" Value="32"/>
+            <Setter Property="MaxHeight" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
         <Style x:Key="ClearSearchButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Padding" Value="0"/>
@@ -124,11 +144,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-                                <Setter Property="Background" Value="#E8E8E8"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+                                <Setter Property="Background" Value="{DynamicResource ClearBtnHover}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#D0D0D0"/>
+                                <Setter Property="Background" Value="{DynamicResource ClearBtnPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -137,7 +157,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Background="{StaticResource BgWindow}">
+    <Grid Background="{DynamicResource BgWindow}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -152,17 +172,17 @@
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: Places / library tree -->
-            <Border Grid.Column="0" Background="{StaticResource BgSidebar}"
-                    BorderBrush="{StaticResource BorderMain}" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="{DynamicResource BgSidebar}"
+                    BorderBrush="{DynamicResource BorderMain}" BorderThickness="0,0,1,0">
                 <TreeView x:Name="CategoryTree"
                           Margin="4,8,4,8"/>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="4" Background="{StaticResource BorderLight}"
+            <GridSplitter Grid.Column="1" Width="4" Background="{DynamicResource BorderLight}"
                           HorizontalAlignment="Stretch"/>
 
             <!-- CENTER: folder bar + file list -->
-            <Grid Grid.Column="2" Background="{StaticResource BgPanel}">
+            <Grid Grid.Column="2" Background="{DynamicResource BgPanel}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -170,8 +190,8 @@
                 </Grid.RowDefinitions>
 
                 <!-- Toolbar row (Папка + path) -->
-                <Border Grid.Row="0" Background="{StaticResource BgToolbar}"
-                        BorderBrush="{StaticResource BorderLight}" BorderThickness="0,0,0,1"
+                <Border Grid.Row="0" Background="{DynamicResource BgToolbar}"
+                        BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1"
                         Padding="8,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -181,20 +201,20 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Папка:"
                                    VerticalAlignment="Center" Margin="0,0,6,0"
-                                   Foreground="{StaticResource TextMain}"/>
+                                   Foreground="{DynamicResource TextMain}"/>
                         <TextBlock x:Name="BreadcrumbText" Grid.Column="1"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                   Foreground="{StaticResource TextMain}"/>
+                                   Foreground="{DynamicResource TextMain}"/>
                         <TextBlock x:Name="CountText" Grid.Column="2"
                                    VerticalAlignment="Center" Margin="8,0,0,0"
-                                   Foreground="{StaticResource TextMuted}" FontSize="11"/>
+                                   Foreground="{DynamicResource TextMuted}" FontSize="11"/>
                     </Grid>
                 </Border>
 
                 <!-- Search + разделитель на всю ширину панели -->
                 <Grid Grid.Row="1">
                     <Border Height="1" VerticalAlignment="Bottom"
-                            Background="{StaticResource BorderLight}"
+                            Background="{DynamicResource BorderLight}"
                             HorizontalAlignment="Stretch"/>
                     <Border VerticalAlignment="Top"
                             Padding="8,6,8,6" HorizontalAlignment="Stretch"
@@ -210,7 +230,7 @@
                                 <TextBlock Text="Поиск семейств…"
                                            IsHitTestVisible="False"
                                            VerticalAlignment="Center" Margin="8,0,34,0"
-                                           Foreground="{StaticResource TextMuted}" FontSize="11">
+                                           Foreground="{DynamicResource TextMuted}" FontSize="11">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -236,7 +256,7 @@
                 <ScrollViewer x:Name="FamilyScrollViewer" Grid.Row="2"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
-                              Background="{StaticResource BgPanel}"
+                              Background="{DynamicResource BgPanel}"
                               Margin="8,0,8,0">
                     <WrapPanel x:Name="FamilyPanel"
                                Orientation="Horizontal"
@@ -246,8 +266,8 @@
         </Grid>
 
         <!-- ═══ BOTTOM BAR ═══ -->
-        <Border Grid.Row="1" Background="{StaticResource BgToolbar}"
-                BorderBrush="{StaticResource BorderMain}" BorderThickness="0,1,0,0"
+        <Border Grid.Row="1" Background="{DynamicResource BgToolbar}"
+                BorderBrush="{DynamicResource BorderMain}" BorderThickness="0,1,0,0"
                 Padding="10,8">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -255,10 +275,14 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="StatusText" Grid.Column="0" Text="Готово"
-                           Foreground="{StaticResource TextMuted}" FontSize="11"
+                           Foreground="{DynamicResource TextMuted}" FontSize="11"
                            VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                             VerticalAlignment="Center">
+                    <Button x:Name="BtnThemeToggle"
+                            Content="&#x263E;"
+                            Style="{StaticResource ThemeToggleButton}"
+                            ToolTip="Тёмная тема (Revit 2024)"/>
                     <Button x:Name="BtnSettings"
                             Content="Библиотека" Style="{StaticResource RevitButton}"
                             MinWidth="88" ToolTip="Выбрать папку библиотеки"/>
@@ -267,7 +291,7 @@
                             MinWidth="88" Margin="6,0,0,0"
                             ToolTip="Пересканировать библиотеку"/>
                     <Border Width="1" Margin="10,2,10,2"
-                            Background="{StaticResource BorderMain}"
+                            Background="{DynamicResource BorderMain}"
                             VerticalAlignment="Stretch"/>
                     <Button x:Name="BtnLoadSelected"
                             Content="Загрузить" Style="{StaticResource RevitButtonPrimary}"
