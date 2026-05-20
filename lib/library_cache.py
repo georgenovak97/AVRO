@@ -72,6 +72,50 @@ def _sanitize_value(val):
     return val
 
 
+def _unicode_to_utf8(val):
+    """IronPython 2: pickle/json safe tree (only utf-8 byte strings)."""
+    if isinstance(val, dict):
+        out = {}
+        for k, v in val.items():
+            out[_unicode_to_utf8(_u(k))] = _unicode_to_utf8(v)
+        return out
+    if isinstance(val, list):
+        return [_unicode_to_utf8(x) for x in val]
+    if isinstance(val, tuple):
+        return tuple(_unicode_to_utf8(x) for x in val)
+    if isinstance(val, unicode):
+        return val.encode("utf-8")
+    if isinstance(val, str):
+        try:
+            return _u(val).encode("utf-8")
+        except Exception:
+            return val
+    return val
+
+
+def _utf8_to_unicode(val):
+    """Restore tree after pickle/json load."""
+    if isinstance(val, unicode):
+        return val
+    if isinstance(val, dict):
+        out = {}
+        for k, v in val.items():
+            out[_utf8_to_unicode(k)] = _utf8_to_unicode(v)
+        return out
+    if isinstance(val, list):
+        return [_utf8_to_unicode(x) for x in val]
+    if isinstance(val, tuple):
+        return tuple(_utf8_to_unicode(x) for x in val)
+    if isinstance(val, str):
+        try:
+            return unicode(val, "utf-8")
+        except Exception:
+            return _u(val)
+    if isinstance(val, unicode):
+        return val
+    return val
+
+
 def _norm_path(path):
     return os.path.normcase(os.path.normpath(os.path.abspath(_u(path))))
 
@@ -223,12 +267,17 @@ def _scan_from_blob(blob):
 
 
 def _write_json_file(path, data, indent=None):
-    """Write JSON as pure ASCII (\\u escapes) — safe on IronPython 2."""
-    data = _sanitize_value(data)
-    kwargs = {"ensure_ascii": True}
+    """Write JSON as UTF-8 file with ASCII escapes — safe on IronPython 2."""
+    data = _unicode_to_utf8(_sanitize_value(data))
+    kwargs = {"ensure_ascii": True, "separators": (",", ":")}
     if indent is not None:
         kwargs["indent"] = indent
-    text = json.dumps(data, **kwargs)
+        kwargs.pop("separators", None)
+    try:
+        text = json.dumps(data, **kwargs)
+    except Exception:
+        # Fallback: manual ascii-only via unicode-escape style strings
+        text = json.dumps(_sanitize_value(data), ensure_ascii=True)
     if isinstance(text, unicode):
         text = text.encode("utf-8")
     with open(path, "wb") as f:
@@ -268,14 +317,14 @@ def save(key_tuple, scan, preview_miss=None):
     blob["key_hash"] = kh
     blob["library_fingerprint"] = library_fingerprint(key_tuple)
     blob = _sanitize_value(blob)
+    blob_store = _unicode_to_utf8(blob)
 
     ok_pkl = False
     err_pkl = u""
     tmp = PICKLE_FILE + u".tmp"
     try:
         with open(tmp, "wb") as f:
-            # Protocol 0 uses ASCII-only strings and fails on Cyrillic paths.
-            pickle.dump(blob, f, protocol=2)
+            pickle.dump(blob_store, f, protocol=2)
         if os.path.isfile(PICKLE_FILE):
             try:
                 os.remove(PICKLE_FILE)
@@ -329,9 +378,11 @@ def save(key_tuple, scan, preview_miss=None):
 def _load_blob_file(path):
     if path.endswith(".pkl"):
         with open(path, "rb") as f:
-            return pickle.load(f)
+            raw = pickle.load(f)
+        return _utf8_to_unicode(raw)
     with codecs.open(path, "r", "utf-8") as f:
-        return json.load(f)
+        raw = json.load(f)
+    return _utf8_to_unicode(raw)
 
 
 def load(key_tuple):

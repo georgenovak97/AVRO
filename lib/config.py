@@ -54,13 +54,33 @@ def load():
         return dict(DEFAULTS)
 
 
+def _u(text):
+    if text is None:
+        return u""
+    if isinstance(text, unicode):
+        return text
+    if isinstance(text, str):
+        for enc in ("utf-8", "cp1251", "latin-1"):
+            try:
+                return unicode(text, enc)
+            except Exception:
+                continue
+    try:
+        return unicode(text)
+    except Exception:
+        return u""
+
+
 def save(cfg):
     """Persist config dict to disk."""
     _ensure_dir()
     cfg = _normalize_library_cfg(dict(cfg))
     stored = dict(DEFAULTS)
     for k in DEFAULTS:
-        stored[k] = cfg.get(k, DEFAULTS[k])
+        v = cfg.get(k, DEFAULTS[k])
+        if k == "library_path":
+            v = _u(v)
+        stored[k] = v
     text = json.dumps(stored, ensure_ascii=True, indent=2)
     if isinstance(text, unicode):
         text = text.encode("utf-8")
