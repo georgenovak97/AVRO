@@ -110,7 +110,7 @@
             <Setter Property="MaxWidth" Value="32"/>
             <Setter Property="MaxHeight" Value="32"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Margin" Value="0"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontFamily" Value="Segoe UI Symbol"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -283,6 +283,9 @@
                             Content="&#x263E;"
                             Style="{StaticResource ThemeToggleButton}"
                             ToolTip="Тёмная тема (Revit 2024)"/>
+                    <Border Width="1" Margin="10,2,10,2"
+                            Background="{DynamicResource BorderMain}"
+                            VerticalAlignment="Stretch"/>
                     <Button x:Name="BtnSettings"
                             Content="Библиотека" Style="{StaticResource RevitButton}"
                             MinWidth="88" ToolTip="Выбрать папку библиотеки"/>
