@@ -11,11 +11,10 @@ CONFIG_DIR  = os.path.join(os.getenv("APPDATA", ""), "pyRevit", "AVRO")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
 DEFAULTS = {
-    "library_paths": [],          # list of root folder paths
-    "last_path": "",
+    "library_path": "",           # единственная корневая папка библиотеки
     "thumbnail_size": 156,
     "recent_families": [],        # last 20 loaded .rfa paths
-    "library_cache_hash": "",     # md5 of library path(s), set after scan
+    "library_cache_hash": "",     # md5 of library path, set after scan
     "library_cache_count": 0,
 }
 
@@ -23,6 +22,21 @@ DEFAULTS = {
 def _ensure_dir():
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
+
+
+def _normalize_library_cfg(cfg):
+    """Одна библиотека: миграция со старых library_paths / last_path."""
+    path = (cfg.get("library_path") or u"").strip()
+    if not path:
+        path = (cfg.get("last_path") or u"").strip()
+    if not path:
+        legacy = cfg.get("library_paths") or []
+        if isinstance(legacy, basestring):
+            path = legacy.strip()
+        elif legacy:
+            path = (legacy[-1] or u"").strip()
+    cfg["library_path"] = path
+    return cfg
 
 
 def load():
@@ -33,10 +47,9 @@ def load():
     try:
         with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
             data = json.load(f)
-        # fill missing keys
         for k, v in DEFAULTS.items():
             data.setdefault(k, v)
-        return data
+        return _normalize_library_cfg(data)
     except Exception:
         return dict(DEFAULTS)
 
@@ -44,7 +57,11 @@ def load():
 def save(cfg):
     """Persist config dict to disk."""
     _ensure_dir()
-    text = json.dumps(cfg, ensure_ascii=True, indent=2)
+    cfg = _normalize_library_cfg(dict(cfg))
+    stored = dict(DEFAULTS)
+    for k in DEFAULTS:
+        stored[k] = cfg.get(k, DEFAULTS[k])
+    text = json.dumps(stored, ensure_ascii=True, indent=2)
     if isinstance(text, unicode):
         text = text.encode("utf-8")
     with open(CONFIG_FILE, "wb") as f:
@@ -61,14 +78,20 @@ def set_value(key, value):
     save(cfg)
 
 
-def add_library_path(path):
+def get_library_path():
+    return load().get("library_path", "") or ""
+
+
+def set_library_path(path):
+    """Заменить единственный путь к библиотеке (кнопка «Библиотека»)."""
     cfg = load()
-    paths = cfg.get("library_paths", [])
-    if path not in paths:
-        paths.append(path)
-        cfg["library_paths"] = paths
-        cfg["last_path"] = path
-        save(cfg)
+    cfg["library_path"] = path or ""
+    save(cfg)
+
+
+def add_library_path(path):
+    """Совместимость: то же, что set_library_path."""
+    set_library_path(path)
 
 
 def add_recent(rfa_path):

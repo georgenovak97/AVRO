@@ -521,20 +521,40 @@ class FamilyManagerDialog(object):
         elif tag:
             self._select_tree_item_by_tag(tag)
 
+    def _library_path(self):
+        return (self.cfg.get("library_path", "") or "").strip()
+
     def _library_paths(self):
-        paths = self.cfg.get("library_paths", []) or []
-        if isinstance(paths, basestring):
-            paths = [paths]
-        else:
-            try:
-                paths = list(paths)
-            except Exception:
-                paths = []
-        if not paths:
-            last = self.cfg.get("last_path", "")
-            if last:
-                paths = [last]
-        return paths
+        """Список из одного пути — для кэша и сканера."""
+        p = self._library_path()
+        if p and os.path.isdir(p):
+            return [p]
+        return []
+
+    def _normalize_scan(self, scan):
+        """В дереве только одна корневая библиотека из настроек."""
+        if not scan:
+            return {"roots": [], "all": [], "index": {}}
+        path = self._library_path()
+        if not path:
+            return {"roots": [], "all": [], "index": {}}
+        norm_root = os.path.normcase(os.path.normpath(os.path.abspath(path)))
+        roots = []
+        for node in scan.get("roots", []):
+            node_norm = os.path.normcase(
+                os.path.normpath(os.path.abspath(node.path)))
+            if node_norm == norm_root:
+                roots.append(node)
+                break
+        if not roots:
+            return {"roots": [], "all": [], "index": {}}
+        root = roots[0]
+        all_families = root.descendants()
+        return {
+            "roots": [root],
+            "all": all_families,
+            "index": scanner.index_folder_tree([root]),
+        }
 
     def _cache_key(self):
         return _library_cache_key(self._library_paths())
@@ -600,7 +620,7 @@ class FamilyManagerDialog(object):
 
     def _apply_cache(self, scan, disk_miss):
         sticky_key, sticky_mem, sticky_miss = _load_sticky_session()
-        self._scan = scan
+        self._scan = self._normalize_scan(scan)
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
         if sk == self._cache_key() and sticky_mem:
             self._preview_mem = dict(sticky_mem)
@@ -669,9 +689,9 @@ class FamilyManagerDialog(object):
             System.Action(lambda: self._scan_done(scan)))
 
     def _scan_done(self, scan):
-        self._scan = scan
-        total = len(scan.get("all", []))
-        n_folders = len(scan.get("index", {}))
+        self._scan = self._normalize_scan(scan)
+        total = len(self._scan.get("all", []))
+        n_folders = len(self._scan.get("index", {}))
         key = self._cache_key()
         self._preview_miss = set()
         saved, save_msg = libcache.save(key, self._scan, self._preview_miss)
@@ -696,7 +716,7 @@ class FamilyManagerDialog(object):
                 u"Диспетчер семейств",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning)
-        self._build_tree(scan)
+        self._build_tree(self._scan)
         self._show_recents_default()
 
     def _build_tree(self, scan):
@@ -1356,13 +1376,14 @@ class FamilyManagerDialog(object):
 
     def _on_settings(self, sender, e):
         dlg = FolderBrowserDialog()
-        dlg.Description = u"Корневая папка библиотеки семейств Revit"
-        current = self.cfg.get("last_path", "")
+        dlg.Description = u"Корневая папка библиотеки семейств Revit (одна библиотека)"
+        current = self._library_path()
         if current and os.path.isdir(current):
             dlg.SelectedPath = current
         result = dlg.ShowDialog()
         if result == DialogResult.OK:
-            config.add_library_path(dlg.SelectedPath)
+            config.set_library_path(dlg.SelectedPath)
+            config.clear_recent()
             self.cfg = config.load()
             clear_library_cache()
             self._preview_mem = {}
@@ -1371,6 +1392,10 @@ class FamilyManagerDialog(object):
             self._schedule_scan()
 
     def _on_reload(self, sender, e):
+        if not self._library_path():
+            self._set_status(
+                u"Путь к библиотеке не задан. Нажмите «Библиотека».")
+            return
         config.clear_recent()
         self.cfg = config.load()
         clear_library_cache()
