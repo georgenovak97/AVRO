@@ -36,6 +36,7 @@ from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from System.IO import MemoryStream
 from System.Windows.Markup import XamlReader
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
+from System.Windows.Threading import DispatcherTimer
 import Autodesk.Revit.DB as RDB
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -272,6 +273,7 @@ _CARD_UI_BATCH_THRESHOLD = 100
 # Above this count only visible cards are created (virtual scroll).
 _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
+_SEARCH_DEBOUNCE_MS = 400
 _CARD_MARGIN = 10
 _CARD_W = 156
 _CARD_H = 182
@@ -483,6 +485,7 @@ class FamilyManagerDialog(object):
         self._folder_scope = []
         self._folder_scope_label = u""
         self._search_suppress = False
+        self._search_timer = None
         # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
         self._browse_disk_only = False
         self._card_build_gen = 0
@@ -503,6 +506,7 @@ class FamilyManagerDialog(object):
         self._project_family_index_doc = None
 
     def _init_window(self):
+        self._search_timer = None
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
@@ -577,6 +581,7 @@ class FamilyManagerDialog(object):
             self._folder_scope_label = label
 
         if search_query:
+            self._stop_search_timer()
             self._search_suppress = True
             try:
                 self.ui.SearchBox.Text = search_query
@@ -899,7 +904,20 @@ class FamilyManagerDialog(object):
         for name in sorted(node.children.keys(), key=lambda s: s.lower()):
             self._add_folder_node(item.Items, node.children[name])
 
+    def _stop_search_timer(self):
+        if self._search_timer is not None:
+            self._search_timer.Stop()
+
+    def _ensure_search_timer(self):
+        if self._search_timer is not None:
+            return
+        timer = DispatcherTimer()
+        timer.Interval = System.TimeSpan.FromMilliseconds(_SEARCH_DEBOUNCE_MS)
+        timer.Tick += self._on_search_debounced
+        self._search_timer = timer
+
     def _reset_search_field(self):
+        self._stop_search_timer()
         self._search_suppress = True
         try:
             self.ui.SearchBox.Text = u""
@@ -1456,6 +1474,7 @@ class FamilyManagerDialog(object):
     def _on_clear_search(self, sender, e):
         if not self.ui.SearchBox.Text.strip():
             return
+        self._stop_search_timer()
         self._reset_search_field()
         self._show_families(self._folder_scope)
         self._set_breadcrumb(self._folder_scope_label)
@@ -1476,10 +1495,18 @@ class FamilyManagerDialog(object):
         self.ui.CountText.Text = u"{} / {} шт.".format(
             len(results), len(self._folder_scope))
 
+    def _on_search_debounced(self, sender, e):
+        self._stop_search_timer()
+        if self._search_suppress or self.ui is None:
+            return
+        self._apply_search(self.ui.SearchBox.Text)
+
     def _on_search(self, sender, e):
         if self._search_suppress:
             return
-        self._apply_search(self.ui.SearchBox.Text)
+        self._ensure_search_timer()
+        self._search_timer.Stop()
+        self._search_timer.Start()
 
     def _load_selected(self):
         paths = [p for p in self._order_paths if p in self._selected_paths]
