@@ -288,10 +288,10 @@ def clear_library_cache():
     libcache.clear()
     _save_sticky_session(None, {}, set())
     try:
-        cfg = config.load()
-        cfg["library_cache_hash"] = ""
-        cfg["library_cache_count"] = 0
-        config.save(cfg)
+        config.patch_fields({
+            "library_cache_hash": "",
+            "library_cache_count": 0,
+        })
     except Exception:
         pass
 
@@ -848,9 +848,11 @@ class FamilyManagerDialog(object):
         self._invalidate_project_family_index()
         self.cfg = config.load()
         if saved:
-            self.cfg["library_cache_hash"] = libcache.key_hash(key)
-            self.cfg["library_cache_count"] = total
-            config.save(self.cfg)
+            config.patch_fields({
+                "library_cache_hash": libcache.key_hash(key),
+                "library_cache_count": total,
+            })
+            self.cfg = config.load()
         _save_sticky_session(key, self._preview_mem, self._preview_miss)
         if saved:
             self._set_status(u"Загружено: {} семейств, {} папок (кэш сохранён)".format(
@@ -905,7 +907,7 @@ class FamilyManagerDialog(object):
             self._search_suppress = False
 
     def _recent_families(self):
-        """Same order as ``recent_families`` in config: last loaded first."""
+        """Same order as recent_families.json: last loaded first."""
         self.cfg = config.load()
         by_path = {}
         for fi in self._scan.get("all", []):
@@ -913,7 +915,7 @@ class FamilyManagerDialog(object):
             by_path[np] = fi
         ordered = []
         seen = set()
-        for p in self.cfg.get("recent_families", []):
+        for p in config.load_recents():
             np = libcache._norm_path(p)
             if np in seen:
                 continue
@@ -1625,6 +1627,8 @@ class FamilyManagerDialog(object):
         self._pending_symbol_id = symbol.Id.IntegerValue
         self._pending_family_name = _as_unicode(fi.name)
         self._pending_family_path = libcache._norm_path(fi.path)
+        config.add_recent(self._pending_family_path)
+        self.cfg = config.load()
         self.win.Close()
 
     def _run_pending_placement(self, sym_id, family_name, family_path):
@@ -1644,11 +1648,6 @@ class FamilyManagerDialog(object):
                 uidoc.PromptForFamilyInstancePlacement(symbol)
             except OperationCanceledException:
                 return u"Размещение отменено"
-            if family_path:
-                config.add_recent(family_path)
-                self.cfg = config.load()
-                libcache._log(u"recent added after place: {}".format(
-                    family_path))
             return u"Размещено: {}".format(family_name)
         except Exception as ex:
             return u"Ошибка размещения: {}".format(ex)
@@ -1746,7 +1745,6 @@ class FamilyManagerDialog(object):
             self._set_status(
                 u"Путь к библиотеке не задан. Нажмите «Библиотека».")
             return
-        config.clear_recent()
         self.cfg = config.load()
         clear_library_cache()
         self._preview_mem = {}
