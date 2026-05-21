@@ -699,11 +699,11 @@ class FamilyManagerDialog(object):
         try:
             saved, msg = libcache.save(
                 key, scan, None)
-            cfg = config.load()
             if saved:
-                cfg["library_cache_hash"] = libcache.key_hash(key)
-                cfg["library_cache_count"] = len(scan.get("all", []))
-                config.save(cfg)
+                config.patch_fields({
+                    "library_cache_hash": libcache.key_hash(key),
+                    "library_cache_count": len(scan.get("all", [])),
+                })
             else:
                 libcache._log(u"persist failed: {}".format(msg))
         except Exception as ex:
@@ -789,6 +789,10 @@ class FamilyManagerDialog(object):
         return True
 
     def _on_window_closing(self, sender, e):
+        # Placement closes the window and reopens it; async cache save must not
+        # overwrite recent_families written right after placement.
+        if self._pending_symbol_id:
+            return
         self._persist_cache(async_save=True)
 
     def _bind(self):
@@ -914,11 +918,17 @@ class FamilyManagerDialog(object):
             if np in seen:
                 continue
             fi = by_path.get(np)
-            if fi is None and os.path.isfile(np):
+            if fi is None:
                 for fi2 in self._scan.get("all", []):
                     if os.path.normcase(fi2.path) == os.path.normcase(np):
                         fi = fi2
                         break
+            if fi is None and os.path.isfile(np):
+                try:
+                    fi = scanner.FamilyInfo(
+                        np, self._library_path() or None)
+                except Exception:
+                    fi = None
             if fi is not None:
                 ordered.append(fi)
                 seen.add(np)
@@ -1614,7 +1624,7 @@ class FamilyManagerDialog(object):
         }
         self._pending_symbol_id = symbol.Id.IntegerValue
         self._pending_family_name = _as_unicode(fi.name)
-        self._pending_family_path = os.path.normpath(fi.path)
+        self._pending_family_path = libcache._norm_path(fi.path)
         self.win.Close()
 
     def _run_pending_placement(self, sym_id, family_name, family_path):
@@ -1663,7 +1673,6 @@ class FamilyManagerDialog(object):
         except Exception as ex:
             libcache._log(u"pump_ui: {}".format(_as_unicode(ex)))
         try:
-            import System.Threading
             System.Threading.Thread.Sleep(200)
         except Exception:
             pass

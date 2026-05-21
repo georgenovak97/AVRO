@@ -96,6 +96,18 @@ def save(cfg):
         f.write(text)
 
 
+def patch_fields(updates):
+    """Update only known keys; always merges with the latest file on disk."""
+    if not updates:
+        return
+    cfg = load()
+    for key, val in updates.items():
+        if key not in DEFAULTS:
+            continue
+        cfg[key] = val
+    save(cfg)
+
+
 def get(key, default=None):
     return load().get(key, default)
 
