@@ -128,7 +128,7 @@ def _utf8_to_unicode(val):
         try:
             return unicode(val, "utf-8")
         except Exception:
-            return _u(val)
+            return _repair_mojibake(val)
     if isinstance(val, unicode):
         return val
     return val
@@ -332,7 +332,8 @@ def save(key_tuple, scan, preview_miss=None, write_json=False):
     blob["key_hash"] = kh
     blob["library_fingerprint"] = library_fingerprint(key_tuple)
     blob = _sanitize_value(blob)
-    blob_store = _sanitize_value(blob)
+    # IronPython pickle needs utf-8 byte strings, not unicode (Cyrillic paths/names).
+    blob_store = _unicode_to_utf8(blob)
 
     ok_pkl = False
     err_pkl = u""
@@ -395,7 +396,7 @@ def _load_blob_file(path):
     if path.endswith(".pkl"):
         with open(path, "rb") as f:
             raw = pickle.load(f)
-        return _sanitize_value(raw)
+        return _utf8_to_unicode(raw)
     with codecs.open(path, "r", "utf-8") as f:
         raw = json.load(f)
     return _utf8_to_unicode(raw)

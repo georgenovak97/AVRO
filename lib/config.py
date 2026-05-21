@@ -86,10 +86,10 @@ def save(cfg):
         elif k == "recent_families":
             v = [_u(p) for p in (v or []) if p]
         stored[k] = v
-    text = json.dumps(stored, ensure_ascii=True, indent=2)
-    if isinstance(text, unicode):
-        text = text.encode("utf-8")
-    with open(CONFIG_FILE, "wb") as f:
+    text = json.dumps(stored, ensure_ascii=False, indent=2)
+    if isinstance(text, str):
+        text = _u(text)
+    with codecs.open(CONFIG_FILE, "w", "utf-8") as f:
         f.write(text)
 
 

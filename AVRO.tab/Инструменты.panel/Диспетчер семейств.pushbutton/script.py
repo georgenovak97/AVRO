@@ -697,9 +697,9 @@ class FamilyManagerDialog(object):
 
     def _persist_cache_worker(self, key, scan):
         try:
-            cfg = config.load()
             saved, msg = libcache.save(
                 key, scan, None, write_json=False)
+            cfg = config.load()
             if saved:
                 cfg["library_cache_hash"] = libcache.key_hash(key)
                 cfg["library_cache_count"] = len(scan.get("all", []))
