@@ -483,8 +483,8 @@ class FamilyManagerDialog(object):
         self._folder_scope = []
         self._folder_scope_label = u""
         self._search_suppress = False
-        # True: only read thumb cache when browsing; never parse .rfa on folder click.
-        self._browse_disk_only = True
+        # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
+        self._browse_disk_only = False
         self._card_build_gen = 0
         self._initial_load_started = False
         self._pending_symbol_id = None
@@ -635,7 +635,7 @@ class FamilyManagerDialog(object):
             return
         # Reload so we never write stale ``recent_families`` over newer disk state.
         self.cfg = config.load()
-        saved, msg = libcache.save(key, self._scan, self._preview_miss)
+        saved, msg = libcache.save(key, self._scan, None)
         if saved:
             self.cfg["library_cache_hash"] = libcache.key_hash(key)
             self.cfg["library_cache_count"] = len(self._scan.get("all", []))
@@ -695,14 +695,13 @@ class FamilyManagerDialog(object):
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
         if sk == self._cache_key() and sticky_mem:
             self._preview_mem = dict(sticky_mem)
-            self._preview_miss = set(sticky_miss)
         else:
             self._preview_mem = {}
-            self._preview_miss = set(disk_miss)
+        # Never restore preview_miss (old disk-only sessions blocked all thumbnails).
+        self._preview_miss = set()
 
         total = len(self._scan.get("all", []))
         self._build_tree(self._scan)
-        self._browse_disk_only = True
         self._show_recents_default()
         self._set_status(
             u"Из кэша: {} семейств. «Обновить» — пересканировать папки.".format(
@@ -1107,7 +1106,7 @@ class FamilyManagerDialog(object):
 
         visible = [families[i] for i in range(first_i, last_i)]
         self._preview_gen += 1
-        self._schedule_previews(visible, disk_only=True)
+        self._schedule_previews(visible, disk_only=False)
         self._set_status(u"{} семейств".format(n))
 
     def _add_family_card(self, fi, index=None):
@@ -1243,7 +1242,7 @@ class FamilyManagerDialog(object):
                 if not png and not disk_only:
                     png = rfa_preview.extract_preview_png_bytes(path)
                 done[0] += 1
-                if not png:
+                if not png and not disk_only:
                     self._preview_miss.add(path)
                 elif gen == self._preview_gen:
                     loaded[0] += 1
@@ -1694,7 +1693,6 @@ class FamilyManagerDialog(object):
         self._preview_miss = set()
         self._preview_gen += 1
         self._card_build_gen += 1
-        self._browse_disk_only = True
         self._scan = {"roots": [], "all": [], "index": {}}
         self._folder_scope = []
         self._folder_scope_label = u""

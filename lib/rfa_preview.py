@@ -12,6 +12,25 @@ import struct
 
 THUMB_CACHE_DIR = os.path.join(
     os.getenv("APPDATA", ""), "pyRevit", "AVRO", "thumbs")
+LOG_FILE = os.path.join(
+    os.getenv("APPDATA", ""), "pyRevit", "AVRO", "cache.log")
+
+
+def _log(msg):
+    try:
+        import codecs
+        import time
+        line = u"{} {}\n".format(
+            time.strftime("%Y-%m-%d %H:%M:%S"), msg)
+        if isinstance(line, str):
+            line = line.decode("utf-8", "ignore")
+        parent = os.path.dirname(LOG_FILE)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent)
+        with codecs.open(LOG_FILE, "a", "utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
 
 _PNG_SIG = "\x89PNG\r\n\x1a\n"
 _JPEG_SOI = "\xff\xd8"
@@ -26,6 +45,7 @@ _PREVIEW_STREAMS = (
 _storage_root_type = None
 _storage_open_flags = None
 _storage_opened = False
+_preview_miss_log_count = 0
 
 
 def _ensure_cache_dir():
@@ -406,6 +426,11 @@ def extract_preview_png_bytes(rfa_path):
                 _write_cache_jpeg(_cache_path_jpeg(rfa_path), img_bytes)
             else:
                 _write_cache(_cache_path(rfa_path), img_bytes)
-        except Exception:
-            pass
+        except Exception as ex:
+            _log(u"thumb cache write failed {}: {}".format(rfa_path, ex))
+    else:
+        global _preview_miss_log_count
+        if _preview_miss_log_count < 30:
+            _log(u"preview not found in rfa: {}".format(rfa_path))
+            _preview_miss_log_count += 1
     return img_bytes
