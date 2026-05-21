@@ -27,7 +27,8 @@ from System.Windows import (
     TextWrapping, FrameworkElement,
 )
 from System.Windows.Controls import (
-    TreeViewItem, Border, StackPanel, TextBlock, Image
+    TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
+    WrapPanel,
 )
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper, Stretch
 from System.Windows.Input import Keyboard, ModifierKeys
@@ -223,8 +224,8 @@ def _load_xaml():
 _UI_CONTROL_NAMES = [
     "SearchBox", "BtnClearSearch",
     "CategoryTree", "BtnThemeToggle", "BtnSettings", "BtnReload",
-    "BtnLoadSelected", "FamilyPanel", "BreadcrumbText", "CountText",
-    "StatusText",
+    "BtnLoadSelected", "FamilyPanel", "FamilyScrollViewer",
+    "BreadcrumbText", "CountText", "StatusText",
 ]
 
 
@@ -265,9 +266,13 @@ class NamedUiControls(object):
                 "Named controls not found in ui.xaml: " + ", ".join(missing))
 
 _TAG_FOLDER_PREFIX = "folder:"
-# Build large folder grids in UI batches so the window stays responsive.
-_CARD_UI_BATCH = 50
+# Build medium folder grids in UI batches so the window stays responsive.
+_CARD_UI_BATCH = 80
 _CARD_UI_BATCH_THRESHOLD = 100
+# Above this count only visible cards are created (virtual scroll).
+_VIRTUAL_THRESHOLD = 250
+_VIRTUAL_ROW_BUFFER = 2
+_CARD_MARGIN = 10
 _CARD_W = 156
 _CARD_H = 182
 _PREVIEW_W = 96
@@ -472,6 +477,7 @@ class FamilyManagerDialog(object):
         self._card_by_path = {}
         self._fi_by_path = {}
         self._order_paths = []
+        self._path_to_index = {}
         self._selected_paths = set()
         self._anchor_path = None
         self._folder_scope = []
@@ -488,6 +494,11 @@ class FamilyManagerDialog(object):
         self._reopen_ui_state = None
         self._suppress_tree_events = False
         self._dark_theme = config.load().get("ui_theme", "light") == "dark"
+        self._virtual_mode = False
+        self._virtual_scroll_gen = 0
+        self._virtual_updating = False
+        self._last_scroll_width = -1.0
+        self._catalog_changing = False
 
     def _init_window(self):
         self.win = _load_xaml()
@@ -607,6 +618,7 @@ class FamilyManagerDialog(object):
         if not roots:
             return {"roots": [], "all": [], "index": {}}
         root = roots[0]
+        scanner.finalize_folder_counts([root])
         all_families = root.descendants()
         return {
             "roots": [root],
@@ -677,6 +689,7 @@ class FamilyManagerDialog(object):
             u"Кэш не найден. Нажмите «Обновить» для сканирования библиотеки.")
 
     def _apply_cache(self, scan, disk_miss):
+        self._set_status(u"Построение дерева библиотеки\u2026")
         sticky_key, sticky_mem, sticky_miss = _load_sticky_session()
         self._scan = self._normalize_scan(scan)
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
@@ -719,6 +732,8 @@ class FamilyManagerDialog(object):
         u.BtnClearSearch.Click             += self._on_clear_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
         u.BtnThemeToggle.Click             += self._on_theme_toggle
+        u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
+        u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._on_settings
         u.BtnReload.Click                  += self._on_reload
         u.BtnLoadSelected.Click            += lambda s, e: self._load_selected()
@@ -738,7 +753,13 @@ class FamilyManagerDialog(object):
 
     def _do_scan(self, paths):
         try:
-            scan = scanner.scan_library(paths)
+            def progress(n):
+                self.win.Dispatcher.BeginInvoke(
+                    System.Action(
+                        lambda c=n: self._set_status(
+                            u"Сканирование: {} семейств\u2026".format(c))))
+
+            scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
             msg = u"Ошибка сканирования: {}".format(ex)
             self.win.Dispatcher.Invoke(
@@ -871,7 +892,7 @@ class FamilyManagerDialog(object):
 
     def _open_catalog(self, families, breadcrumb):
         """Show a folder catalog; search is limited to these families."""
-        self._folder_scope = list(families)
+        self._folder_scope = families
         self._folder_scope_label = breadcrumb
         self._reset_search_field()
         self._set_breadcrumb(breadcrumb)
@@ -914,7 +935,182 @@ class FamilyManagerDialog(object):
     def _all_families(self):
         return list(self._scan.get("all", []))
 
-    def _add_family_card(self, fi):
+    def _layout_cols(self):
+        sv = self.ui.FamilyScrollViewer
+        w = sv.ViewportWidth if sv.ViewportWidth > 0 else sv.ActualWidth
+        if w < 80 and self.win is not None:
+            w = max(400.0, float(self.win.ActualWidth) - 380.0)
+        if w < 80:
+            w = 800.0
+        slot = float(_CARD_W + _CARD_MARGIN)
+        return max(1, int(w / slot))
+
+    def _card_slot_xy(self, index):
+        cols = self._layout_cols()
+        col = index % cols
+        row = index // cols
+        x = col * (_CARD_W + _CARD_MARGIN)
+        y = row * (_CARD_H + _CARD_MARGIN)
+        return float(x), float(y)
+
+    def _canvas_height_for(self, count):
+        if count <= 0:
+            return 0.0
+        cols = self._layout_cols()
+        rows = (count + cols - 1) // cols
+        return float(rows * (_CARD_H + _CARD_MARGIN))
+
+    def _on_family_scroll(self, sender, e):
+        if self._catalog_changing or not self._virtual_mode:
+            return
+        self._queue_virtual_sync()
+
+    def _on_family_panel_resize(self, sender, e):
+        if self._catalog_changing or not self._virtual_mode or not self._active:
+            return
+        if self._virtual_updating:
+            return
+        sv = self.ui.FamilyScrollViewer
+        cw = sv.ViewportWidth if sv.ViewportWidth > 0 else sv.ActualWidth
+        if abs(cw - self._last_scroll_width) < 2.0:
+            return
+        self._last_scroll_width = cw
+        self._queue_virtual_sync()
+
+    def _queue_virtual_sync(self):
+        self._virtual_scroll_gen += 1
+        gen = self._virtual_scroll_gen
+
+        def run():
+            if gen != self._virtual_scroll_gen:
+                return
+            self._virtual_sync_viewport()
+
+        self.win.Dispatcher.BeginInvoke(System.Action(run))
+
+    def _remove_family_card(self, path):
+        card = self._card_by_path.pop(path, None)
+        self._card_views.pop(path, None)
+        if card is not None:
+            self.ui.FamilyPanel.Children.Remove(card)
+
+    def _prepare_family_surface(self, virtual):
+        """Canvas + absolute layout for large catalogs; WrapPanel for small."""
+        sv = self.ui.FamilyScrollViewer
+        if virtual:
+            if not isinstance(sv.Content, Canvas):
+                panel = Canvas()
+                sv.Content = panel
+            else:
+                panel = sv.Content
+        else:
+            if not isinstance(sv.Content, WrapPanel):
+                panel = WrapPanel()
+                panel.Margin = Thickness(0)
+                sv.Content = panel
+            else:
+                panel = sv.Content
+        self.ui.FamilyPanel = panel
+        return panel
+
+    def _force_scroll_top(self):
+        """Scroll to top after canvas height changes (small folders after large)."""
+        if self.ui is None:
+            return
+        sv = self.ui.FamilyScrollViewer
+        panel = self.ui.FamilyPanel
+        try:
+            panel.UpdateLayout()
+            sv.UpdateLayout()
+            sv.ScrollToVerticalOffset(0)
+            if hasattr(sv, "ScrollToHome"):
+                sv.ScrollToHome()
+            sv.UpdateLayout()
+            sv.ScrollToVerticalOffset(0)
+        except Exception:
+            pass
+
+    def _finish_family_view_layout(self):
+        """Reset scroll after layout — fixes grid offset after large folders."""
+        run_virtual = self._virtual_mode
+
+        def done():
+            if self.ui is None:
+                return
+            self._force_scroll_top()
+            self._catalog_changing = False
+            if run_virtual:
+                self._virtual_sync_viewport()
+
+        from System.Windows.Threading import DispatcherPriority
+        self.win.Dispatcher.BeginInvoke(
+            System.Action(done), DispatcherPriority.Loaded)
+
+    def _virtual_sync_viewport(self):
+        if not self._virtual_mode or not self._active:
+            return
+        families = self._active
+        n = len(families)
+        if n == 0:
+            return
+
+        sv = self.ui.FamilyScrollViewer
+        panel = self.ui.FamilyPanel
+
+        cols = self._layout_cols()
+        row_h = float(_CARD_H + _CARD_MARGIN)
+        total_rows = (n + cols - 1) // cols
+        canvas_h = total_rows * row_h
+        self._virtual_updating = True
+        try:
+            panel.Height = canvas_h
+        finally:
+            self._virtual_updating = False
+
+        view_h = sv.ViewportHeight if sv.ViewportHeight > 0 else 600.0
+        scroll_y = sv.VerticalOffset
+        max_scroll = max(0.0, canvas_h - view_h)
+        if scroll_y > max_scroll + 2.0:
+            scroll_y = 0.0
+            self._virtual_updating = True
+            try:
+                sv.ScrollToVerticalOffset(0.0)
+            except Exception:
+                pass
+            finally:
+                self._virtual_updating = False
+
+        first_row = max(0, int(scroll_y / row_h) - _VIRTUAL_ROW_BUFFER)
+        last_row = min(
+            total_rows,
+            int((scroll_y + view_h) / row_h) + _VIRTUAL_ROW_BUFFER + 1)
+        first_i = first_row * cols
+        last_i = min(n, last_row * cols)
+        if first_i >= last_i:
+            first_i = 0
+            last_i = min(n, cols * (last_row - first_row + 1))
+            if last_i <= 0:
+                last_i = min(n, cols)
+
+        wanted = set()
+        for i in range(first_i, last_i):
+            wanted.add(families[i].path)
+
+        for path in list(self._card_by_path.keys()):
+            if path not in wanted:
+                self._remove_family_card(path)
+
+        for i in range(first_i, last_i):
+            fi = families[i]
+            if fi.path not in self._card_by_path:
+                self._add_family_card(fi, index=i)
+
+        visible = [families[i] for i in range(first_i, last_i)]
+        self._preview_gen += 1
+        self._schedule_previews(visible, disk_only=True)
+        self._set_status(u"{} семейств".format(n))
+
+    def _add_family_card(self, fi, index=None):
         panel = self.ui.FamilyPanel
         if fi.path in self._preview_mem:
             fi.preview = self._preview_mem[fi.path]
@@ -922,21 +1118,38 @@ class FamilyManagerDialog(object):
         self._fi_by_path[fi.path] = fi
         self._card_views[fi.path] = preview_img
         self._card_by_path[fi.path] = card
-        self._order_paths.append(fi.path)
+        if isinstance(panel, Canvas):
+            if index is None:
+                index = self._path_to_index.get(fi.path)
+            if index is not None:
+                x, y = self._card_slot_xy(index)
+                Canvas.SetLeft(card, x)
+                Canvas.SetTop(card, y)
         panel.Children.Add(card)
 
     def _show_families(self, families):
+        self._catalog_changing = True
         self._active = families
         self._card_build_gen += 1
         gen = self._card_build_gen
         self._preview_gen += 1
+        self._virtual_scroll_gen += 1
+        self._virtual_mode = len(families) > _VIRTUAL_THRESHOLD
 
-        panel = self.ui.FamilyPanel
+        panel = self._prepare_family_surface(self._virtual_mode)
         panel.Children.Clear()
+        if isinstance(panel, Canvas):
+            panel.Height = 0
+        try:
+            self.ui.FamilyScrollViewer.ScrollToVerticalOffset(0)
+        except Exception:
+            pass
         self._card_views = {}
         self._card_by_path = {}
         self._fi_by_path = {}
-        self._order_paths = []
+        self._order_paths = [fi.path for fi in families]
+        self._path_to_index = dict(
+            (fi.path, i) for i, fi in enumerate(families))
         self._selected_paths = set()
         self._anchor_path = None
         self.ui.BtnLoadSelected.IsEnabled = False
@@ -944,13 +1157,28 @@ class FamilyManagerDialog(object):
         n = len(families)
         self.ui.CountText.Text = u"{} шт.".format(n)
         if not families:
+            self._virtual_mode = False
+            self._catalog_changing = False
+            return
+
+        if self._virtual_mode:
+            for fi in families:
+                self._fi_by_path[fi.path] = fi
+            self._set_status(
+                u"{} семейств — подгрузка при прокрутке\u2026".format(n))
+            self._queue_virtual_sync()
+            self._finish_family_view_layout()
             return
 
         if n <= _CARD_UI_BATCH_THRESHOLD:
-            for fi in families:
-                self._add_family_card(fi)
+            for i, fi in enumerate(families):
+                self._add_family_card(fi, index=i)
+            if isinstance(panel, Canvas):
+                panel.Height = self._canvas_height_for(n)
+            self._force_scroll_top()
             self._schedule_previews(
                 families, disk_only=self._browse_disk_only)
+            self._finish_family_view_layout()
             return
 
         self._card_batch_families = list(families)
@@ -966,9 +1194,12 @@ class FamilyManagerDialog(object):
         total = len(families)
         start = self._card_batch_index
         end = min(start + _CARD_UI_BATCH, total)
-        for fi in families[start:end]:
-            self._add_family_card(fi)
+        for i in range(start, end):
+            self._add_family_card(families[i], index=i)
         self._card_batch_index = end
+        panel = self.ui.FamilyPanel
+        if isinstance(panel, Canvas):
+            panel.Height = self._canvas_height_for(total)
         if end < total:
             self._set_status(
                 u"Загрузка: {} / {} семейств\u2026".format(end, total))
@@ -978,6 +1209,7 @@ class FamilyManagerDialog(object):
         self._card_batch_families = None
         self._schedule_previews(
             families, disk_only=self._browse_disk_only)
+        self._finish_family_view_layout()
 
     def _schedule_previews(self, families, disk_only=False):
         self._preview_gen += 1
@@ -1008,7 +1240,7 @@ class FamilyManagerDialog(object):
                     done[0] += 1
                     continue
                 png = rfa_preview.read_cached_png_bytes(path)
-                if not png:
+                if not png and not disk_only:
                     png = rfa_preview.extract_preview_png_bytes(path)
                 done[0] += 1
                 if not png:
@@ -1018,15 +1250,15 @@ class FamilyManagerDialog(object):
                     pending.append((path, png))
                     if len(pending) >= 20:
                         flush_pending()
-                if done[0] % 50 == 0 or done[0] == total:
+                if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
                     flush_pending()
-                    if gen == self._preview_gen:
+                    if gen == self._preview_gen and not self._virtual_mode:
                         msg = u"Обработано семейств: {} / {}".format(
                             done[0], total)
                         self.win.Dispatcher.Invoke(
                             System.Action(lambda m=msg: self._set_status(m)))
             flush_pending()
-            if gen == self._preview_gen:
+            if gen == self._preview_gen and not self._virtual_mode:
                 msg = u"Готово: {} семейств.".format(total)
                 self.win.Dispatcher.Invoke(
                     System.Action(lambda m=msg: self._set_status(m)))

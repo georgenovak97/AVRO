@@ -90,10 +90,27 @@ def _label_via_file_bytes(path):
     return u""
 
 
+def revit_version_from_path(rfa_path):
+    """Fast label from folder names (R24, R22, …) — safe during library scan."""
+    if not rfa_path:
+        return u""
+    norm = rfa_path.replace("\\", "/")
+    for part in norm.split("/"):
+        if not part:
+            continue
+        m = re.match(r"^R(\d{2})$", part, re.I)
+        if m:
+            return u"R{:02d}".format(int(m.group(1)))
+    return u""
+
+
 def revit_version_label(rfa_path):
     """Return display label like R22, or empty string if unknown."""
     if not rfa_path or not rfa_path.lower().endswith(".rfa"):
         return u""
+    label = revit_version_from_path(rfa_path)
+    if label:
+        return label
     label = _label_via_basic_file_info(rfa_path)
     if label:
         return label

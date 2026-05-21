@@ -62,7 +62,7 @@ class FamilyInfo(object):
         import datetime
         self.modified = datetime.datetime.fromtimestamp(
             stat.st_mtime).strftime("%Y-%m-%d")
-        self.revit_version = rfa_version.revit_version_label(path)
+        self.revit_version = rfa_version.revit_version_from_path(path)
 
     def __repr__(self):
         return "<FamilyInfo '{}' cat='{}'>".format(self.name, self.category)
@@ -119,13 +119,18 @@ def _guess_category(rfa_path):
 class FolderNode(object):
     """One folder in the library; children mirror disk structure."""
 
-    __slots__ = ("path", "name", "children", "families")
+    __slots__ = (
+        "path", "name", "children", "families",
+        "_desc_cache", "_count_cache",
+    )
 
     def __init__(self, path, name=None):
         self.path = os.path.normpath(os.path.abspath(path))
         self.name = name or os.path.basename(self.path) or self.path
         self.children = {}
         self.families = []
+        self._desc_cache = None
+        self._count_cache = None
 
     def child(self, folder_path):
         name = os.path.basename(folder_path)
@@ -134,13 +139,41 @@ class FolderNode(object):
         return self.children[name]
 
     def descendants(self):
-        result = list(self.families)
-        for node in self.children.values():
-            result.extend(node.descendants())
+        cached = getattr(self, "_desc_cache", None)
+        if cached is not None:
+            return cached
+        result = []
+        stack = [self]
+        while stack:
+            node = stack.pop()
+            result.extend(node.families)
+            stack.extend(node.children.values())
+        self._desc_cache = result
         return result
 
     def count(self):
-        return len(self.descendants())
+        cached = getattr(self, "_count_cache", None)
+        if cached is not None:
+            return cached
+        n = len(self.families)
+        for child in self.children.values():
+            n += child.count()
+        self._count_cache = n
+        return n
+
+
+def finalize_folder_counts(roots):
+    """Precompute subtree sizes once (avoids O(n^2) tree UI builds)."""
+
+    def walk(node):
+        n = len(node.families)
+        for child in node.children.values():
+            n += walk(child)
+        node._count_cache = n
+        return n
+
+    for root in roots:
+        walk(root)
 
 
 def _node_for_dir(nodes, library_root, dirpath):
@@ -225,6 +258,7 @@ def scan_library(root_paths, progress_cb=None):
         roots.append(root_node)
 
     all_families.sort(key=lambda f: f.name.lower())
+    finalize_folder_counts(roots)
     return {
         "roots": roots,
         "all": all_families,

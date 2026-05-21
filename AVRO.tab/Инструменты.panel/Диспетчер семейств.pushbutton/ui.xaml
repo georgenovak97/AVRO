@@ -258,9 +258,7 @@
                               HorizontalScrollBarVisibility="Disabled"
                               Background="{DynamicResource BgPanel}"
                               Margin="8,0,8,0">
-                    <WrapPanel x:Name="FamilyPanel"
-                               Orientation="Horizontal"
-                               Margin="0"/>
+                    <Canvas x:Name="FamilyPanel" Margin="0"/>
                 </ScrollViewer>
             </Grid>
         </Grid>

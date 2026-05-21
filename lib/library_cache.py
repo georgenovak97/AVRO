@@ -257,6 +257,7 @@ def _scan_from_blob(blob):
     all_families.sort(key=lambda f: f.name.lower())
     for node in scanner.index_folder_tree(roots).values():
         node.families.sort(key=lambda f: f.name.lower())
+    scanner.finalize_folder_counts(roots)
     preview_miss = set(_norm_path(p) for p in blob.get("preview_miss", []))
     scan = {
         "roots": roots,
