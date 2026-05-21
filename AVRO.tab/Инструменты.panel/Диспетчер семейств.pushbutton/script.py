@@ -1745,6 +1745,7 @@ class FamilyManagerDialog(object):
             self._set_status(
                 u"Путь к библиотеке не задан. Нажмите «Библиотека».")
             return
+        config.clear_recent()
         self.cfg = config.load()
         clear_library_cache()
         self._preview_mem = {}
