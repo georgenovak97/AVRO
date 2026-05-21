@@ -83,6 +83,8 @@ def save(cfg):
         v = cfg.get(k, DEFAULTS[k])
         if k == "library_path":
             v = _u(v)
+        elif k == "recent_families":
+            v = [_u(p) for p in (v or []) if p]
         stored[k] = v
     text = json.dumps(stored, ensure_ascii=True, indent=2)
     if isinstance(text, unicode):

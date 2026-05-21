@@ -45,16 +45,34 @@ def _u(text):
     if isinstance(text, unicode):
         return text
     if isinstance(text, str):
-        for enc in ("utf-8", "cp1251", "latin-1"):
+        for enc in ("utf-8", "cp1251"):
             try:
                 return unicode(text, enc)
             except Exception:
                 continue
-        return unicode(repr(text))
+        try:
+            return unicode(text, "latin-1")
+        except Exception:
+            return unicode(repr(text))
     try:
         return unicode(text)
     except Exception:
         return u""
+
+
+def _repair_mojibake(text):
+    """Fix UTF-8 Cyrillic mis-decoded as Latin-1 (common after pickle/json reload)."""
+    s = _u(text)
+    if not s:
+        return s
+    try:
+        if any(ord(c) >= 0xC2 for c in s):
+            fixed = s.encode("latin-1").decode("utf-8")
+            if fixed and fixed != s:
+                return fixed
+    except Exception:
+        pass
+    return s
 
 
 def _sanitize_value(val):
@@ -210,20 +228,16 @@ def _deserialize_family(rec):
         return None
     fi = scanner.FamilyInfo.__new__(scanner.FamilyInfo)
     fi.path = path
-    fi.name = _u(rec.get("name", os.path.splitext(os.path.basename(path))[0]))
-    cat = rec.get("category", "Generic Models")
-    if isinstance(cat, unicode):
-        try:
-            cat = cat.encode("utf-8")
-        except Exception:
-            pass
-    fi.category = cat
+    default_name = os.path.splitext(os.path.basename(path))[0]
+    fi.name = _repair_mojibake(rec.get("name", default_name))
+    fi.category = _repair_mojibake(rec.get("category", "Generic Models"))
     fi.size_kb = rec.get("size_kb", 0)
-    fi.modified = _u(rec.get("modified", ""))
-    fi.folder = _u(rec.get("folder", os.path.basename(os.path.dirname(path))))
+    fi.modified = _repair_mojibake(rec.get("modified", ""))
+    fi.folder = _repair_mojibake(
+        rec.get("folder", os.path.basename(os.path.dirname(path))))
     fi.library_root = _norm_path(rec.get("library_root")) if rec.get("library_root") else u""
-    fi.rel_path = _u(rec.get("rel_path", fi.folder))
-    fi.revit_version = _u(rec.get("revit_version", u""))
+    fi.rel_path = _repair_mojibake(rec.get("rel_path", fi.folder))
+    fi.revit_version = _repair_mojibake(rec.get("revit_version", u""))
     fi.preview = None
     return fi
 
@@ -318,7 +332,7 @@ def save(key_tuple, scan, preview_miss=None):
     blob["key_hash"] = kh
     blob["library_fingerprint"] = library_fingerprint(key_tuple)
     blob = _sanitize_value(blob)
-    blob_store = _unicode_to_utf8(blob)
+    blob_store = _sanitize_value(blob)
 
     ok_pkl = False
     err_pkl = u""
@@ -380,7 +394,7 @@ def _load_blob_file(path):
     if path.endswith(".pkl"):
         with open(path, "rb") as f:
             raw = pickle.load(f)
-        return _utf8_to_unicode(raw)
+        return _sanitize_value(raw)
     with codecs.open(path, "r", "utf-8") as f:
         raw = json.load(f)
     return _utf8_to_unicode(raw)

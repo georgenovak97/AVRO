@@ -690,6 +690,7 @@ class FamilyManagerDialog(object):
 
     def _apply_cache(self, scan, disk_miss):
         self._set_status(u"Построение дерева библиотеки\u2026")
+        self.cfg = config.load()
         sticky_key, sticky_mem, sticky_miss = _load_sticky_session()
         self._scan = self._normalize_scan(scan)
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
@@ -834,8 +835,9 @@ class FamilyManagerDialog(object):
 
     def _recent_families(self):
         """Same order as ``recent_families`` in config: last loaded first."""
+        self.cfg = config.load()
         by_path = {}
-        for fi in self._all_families():
+        for fi in self._scan.get("all", []):
             np = libcache._norm_path(fi.path)
             by_path[np] = fi
         ordered = []
@@ -845,6 +847,11 @@ class FamilyManagerDialog(object):
             if np in seen:
                 continue
             fi = by_path.get(np)
+            if fi is None and os.path.isfile(np):
+                for fi2 in self._scan.get("all", []):
+                    if os.path.normcase(fi2.path) == os.path.normcase(np):
+                        fi = fi2
+                        break
             if fi is not None:
                 ordered.append(fi)
                 seen.add(np)
