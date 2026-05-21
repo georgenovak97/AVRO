@@ -698,7 +698,7 @@ class FamilyManagerDialog(object):
     def _persist_cache_worker(self, key, scan):
         try:
             saved, msg = libcache.save(
-                key, scan, None, write_json=False)
+                key, scan, None)
             cfg = config.load()
             if saved:
                 cfg["library_cache_hash"] = libcache.key_hash(key)
@@ -840,7 +840,7 @@ class FamilyManagerDialog(object):
         key = self._cache_key()
         self._preview_miss = set()
         saved, save_msg = libcache.save(
-            key, self._scan, None, write_json=False)
+            key, self._scan, None)
         self._invalidate_project_family_index()
         self.cfg = config.load()
         if saved:

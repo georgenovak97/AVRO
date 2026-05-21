@@ -320,7 +320,7 @@ def _read_meta():
         return None
 
 
-def save(key_tuple, scan, preview_miss=None, write_json=False):
+def save(key_tuple, scan, preview_miss=None, write_json=True):
     if not key_tuple or not scan or not scan.get("all"):
         _log(u"save skipped: empty key or scan")
         return False, u"empty_scan"
@@ -332,29 +332,6 @@ def save(key_tuple, scan, preview_miss=None, write_json=False):
     blob["key_hash"] = kh
     blob["library_fingerprint"] = library_fingerprint(key_tuple)
     blob = _sanitize_value(blob)
-    # IronPython pickle needs utf-8 byte strings, not unicode (Cyrillic paths/names).
-    blob_store = _unicode_to_utf8(blob)
-
-    ok_pkl = False
-    err_pkl = u""
-    tmp = PICKLE_FILE + u".tmp"
-    try:
-        with open(tmp, "wb") as f:
-            pickle.dump(blob_store, f, protocol=2)
-        if os.path.isfile(PICKLE_FILE):
-            try:
-                os.remove(PICKLE_FILE)
-            except Exception:
-                pass
-        os.rename(tmp, PICKLE_FILE)
-        ok_pkl = os.path.isfile(PICKLE_FILE)
-    except Exception as ex:
-        err_pkl = unicode(ex)
-        try:
-            if os.path.isfile(tmp):
-                os.remove(tmp)
-        except Exception:
-            pass
 
     ok_json = False
     err_json = u""
@@ -371,23 +348,51 @@ def save(key_tuple, scan, preview_miss=None, write_json=False):
             ok_json = os.path.isfile(INDEX_FILE)
         except Exception as ex:
             err_json = unicode(ex)
+            try:
+                if os.path.isfile(tmpj):
+                    os.remove(tmpj)
+            except Exception:
+                pass
 
-    if ok_pkl or ok_json:
+    ok_pkl = False
+    err_pkl = u""
+    if ok_json:
+        try:
+            blob_store = _unicode_to_utf8(blob)
+            tmp = PICKLE_FILE + u".tmp"
+            with open(tmp, "wb") as f:
+                pickle.dump(blob_store, f, protocol=2)
+            if os.path.isfile(PICKLE_FILE):
+                try:
+                    os.remove(PICKLE_FILE)
+                except Exception:
+                    pass
+            os.rename(tmp, PICKLE_FILE)
+            ok_pkl = os.path.isfile(PICKLE_FILE)
+        except Exception as ex:
+            err_pkl = unicode(ex)
+            try:
+                if os.path.isfile(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+
+    if ok_json or ok_pkl:
         try:
             _write_meta(key_tuple, len(scan["all"]))
         except Exception as ex:
             _log(u"meta write failed: {}".format(ex))
 
-    if ok_pkl:
-        _log(u"save ok pickle {} families hash {}".format(
-            len(scan["all"]), kh))
-        return True, u"ok"
     if ok_json:
         _log(u"save ok json {} families hash {}".format(
             len(scan["all"]), kh))
         return True, u"ok_json"
+    if ok_pkl:
+        _log(u"save ok pickle {} families hash {}".format(
+            len(scan["all"]), kh))
+        return True, u"ok"
 
-    msg = u"pickle:{} json:{}".format(err_pkl, err_json)
+    msg = u"json:{} pickle:{}".format(err_json, err_pkl)
     _log(u"save FAILED {}".format(msg))
     return False, msg
 
@@ -413,20 +418,20 @@ def load(key_tuple):
 
     blob = None
     src = u""
-    if os.path.isfile(PICKLE_FILE):
-        try:
-            blob = _load_blob_file(PICKLE_FILE)
-            src = u"pkl"
-        except Exception as ex:
-            _log(u"pkl load error: {}".format(ex))
-            blob = None
-
-    if blob is None and os.path.isfile(INDEX_FILE):
+    if os.path.isfile(INDEX_FILE):
         try:
             blob = _load_blob_file(INDEX_FILE)
             src = u"json"
         except Exception as ex:
             _log(u"json load error: {}".format(ex))
+            blob = None
+
+    if blob is None and os.path.isfile(PICKLE_FILE):
+        try:
+            blob = _load_blob_file(PICKLE_FILE)
+            src = u"pkl"
+        except Exception as ex:
+            _log(u"pkl load error: {}".format(ex))
             blob = None
 
     if blob is None:
