@@ -499,6 +499,8 @@ class FamilyManagerDialog(object):
         self._virtual_updating = False
         self._last_scroll_width = -1.0
         self._catalog_changing = False
+        self._project_family_index = None
+        self._project_family_index_doc = None
 
     def _init_window(self):
         self.win = _load_xaml()
@@ -506,6 +508,7 @@ class FamilyManagerDialog(object):
         self._bind()
         self._apply_ui_theme(self._dark_theme, persist=False)
         self.win.Closing += self._on_window_closing
+        self._start_project_family_index_build()
 
     def _apply_ui_theme(self, dark, persist=True):
         palette = ui_theme.DARK if dark else ui_theme.LIGHT
@@ -629,20 +632,82 @@ class FamilyManagerDialog(object):
     def _cache_key(self):
         return _library_cache_key(self._library_paths())
 
-    def _persist_cache(self):
+    def _invalidate_project_family_index(self):
+        self._project_family_index = None
+        self._project_family_index_doc = None
+
+    def _start_project_family_index_build(self):
+        """Background index of project families — speeds up double-click place."""
+        doc = self.doc
+        if doc is None:
+            return
+
+        def worker():
+            try:
+                idx = {}
+                for fam in FilteredElementCollector(doc).OfClass(RevitFamily):
+                    key = _normalize_family_key(_revit_name(fam))
+                    if key and key not in idx:
+                        idx[key] = fam
+                if self.win is None:
+                    return
+                self.win.Dispatcher.BeginInvoke(
+                    System.Action(lambda m=idx: self._store_project_family_index(m)))
+            except Exception as ex:
+                libcache._log(u"family index build: {}".format(_as_unicode(ex)))
+
+        t = threading.Thread(target=worker)
+        t.setDaemon(True)
+        t.start()
+
+    def _store_project_family_index(self, index):
+        self._project_family_index = index
+        self._project_family_index_doc = self.doc
+
+    def _project_family_index_ready(self):
+        return (
+            self._project_family_index is not None
+            and self._project_family_index_doc is self.doc
+        )
+
+    def _build_project_family_index_sync(self):
+        if self._project_family_index_ready():
+            return self._project_family_index
+        idx = {}
+        for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
+            key = _normalize_family_key(_revit_name(fam))
+            if key and key not in idx:
+                idx[key] = fam
+        self._store_project_family_index(idx)
+        return idx
+
+    def _persist_cache(self, async_save=False):
         key = self._cache_key()
         if not key or not self._scan.get("all"):
             return
-        # Reload so we never write stale ``recent_families`` over newer disk state.
-        self.cfg = config.load()
-        saved, msg = libcache.save(key, self._scan, None)
-        if saved:
-            self.cfg["library_cache_hash"] = libcache.key_hash(key)
-            self.cfg["library_cache_count"] = len(self._scan.get("all", []))
-            config.save(self.cfg)
-        else:
-            libcache._log(u"persist failed: {}".format(msg))
         _save_sticky_session(key, self._preview_mem, self._preview_miss)
+        if async_save:
+            scan = self._scan
+            t = threading.Thread(
+                target=self._persist_cache_worker, args=(key, scan))
+            t.setDaemon(True)
+            t.start()
+            return
+        self._persist_cache_worker(key, self._scan)
+
+    def _persist_cache_worker(self, key, scan):
+        try:
+            cfg = config.load()
+            saved, msg = libcache.save(
+                key, scan, None, write_json=False)
+            if saved:
+                cfg["library_cache_hash"] = libcache.key_hash(key)
+                cfg["library_cache_count"] = len(scan.get("all", []))
+                config.save(cfg)
+            else:
+                libcache._log(u"persist failed: {}".format(msg))
+        except Exception as ex:
+            libcache._log(u"persist worker: {}".format(_as_unicode(ex)))
 
     def _start_initial_load(self):
         if self._initial_load_started:
@@ -724,7 +789,7 @@ class FamilyManagerDialog(object):
         return True
 
     def _on_window_closing(self, sender, e):
-        self._persist_cache()
+        self._persist_cache(async_save=True)
 
     def _bind(self):
         u = self.ui
@@ -774,7 +839,9 @@ class FamilyManagerDialog(object):
         n_folders = len(self._scan.get("index", {}))
         key = self._cache_key()
         self._preview_miss = set()
-        saved, save_msg = libcache.save(key, self._scan, self._preview_miss)
+        saved, save_msg = libcache.save(
+            key, self._scan, None, write_json=False)
+        self._invalidate_project_family_index()
         self.cfg = config.load()
         if saved:
             self.cfg["library_cache_hash"] = libcache.key_hash(key)
@@ -1421,15 +1488,23 @@ class FamilyManagerDialog(object):
         for name in _family_name_candidates(fi):
             keys.add(_normalize_family_key(name))
         keys.discard(u"")
-        file_key = _normalize_family_key(fi.name)
-        best = None
-        for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
-            fam_key = _normalize_family_key(_revit_name(fam))
-            if fam_key in keys:
+        if not keys:
+            return None
+        idx = (
+            self._project_family_index
+            if self._project_family_index_ready()
+            else self._build_project_family_index_sync())
+        for key in keys:
+            fam = idx.get(key)
+            if fam is not None:
                 return fam
-            if file_key and len(file_key) >= 4:
-                if fam_key == file_key or file_key in fam_key or fam_key in file_key:
-                    best = fam
+        file_key = _normalize_family_key(fi.name)
+        if not file_key or len(file_key) < 4:
+            return None
+        best = None
+        for fam_key, fam in idx.items():
+            if fam_key == file_key or file_key in fam_key or fam_key in file_key:
+                best = fam
         return best
 
     def _load_family_element(self, fi):
@@ -1484,15 +1559,6 @@ class FamilyManagerDialog(object):
                     symbols.append(sym)
         except Exception:
             pass
-        if symbols:
-            return symbols
-        for sym in FilteredElementCollector(self.doc).OfClass(RevitFamilySymbol):
-            try:
-                sym_fam = _symbol_family(sym)
-                if sym_fam is not None and sym_fam.Id == family.Id:
-                    symbols.append(sym)
-            except Exception:
-                continue
         return symbols
 
     def _get_family_symbol(self, fi):
@@ -1513,6 +1579,7 @@ class FamilyManagerDialog(object):
             if not symbol.IsActive:
                 symbol.Activate()
             t.Commit()
+            self._invalidate_project_family_index()
             return symbol
         except Exception:
             try:
@@ -1550,21 +1617,6 @@ class FamilyManagerDialog(object):
         self._pending_family_path = os.path.normpath(fi.path)
         self.win.Close()
 
-    def _count_family_instances(self, family_id):
-        if family_id is None:
-            return 0
-        want = family_id.IntegerValue
-        n = 0
-        for inst in FilteredElementCollector(self.doc).OfClass(RDB.FamilyInstance):
-            try:
-                sym = getattr(inst, "Symbol", None)
-                fam = _symbol_family(sym) if sym is not None else None
-                if fam is not None and fam.Id.IntegerValue == want:
-                    n += 1
-            except Exception:
-                continue
-        return n
-
     def _run_pending_placement(self, sym_id, family_name, family_path):
         uidoc = revit.uidoc
         if uidoc is None or uidoc.ActiveView is None or not sym_id:
@@ -1578,24 +1630,16 @@ class FamilyManagerDialog(object):
                 t.Start()
                 symbol.Activate()
                 t.Commit()
-            fam = _symbol_family(symbol)
-            before = self._count_family_instances(
-                fam.Id if fam is not None else None)
             try:
                 uidoc.PromptForFamilyInstancePlacement(symbol)
             except OperationCanceledException:
-                pass
-            after = self._count_family_instances(
-                fam.Id if fam is not None else None)
-            if after > before and family_path:
+                return u"Размещение отменено"
+            if family_path:
                 config.add_recent(family_path)
                 self.cfg = config.load()
                 libcache._log(u"recent added after place: {}".format(
                     family_path))
-                return u"Размещено: {}".format(family_name)
-            if after > before:
-                return u"Размещено: {}".format(family_name)
-            return u"Размещение отменено"
+            return u"Размещено: {}".format(family_name)
         except Exception as ex:
             return u"Ошибка размещения: {}".format(ex)
 

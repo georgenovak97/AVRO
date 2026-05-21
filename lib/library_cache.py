@@ -320,7 +320,7 @@ def _read_meta():
         return None
 
 
-def save(key_tuple, scan, preview_miss=None):
+def save(key_tuple, scan, preview_miss=None, write_json=False):
     if not key_tuple or not scan or not scan.get("all"):
         _log(u"save skipped: empty key or scan")
         return False, u"empty_scan"
@@ -357,18 +357,19 @@ def save(key_tuple, scan, preview_miss=None):
 
     ok_json = False
     err_json = u""
-    try:
-        tmpj = INDEX_FILE + u".tmp"
-        _write_json_file(tmpj, blob, indent=None)
-        if os.path.isfile(INDEX_FILE):
-            try:
-                os.remove(INDEX_FILE)
-            except Exception:
-                pass
-        os.rename(tmpj, INDEX_FILE)
-        ok_json = os.path.isfile(INDEX_FILE)
-    except Exception as ex:
-        err_json = unicode(ex)
+    if write_json:
+        try:
+            tmpj = INDEX_FILE + u".tmp"
+            _write_json_file(tmpj, blob, indent=None)
+            if os.path.isfile(INDEX_FILE):
+                try:
+                    os.remove(INDEX_FILE)
+                except Exception:
+                    pass
+            os.rename(tmpj, INDEX_FILE)
+            ok_json = os.path.isfile(INDEX_FILE)
+        except Exception as ex:
+            err_json = unicode(ex)
 
     if ok_pkl or ok_json:
         try:
