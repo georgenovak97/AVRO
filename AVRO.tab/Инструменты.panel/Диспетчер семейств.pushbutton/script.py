@@ -274,6 +274,7 @@ _CARD_UI_BATCH_THRESHOLD = 100
 _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
 _SEARCH_DEBOUNCE_MS = 400
+_GRID_RELOAD_DEBOUNCE_MS = 80
 _CARD_MARGIN = 10
 _CARD_W = 156
 _CARD_H = 182
@@ -486,6 +487,8 @@ class FamilyManagerDialog(object):
         self._folder_scope_label = u""
         self._search_suppress = False
         self._search_timer = None
+        self._grid_relayout_gen = 0
+        self._grid_relayout_timer = None
         # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
         self._browse_disk_only = False
         self._card_build_gen = 0
@@ -507,10 +510,12 @@ class FamilyManagerDialog(object):
 
     def _init_window(self):
         self._search_timer = None
+        self._grid_relayout_timer = None
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
         self._apply_ui_theme(self._dark_theme, persist=False)
+        self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
 
@@ -1068,17 +1073,77 @@ class FamilyManagerDialog(object):
             return
         self._queue_virtual_sync()
 
-    def _on_family_panel_resize(self, sender, e):
-        if self._catalog_changing or not self._virtual_mode or not self._active:
+    def _stop_grid_relayout_timer(self):
+        if self._grid_relayout_timer is not None:
+            self._grid_relayout_timer.Stop()
+
+    def _ensure_grid_relayout_timer(self):
+        if self._grid_relayout_timer is not None:
             return
-        if self._virtual_updating:
+        timer = DispatcherTimer()
+        timer.Interval = System.TimeSpan.FromMilliseconds(
+            _GRID_RELOAD_DEBOUNCE_MS)
+        timer.Tick += self._on_grid_relayout_debounced
+        self._grid_relayout_timer = timer
+
+    def _schedule_grid_relayout(self):
+        """Rebuild card grid after window/panel resize (coalesced)."""
+        if self._catalog_changing or not self._active or self.ui is None:
             return
+        if self.win is None:
+            return
+        self._ensure_grid_relayout_timer()
+        self._grid_relayout_timer.Stop()
+        self._grid_relayout_timer.Start()
+
+    def _on_grid_relayout_debounced(self, sender, e):
+        self._stop_grid_relayout_timer()
+        if self._catalog_changing or not self._active or self.ui is None:
+            return
+        self._grid_relayout_gen += 1
+        gen = self._grid_relayout_gen
+
+        def run():
+            if gen != self._grid_relayout_gen:
+                return
+            self._relayout_family_grid()
+
+        self.win.Dispatcher.BeginInvoke(System.Action(run))
+
+    def _relayout_family_grid(self):
+        """Clear visible cards and rebuild layout for current panel width."""
+        if not self._active or self.ui is None:
+            return
+        panel = self.ui.FamilyPanel
         sv = self.ui.FamilyScrollViewer
         cw = sv.ViewportWidth if sv.ViewportWidth > 0 else sv.ActualWidth
-        if abs(cw - self._last_scroll_width) < 2.0:
-            return
         self._last_scroll_width = cw
-        self._queue_virtual_sync()
+
+        panel.Children.Clear()
+        self._card_by_path.clear()
+        self._card_views.clear()
+
+        if self._virtual_mode:
+            n = len(self._active)
+            if isinstance(panel, Canvas):
+                cols = self._layout_cols()
+                rows = (n + cols - 1) // cols if n else 0
+                panel.Height = float(rows * (_CARD_H + _CARD_MARGIN))
+            self._virtual_sync_viewport()
+            return
+
+        for i, fi in enumerate(self._active):
+            self._add_family_card(fi, index=i)
+        if isinstance(panel, Canvas):
+            panel.Height = self._canvas_height_for(len(self._active))
+        self._preview_gen += 1
+        self._schedule_previews(self._active, disk_only=False)
+
+    def _on_window_resize(self, sender, e):
+        self._schedule_grid_relayout()
+
+    def _on_family_panel_resize(self, sender, e):
+        self._schedule_grid_relayout()
 
     def _queue_virtual_sync(self):
         self._virtual_scroll_gen += 1
@@ -1205,7 +1270,12 @@ class FamilyManagerDialog(object):
 
         for i in range(first_i, last_i):
             fi = families[i]
-            if fi.path not in self._card_by_path:
+            if fi.path in self._card_by_path:
+                card = self._card_by_path[fi.path]
+                x, y = self._card_slot_xy(i)
+                Canvas.SetLeft(card, x)
+                Canvas.SetTop(card, y)
+            else:
                 self._add_family_card(fi, index=i)
 
         visible = [families[i] for i in range(first_i, last_i)]
@@ -1231,6 +1301,7 @@ class FamilyManagerDialog(object):
         panel.Children.Add(card)
 
     def _show_families(self, families):
+        self._stop_grid_relayout_timer()
         self._catalog_changing = True
         self._active = families
         self._card_build_gen += 1
