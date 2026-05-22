@@ -454,9 +454,13 @@ def _make_card(fi, dialog):
     def mouse_click(s, e):
         dialog._on_card_click(s, fi, e)
 
-    card.MouseEnter          += mouse_enter
-    card.MouseLeave          += mouse_leave
-    card.MouseLeftButtonDown += mouse_click
+    def mouse_right_click(s, e):
+        dialog._on_card_right_click(s, fi, e)
+
+    card.MouseEnter           += mouse_enter
+    card.MouseLeave           += mouse_leave
+    card.MouseLeftButtonDown  += mouse_click
+    card.MouseRightButtonDown += mouse_right_click
 
     return card, preview_img
 
@@ -1508,6 +1512,28 @@ class FamilyManagerDialog(object):
         if i0 > i1:
             i0, i1 = i1, i0
         return self._order_paths[i0:i1 + 1]
+
+    def _reveal_in_explorer(self, fi):
+        path = libcache._norm_path(fi.path)
+        if not path or not os.path.isfile(path):
+            self._set_status(
+                u"Файл не найден: {}".format(_as_unicode(fi.name)))
+            return
+        try:
+            from System.Diagnostics import Process
+            Process.Start(
+                "explorer.exe",
+                '/select,"{}"'.format(path.replace(u'"', u"")))
+            self._set_status(
+                u"Проводник: {}".format(_as_unicode(fi.name)))
+        except Exception as ex:
+            self._set_status(
+                u"Не удалось открыть проводник: {}".format(_as_unicode(ex)))
+
+    def _on_card_right_click(self, card, fi, e):
+        if e.ClickCount >= 2:
+            self._reveal_in_explorer(fi)
+            e.Handled = True
 
     def _on_card_click(self, card, fi, e):
         if e.ClickCount >= 2:
