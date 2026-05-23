@@ -23,8 +23,7 @@ DEFAULTS = {
     "library_cache_hash": "",
     "library_cache_count": 0,
     "ui_theme": "light",
-    "ui_language": "en",            # ru only after user picks Russian in Settings
-    "ui_language_override": False,  # True + ru → Russian; otherwise English
+    "ui_language": "en",            # "ru" after user picks Russian in Settings → OK
 }
 
 _RECENTS_MIGRATED = False
@@ -174,12 +173,9 @@ def _save_config_core(data):
 
 
 def get_ui_language():
-    """English by default; Russian only if user chose it in Settings (OK)."""
-    data = load()
-    if (data.get("ui_language_override")
-            and (data.get("ui_language") or u"").lower() == u"ru"):
-        return u"ru"
-    return u"en"
+    """English by default; Russian only when ``ui_language`` is ``ru`` in config."""
+    lang = (load().get("ui_language") or u"en").lower()
+    return u"ru" if lang == u"ru" else u"en"
 
 
 def load():

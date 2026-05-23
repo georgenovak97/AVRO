@@ -100,8 +100,8 @@ def _refresh_selection(controls, lang, theme):
 
 def _show_settings_dialog():
     cfg = config.load()
-    i18n.init_from_config()
-    cur_lang = i18n.get_language()
+    cur_lang = config.get_ui_language()
+    i18n.set_language(cur_lang)
     cur_theme = (cfg.get("ui_theme") or "light").lower()
 
     win = _load_dialog_xaml()
@@ -156,16 +156,7 @@ def _show_settings_dialog():
     def on_ok(sender, e):
         new_lang = selection["lang"]
         new_theme = selection["theme"]
-        if new_lang == "ru":
-            config.patch_fields({
-                "ui_language": "ru",
-                "ui_language_override": True,
-            })
-        else:
-            config.patch_fields({
-                "ui_language": "en",
-                "ui_language_override": False,
-            })
+        config.patch_fields({"ui_language": new_lang})
         if new_theme != cur_theme:
             config.set_value("ui_theme", new_theme)
         i18n.set_language(new_lang)
