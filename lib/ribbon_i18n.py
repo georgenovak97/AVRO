@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 _BRAILLE_PANEL = u"\u2800"
+_PYREVIT_TAB_KEY = u"AVRO"
 _RIBBON_AUTHOR = u"AVRO Consulting"
 
 # Revit internal command names (see pyRevit Bundle Name footer).
@@ -150,17 +151,6 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
             pass
 
 
-def _count_buttons_on_tab(tab):
-    count = 0
-    try:
-        for panel in tab.Panels:
-            for _item in _walk_items(panel):
-                count += 1
-    except Exception:
-        pass
-    return count
-
-
 def _walk_items(container):
     if container is None:
         return
@@ -210,8 +200,7 @@ def apply(lang=None):
     lng = lang or config.get_ui_language()
     i18n.set_language(lng)
 
-    tab_names = _texts_for_key("tab_title")
-    tools_names = _texts_for_key("ribbon_panel_tools")
+    tab_names = _texts_for_key("tab_title") | {_PYREVIT_TAB_KEY}
     settings_names = _texts_for_key("settings_dialog_title")
     settings_tips = _texts_for_key("settings_ribbon_tooltip")
     fm_names = _texts_for_key("ribbon_title") | {
@@ -221,7 +210,6 @@ def apply(lang=None):
     fm_tips = _texts_for_key("ribbon_tooltip")
 
     new_tab = i18n.t("tab_title")
-    new_tools = i18n.t("ribbon_panel_tools")
     new_settings = i18n.t("settings_dialog_title")
     new_settings_tip = i18n.t("settings_ribbon_tooltip")
     new_fm = i18n.t("ribbon_title")
@@ -240,18 +228,12 @@ def apply(lang=None):
             title = tab.Title or u""
             if title not in tab_names:
                 continue
-            # After pyRevit Reload the tab can exist before all panels load.
-            if _count_buttons_on_tab(tab) < 2:
-                return False
             tab.Title = new_tab
             updated = True
             for panel in tab.Panels:
                 src = getattr(panel, "Source", None)
                 if src is None:
                     continue
-                ptitle = src.Title or u""
-                if ptitle in tools_names:
-                    src.Title = new_tools
                 for item in _walk_items(panel):
                     label = u""
                     try:

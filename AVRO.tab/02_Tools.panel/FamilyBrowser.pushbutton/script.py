@@ -69,10 +69,6 @@ import i18n
 import ribbon_i18n
 import ui_notify
 
-i18n.init_from_config()
-__title__ = i18n.t("ribbon_title")
-__doc__ = i18n.t("ribbon_tooltip")
-
 # ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------

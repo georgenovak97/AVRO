@@ -2,7 +2,8 @@
 """
 AVRO extension startup (runs on every pyRevit Reload).
 
-Schedules a second ribbon build after Revit Idling so both panels stay visible.
+Runs before pyRevit builds ribbon UI: restores tab/panel keys pyRevit expects,
+then schedules button label localization after Reload completes.
 """
 from __future__ import print_function
 
@@ -21,6 +22,7 @@ except Exception:
 
 try:
     import reload_fixup
+    reload_fixup.prepare_ribbon_for_pyrevit_update()
     reload_fixup.schedule_after_reload()
 except Exception:
     pass
