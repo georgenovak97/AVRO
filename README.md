@@ -10,7 +10,7 @@
 	- Place in model with return to the browser window
 	- Recent files list
 	- Dark/light theme
-	- Library path is saved to `%APPDATA%\pyRevit\AVRO\config.json`
+	- English/Russian
 	
 ---
 #### Installation
@@ -23,7 +23,7 @@
 ---
 #### First Launch
 
-1. Go to the **"AVRO"** tab in Revit.
+1. Go to the **"Additional"** tab in Revit.
 2. Open **"Family Browser"**.
 3. Click **"Library"** and select the root folder with your families.
 4. Wait for the cache to load.
