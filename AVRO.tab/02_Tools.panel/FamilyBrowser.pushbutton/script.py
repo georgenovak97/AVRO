@@ -2026,7 +2026,7 @@ class FamilyBrowserDialog(object):
 
 
 # ---------------------------------------------------------------------------
-# pyRevit runs scripts directly - no __main__ guard needed
+# pyRevit entry — runs when the button is clicked
 # ---------------------------------------------------------------------------
 dlg = FamilyBrowserDialog()
 dlg.show()

@@ -7,7 +7,7 @@ _RIBBON_AUTHOR = u"AVRO Consulting"
 
 # Revit internal command names (see pyRevit Bundle Name footer).
 _BUNDLE_SETTINGS = u"Settings"
-_BUNDLE_FAMILY_BROWSER = u"FamilyBrowser"
+_BUNDLE_FAMILY_BROWSER = u"FamilyBrowser"  # matches FamilyBrowser.pushbutton folder
 
 
 def _as_unicode(text):
@@ -241,7 +241,7 @@ def apply(lang=None):
             if title not in tab_names:
                 continue
             # After pyRevit Reload the tab can exist before all panels load.
-            if _count_buttons_on_tab(tab) < 2:
+            if _count_buttons_on_tab(tab) < 1:
                 return False
             tab.Title = new_tab
             updated = True
