@@ -18,7 +18,7 @@
 1. Copy the `AVRO.extension` folder to `%APPDATA%\pyRevit\Extensions\`  
    (or add it via **pyRevit → Settings → Custom Extension Directories**).
 2. Reload pyRevit (**Reload**).
-3. In the Revit ribbon: tab **"AVRO"** → panel **"Tools"** → **"Family Browser"**.
+3. In the Revit ribbon: tab **"Additional"** → panel **"Tools"** → **"Family Browser"**.
 
 ---
 #### First Launch
