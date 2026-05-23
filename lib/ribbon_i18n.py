@@ -160,7 +160,7 @@ def _set_item_label(item, text):
 
 
 def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
-    """pyRevit-style tooltip via Revit API only (safe on reload)."""
+    """pyRevit-style tooltip: Revit ``PushButton`` string + AdWindows ``Content``."""
     if item is None:
         return
     pb = _get_revit_pushbutton(item)
@@ -172,7 +172,10 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
             name = u""
     if not name:
         name = _as_unicode(title).strip().replace(u" ", u"") or u"AVRO"
-    full_tip = _pyrevit_tooltip_body(description, name)
+    desc = _as_unicode(description).strip()
+    title_u = _as_unicode(title)
+    full_tip = _pyrevit_tooltip_body(desc, name)
+
     if pb is not None:
         try:
             pb.ToolTip = full_tip
@@ -180,6 +183,34 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
             pass
         try:
             pb.LongDescription = u""
+        except Exception:
+            pass
+
+    # Extended tooltip body comes from AdWindows RibbonToolTip.Content (not PushButton).
+    for host in (item, getattr(item, "Source", None)):
+        if host is None:
+            continue
+        try:
+            tip = host.ToolTip
+        except Exception:
+            tip = None
+        if tip is None:
+            continue
+        if _is_text(tip):
+            try:
+                host.ToolTip = full_tip
+            except Exception:
+                pass
+            continue
+        try:
+            tip.Title = title_u
+            tip.Content = desc
+        except Exception:
+            pass
+        try:
+            resolve = getattr(host, "ResolveToolTip", None)
+            if resolve is not None:
+                resolve()
         except Exception:
             pass
 
@@ -265,13 +296,21 @@ def apply(lang=None):
                         label = u""
                 pb = _get_revit_pushbutton(item)
                 tip = _read_tooltip_text(item, pb)
-                if (label in settings_names
+                bundle_id = u""
+                if pb is not None:
+                    try:
+                        bundle_id = _as_unicode(pb.Name)
+                    except Exception:
+                        bundle_id = u""
+                if (bundle_id == _BUNDLE_SETTINGS
+                        or label in settings_names
                         or _tip_matches(tip, settings_tips)):
                     _set_item_label(item, new_settings)
                     _set_item_pyrevit_tooltip(
                         item, new_settings, new_settings_tip,
                         _BUNDLE_SETTINGS)
-                elif (label in fm_names
+                elif (bundle_id == _BUNDLE_FAMILY_BROWSER
+                        or label in fm_names
                         or _tip_matches(tip, fm_tips)):
                     _set_item_label(item, new_fm)
                     _set_item_pyrevit_tooltip(
