@@ -152,10 +152,18 @@ def _normalize_library_cfg(cfg):
 
 
 def _save_config_core(data):
-    """Write config.json from a dict (no ``load()`` — avoids migration recursion)."""
+    """Write config.json; merge onto existing file so fields are not lost."""
     _ensure_dir()
     data = _normalize_library_cfg(dict(data))
     stored = dict(DEFAULTS)
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
+                on_disk = json.load(f)
+            if isinstance(on_disk, dict):
+                stored.update(on_disk)
+        except Exception:
+            pass
     for k in DEFAULTS:
         if k == "recent_families":
             continue
@@ -163,6 +171,7 @@ def _save_config_core(data):
         if k == "library_path":
             v = _u(v)
         stored[k] = v
+    stored.pop("ui_language_override", None)
     try:
         text = json.dumps(stored, ensure_ascii=False, indent=2)
     except Exception:
@@ -172,10 +181,23 @@ def _save_config_core(data):
     _atomic_write_text(CONFIG_FILE, text)
 
 
+def read_ui_language():
+    """Read ``ui_language`` directly from config.json (no ``load()`` side effects)."""
+    if not os.path.exists(CONFIG_FILE):
+        return u"en"
+    try:
+        with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
+            data = json.load(f)
+        lang = _u(data.get("ui_language", u"en")).strip().lower()
+        return u"ru" if lang == u"ru" else u"en"
+    except Exception as ex:
+        _log(u"read_ui_language failed: {}".format(_u(ex)))
+        return u"en"
+
+
 def get_ui_language():
     """English by default; Russian only when ``ui_language`` is ``ru`` in config."""
-    lang = (load().get("ui_language") or u"en").lower()
-    return u"ru" if lang == u"ru" else u"en"
+    return read_ui_language()
 
 
 def load():

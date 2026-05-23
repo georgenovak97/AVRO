@@ -100,8 +100,9 @@ def _refresh_selection(controls, lang, theme):
 
 def _show_settings_dialog():
     cfg = config.load()
-    cur_lang = config.get_ui_language()
+    cur_lang = config.read_ui_language()
     i18n.set_language(cur_lang)
+    ribbon_i18n.apply(cur_lang)
     cur_theme = (cfg.get("ui_theme") or "light").lower()
 
     win = _load_dialog_xaml()
@@ -183,4 +184,6 @@ def _show_settings_dialog():
     win.ShowDialog()
 
 
+i18n.init_from_config()
+ribbon_i18n.init_from_config()
 _show_settings_dialog()

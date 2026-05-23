@@ -483,7 +483,7 @@ class FamilyBrowserDialog(object):
         self.ui = None
         self.doc = revit.doc
         self.cfg = config.load()
-        i18n.set_language(config.get_ui_language())
+        i18n.set_language(config.read_ui_language())
         self._scan = {"roots": [], "all": [], "index": {}}
         self._active = []
         self._preview_gen = 0
@@ -1990,6 +1990,8 @@ class FamilyBrowserDialog(object):
             self.ui.BreadcrumbText.Text = text
 
     def show(self):
+        i18n.init_from_config()
+        ribbon_i18n.init_from_config()
         first_open = True
         while True:
             self._init_window()

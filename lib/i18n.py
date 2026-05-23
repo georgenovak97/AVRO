@@ -201,9 +201,17 @@ _STRINGS = {
 
 def set_language(lang):
     global _CURRENT
-    lang = (lang or u"en").lower()
-    if lang in _LANGUAGES:
-        _CURRENT = lang
+    try:
+        if lang is None:
+            lang = u""
+        if not isinstance(lang, unicode):
+            lang = unicode(lang)
+    except Exception:
+        lang = u""
+    lang = lang.strip().lower()
+    if lang not in _LANGUAGES:
+        lang = u"en"
+    _CURRENT = lang
 
 
 def get_language():
@@ -223,6 +231,11 @@ def t(key, lang=None, **kwargs):
 def init_from_config():
     try:
         import config
-        set_language(config.get_ui_language())
-    except Exception:
+        set_language(config.read_ui_language())
+    except Exception as ex:
+        try:
+            import config as _cfg
+            _cfg._log(u"i18n.init_from_config: {}".format(_cfg._u(ex)))
+        except Exception:
+            pass
         set_language(u"en")
