@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Load saved language into i18n after pyRevit session start (no ribbon changes here)."""
+"""
+AVRO extension startup (runs on every pyRevit Reload).
+
+Schedules a second ribbon build after Revit Idling so both panels stay visible.
+"""
 from __future__ import print_function
 
 import os
@@ -12,5 +16,11 @@ if _LIB not in sys.path:
 try:
     import i18n
     i18n.init_from_config()
+except Exception:
+    pass
+
+try:
+    import reload_fixup
+    reload_fixup.schedule_after_reload()
 except Exception:
     pass
