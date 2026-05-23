@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Диспетчер семейств — pyRevit extension (AVRO)
+Family Browser — pyRevit extension (AVRO)
 Entry point script.
 """
 import os
@@ -65,6 +65,14 @@ import rfa_preview
 import rfa_version
 import library_cache as libcache
 import ui_theme
+import i18n
+import ribbon_i18n
+import ui_notify
+
+i18n.init_from_config()
+ribbon_i18n.init_from_config()
+__title__ = i18n.t("ribbon_title")
+__doc__ = i18n.t("ribbon_tooltip")
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -223,8 +231,8 @@ def _load_xaml():
 
 
 _UI_CONTROL_NAMES = [
-    "SearchBox", "BtnClearSearch",
-    "CategoryTree", "BtnThemeToggle", "BtnSettings", "BtnReload",
+    "SearchBox", "SearchHint", "BtnClearSearch", "LblFolder",
+    "CategoryTree", "BtnSettings", "BtnReload",
     "BtnLoadSelected", "FamilyPanel", "FamilyScrollViewer",
     "BreadcrumbText", "CountText", "StatusText",
 ]
@@ -419,7 +427,7 @@ def _make_card(fi, dialog):
 
     size_block = TextBlock()
     size_mb = fi.size_kb / 1024.0
-    size_block.Text                = u"{:.2f} МБ".format(size_mb)
+    size_block.Text                = i18n.t("size_mb").format(size_mb)
     size_block.Foreground          = COL_MUTED
     size_block.FontSize            = 10
     size_block.HorizontalAlignment = HorizontalAlignment.Center
@@ -468,13 +476,14 @@ def _make_card(fi, dialog):
 # ---------------------------------------------------------------------------
 # Dialog class
 # ---------------------------------------------------------------------------
-class FamilyManagerDialog(object):
+class FamilyBrowserDialog(object):
 
     def __init__(self):
         self.win = None
         self.ui = None
         self.doc = revit.doc
         self.cfg = config.load()
+        i18n.set_language(config.get_ui_language())
         self._scan = {"roots": [], "all": [], "index": {}}
         self._active = []
         self._preview_gen = 0
@@ -489,6 +498,8 @@ class FamilyManagerDialog(object):
         self._anchor_path = None
         self._folder_scope = []
         self._folder_scope_label = u""
+        self._scope_is_recent = False
+        self._active_search_query = u""
         self._search_suppress = False
         self._search_timer = None
         self._grid_relayout_gen = 0
@@ -518,7 +529,10 @@ class FamilyManagerDialog(object):
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
+        i18n.init_from_config()
         self._apply_ui_theme(self._dark_theme, persist=False)
+        self._apply_language()
+        ui_notify.register(self._on_external_language_changed)
         self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
@@ -528,19 +542,102 @@ class FamilyManagerDialog(object):
         self._dark_theme = dark
         ui_theme.apply_window_theme(self.win, palette)
         _sync_card_colors(palette)
-        self._update_theme_toggle_button()
         self._refresh_cards_theme()
         if persist:
             config.set_value("ui_theme", "dark" if dark else "light")
 
-    def _update_theme_toggle_button(self):
-        btn = self.ui.BtnThemeToggle
-        if self._dark_theme:
-            btn.Content = u"\u2600"
-            btn.ToolTip = u"Светлая тема"
+    def _apply_language(self):
+        if self.ui is None or self.win is None:
+            return
+        self.win.Title = i18n.t("app_title")
+        lbl = getattr(self.ui, "LblFolder", None)
+        if lbl is not None:
+            lbl.Text = i18n.t("folder_label")
+        hint = getattr(self.ui, "SearchHint", None)
+        if hint is not None:
+            hint.Text = i18n.t("search_placeholder")
+        self.ui.BtnClearSearch.ToolTip = i18n.t("clear_search_tooltip")
+        self.ui.BtnSettings.Content = i18n.t("btn_library")
+        self.ui.BtnSettings.ToolTip = i18n.t("btn_library_tooltip")
+        self.ui.BtnReload.Content = i18n.t("btn_reload")
+        self.ui.BtnReload.ToolTip = i18n.t("btn_reload_tooltip")
+        self.ui.BtnLoadSelected.Content = i18n.t("btn_load")
+        self._refresh_live_labels()
+
+    def _on_external_language_changed(self):
+        if self.ui is None or self.win is None:
+            return
+        try:
+            if not self.win.IsVisible:
+                return
+        except Exception:
+            return
+        self._apply_language()
+
+    def _update_count_display(self, shown, total=None):
+        if self.ui is None:
+            return
+        if total is not None and total != shown:
+            self.ui.CountText.Text = i18n.t("count_search", a=shown, b=total)
         else:
-            btn.Content = u"\u263E"
-            btn.ToolTip = u"Тёмная тема (Revit 2024)"
+            self.ui.CountText.Text = i18n.t("count_items", n=shown)
+
+    def _update_breadcrumb_display(self):
+        if self.ui is None:
+            return
+        if self._scope_is_recent:
+            self._folder_scope_label = i18n.t("recent")
+        query = _as_unicode(self._active_search_query).strip()
+        if query:
+            self._set_breadcrumb(
+                u"{}{}".format(self._folder_scope_label,
+                               i18n.t("search_suffix", q=query)))
+        else:
+            self._set_breadcrumb(self._folder_scope_label)
+
+    def _refresh_live_labels(self):
+        """Re-apply i18n to breadcrumb, count, and folder label after language change."""
+        if self.ui is None:
+            return
+        lbl = getattr(self.ui, "LblFolder", None)
+        if lbl is not None:
+            lbl.Text = i18n.t("folder_label")
+        self._update_breadcrumb_display()
+        n = len(self._order_paths) if self._order_paths else 0
+        if self._active_search_query.strip():
+            total = len(self._folder_scope) if self._folder_scope else n
+            self._update_count_display(n, total)
+        else:
+            self._update_count_display(n)
+        self._refresh_status_for_language()
+        self._refresh_card_size_labels()
+
+    def _refresh_status_for_language(self):
+        n = len(self._order_paths) if self._order_paths else 0
+        if n <= 0:
+            return
+        if getattr(self, "_card_batch_families", None):
+            self._set_status(i18n.t("loading_cards", n=n))
+            return
+        if self._virtual_mode:
+            self._set_status(i18n.t("virtual_scroll_hint", n=n))
+        else:
+            self._set_status(i18n.t("previews_done", n=n))
+
+    def _refresh_card_size_labels(self):
+        for card in self._card_by_path.values():
+            fi = card.Tag
+            if fi is None:
+                continue
+            sp = card.Child
+            if sp is None:
+                continue
+            for child in sp.Children:
+                if not isinstance(child, TextBlock):
+                    continue
+                if child.FontSize == 10 and child.TextWrapping != TextWrapping.Wrap:
+                    child.Text = i18n.t("size_mb").format(fi.size_kb / 1024.0)
+                    break
 
     def _refresh_cards_theme(self):
         for path in self._card_by_path:
@@ -556,9 +653,6 @@ class FamilyManagerDialog(object):
                     child.Foreground = COL_TEXT
                 else:
                     child.Foreground = COL_MUTED
-
-    def _on_theme_toggle(self, sender, e):
-        self._apply_ui_theme(not self._dark_theme)
 
     def _restore_ui_after_reopen(self):
         if not self._scan.get("all"):
@@ -584,10 +678,13 @@ class FamilyManagerDialog(object):
 
         if tag == "__recent__":
             self._folder_scope = list(self._recent_families())
-            self._folder_scope_label = u"Недавние"
+            self._scope_is_recent = True
+            self._folder_scope_label = i18n.t("recent")
         else:
             self._folder_scope = scope
+            self._scope_is_recent = False
             self._folder_scope_label = label
+        self._active_search_query = search_query
 
         if search_query:
             self._stop_search_timer()
@@ -599,7 +696,7 @@ class FamilyManagerDialog(object):
             self._apply_search(search_query)
         else:
             self._reset_search_field()
-            self._set_breadcrumb(self._folder_scope_label)
+            self._update_breadcrumb_display()
             self._show_families(list(self._folder_scope))
 
         if tag == "__recent__":
@@ -738,7 +835,7 @@ class FamilyManagerDialog(object):
                     self.win.Dispatcher.Invoke(
                         System.Action(
                             lambda: self._set_status(
-                                u"Загрузка индекса из кэша\u2026")))
+                                i18n.t("loading_cache"))))
                     scan, disk_miss, err = libcache.load(key)
                     if scan is None:
                         err = err or u"load_failed"
@@ -764,11 +861,10 @@ class FamilyManagerDialog(object):
             err, self._library_paths()))
         self._build_tree({"roots": [], "all": [], "index": {}})
         self._show_recents_default()
-        self._set_status(
-            u"Кэш не найден. Нажмите «Обновить» для сканирования библиотеки.")
+        self._set_status(i18n.t("cache_not_found"))
 
     def _apply_cache(self, scan, disk_miss):
-        self._set_status(u"Построение дерева библиотеки\u2026")
+        self._set_status(i18n.t("building_tree"))
         self.cfg = config.load()
         sticky_key, sticky_mem, sticky_miss = _load_sticky_session()
         self._scan = self._normalize_scan(scan)
@@ -783,9 +879,7 @@ class FamilyManagerDialog(object):
         total = len(self._scan.get("all", []))
         self._build_tree(self._scan)
         self._show_recents_default()
-        self._set_status(
-            u"Из кэша: {} семейств. «Обновить» — пересканировать папки.".format(
-                total))
+        self._set_status(i18n.t("from_cache", n=total))
 
     def _try_restore_cache(self):
         paths = self._library_paths()
@@ -794,7 +888,7 @@ class FamilyManagerDialog(object):
         if not key:
             libcache._log(u"restore: no cache key")
             return False
-        self._set_status(u"Loading library cache\u2026")
+        self._set_status(i18n.t("loading_cache"))
         scan, disk_miss, err = libcache.load(key)
         if scan is None:
             libcache._log(u"restore failed: {} key={}".format(err, key))
@@ -807,6 +901,7 @@ class FamilyManagerDialog(object):
         # overwrite recent_families written right after placement.
         if self._pending_symbol_id:
             return
+        ui_notify.unregister(self._on_external_language_changed)
         self._persist_cache(async_save=True)
 
     def _bind(self):
@@ -814,7 +909,6 @@ class FamilyManagerDialog(object):
         u.SearchBox.TextChanged            += self._on_search
         u.BtnClearSearch.Click             += self._on_clear_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
-        u.BtnThemeToggle.Click             += self._on_theme_toggle
         u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._on_settings
@@ -825,11 +919,10 @@ class FamilyManagerDialog(object):
         paths = self._library_paths()
         valid = [p for p in paths if os.path.isdir(p)]
         if not valid:
-            self._set_status(
-                u"Путь к библиотеке не задан. Нажмите «Библиотека».")
+            self._set_status(i18n.t("library_path_required"))
             return
         paths = valid
-        self._set_status(u"Сканирование библиотеки\u2026")
+        self._set_status(i18n.t("scanning"))
         t = threading.Thread(target=self._do_scan, args=(list(paths),))
         t.setDaemon(True)
         t.start()
@@ -840,11 +933,11 @@ class FamilyManagerDialog(object):
                 self.win.Dispatcher.BeginInvoke(
                     System.Action(
                         lambda c=n: self._set_status(
-                            u"Сканирование: {} семейств\u2026".format(c))))
+                            i18n.t("scanning_progress", n=c))))
 
             scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
-            msg = u"Ошибка сканирования: {}".format(ex)
+            msg = i18n.t("scan_error", err=ex)
             self.win.Dispatcher.Invoke(
                 System.Action(lambda: self._set_status(msg)))
             return
@@ -869,17 +962,12 @@ class FamilyManagerDialog(object):
             self.cfg = config.load()
         _save_sticky_session(key, self._preview_mem, self._preview_miss)
         if saved:
-            self._set_status(u"Загружено: {} семейств, {} папок (кэш сохранён)".format(
-                total, n_folders))
-        else:
             self._set_status(
-                u"Загружено: {} семейств (кэш не сохранён — см. cache.log)".format(
-                    total))
+                i18n.t("loaded_saved", n=total, f=n_folders))
+        else:
+            self._set_status(i18n.t("loaded_no_cache", n=total))
             MessageBox.Show(
-                u"Не удалось сохранить кэш библиотеки:\n{}\n\n"
-                u"Список в памяти. Проверьте права или "
-                u"%APPDATA%\\pyRevit\\AVRO\\cache.log.".format(
-                    save_msg),
+                i18n.t("cache_save_failed", msg=save_msg),
                 config.APP_NAME,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning)
@@ -891,7 +979,7 @@ class FamilyManagerDialog(object):
         tree.Items.Clear()
 
         recent_item = TreeViewItem()
-        recent_item.Header = u"Недавние"
+        recent_item.Header = i18n.t("recent")
         recent_item.Tag    = "__recent__"
         tree.Items.Add(recent_item)
 
@@ -998,16 +1086,19 @@ class FamilyManagerDialog(object):
             item.Focus()
 
     def _show_recents_default(self):
-        """Default view on every open: «Недавние»."""
-        self._open_catalog(self._recent_families(), u"Недавние")
+        """Default view on every open: Recent."""
+        self._open_catalog(
+            self._recent_families(), i18n.t("recent"), is_recent=True)
         self._select_recents_tree_item()
 
-    def _open_catalog(self, families, breadcrumb):
+    def _open_catalog(self, families, breadcrumb, is_recent=False):
         """Show a folder catalog; search is limited to these families."""
         self._folder_scope = families
+        self._scope_is_recent = is_recent
         self._folder_scope_label = breadcrumb
+        self._active_search_query = u""
         self._reset_search_field()
-        self._set_breadcrumb(breadcrumb)
+        self._update_breadcrumb_display()
         self._show_families(families)
 
     def _on_cat_selected(self, sender, e):
@@ -1018,18 +1109,19 @@ class FamilyManagerDialog(object):
             return
         tag = item.Tag
         if tag == "__recent__":
-            self._open_catalog(self._recent_families(), u"Недавние")
+            self._open_catalog(
+                self._recent_families(), i18n.t("recent"), is_recent=True)
         elif isinstance(tag, str) and tag.startswith(_TAG_FOLDER_PREFIX):
             folder_path = os.path.normpath(tag[len(_TAG_FOLDER_PREFIX):])
             node = self._scan.get("index", {}).get(folder_path)
             if node:
                 self._show_folder(node)
             else:
-                self._open_catalog([], folder_path)
+                self._open_catalog([], folder_path, is_recent=False)
 
     def _show_folder(self, node):
         breadcrumb = self._folder_breadcrumb(node)
-        self._open_catalog(node.descendants(), breadcrumb)
+        self._open_catalog(node.descendants(), breadcrumb, is_recent=False)
 
     def _folder_breadcrumb(self, node):
         parts = []
@@ -1285,7 +1377,7 @@ class FamilyManagerDialog(object):
         visible = [families[i] for i in range(first_i, last_i)]
         self._preview_gen += 1
         self._schedule_previews(visible, disk_only=False)
-        self._set_status(u"{} семейств".format(n))
+        self._set_status(i18n.t("families_count", n=n))
 
     def _add_family_card(self, fi, index=None):
         panel = self.ui.FamilyPanel
@@ -1333,7 +1425,7 @@ class FamilyManagerDialog(object):
         self.ui.BtnLoadSelected.IsEnabled = False
 
         n = len(families)
-        self.ui.CountText.Text = u"{} шт.".format(n)
+        self._update_count_display(n)
         if not families:
             self._virtual_mode = False
             self._catalog_changing = False
@@ -1342,8 +1434,7 @@ class FamilyManagerDialog(object):
         if self._virtual_mode:
             for fi in families:
                 self._fi_by_path[fi.path] = fi
-            self._set_status(
-                u"{} семейств — подгрузка при прокрутке\u2026".format(n))
+            self._set_status(i18n.t("virtual_scroll_hint", n=n))
             self._queue_virtual_sync()
             self._finish_family_view_layout()
             return
@@ -1362,7 +1453,7 @@ class FamilyManagerDialog(object):
         self._card_batch_families = list(families)
         self._card_batch_index = 0
         self._card_batch_gen = gen
-        self._set_status(u"Загрузка: 0 / {} семейств\u2026".format(n))
+        self._set_status(i18n.t("loading_cards", n=n))
         self._add_card_batch()
 
     def _add_card_batch(self):
@@ -1380,7 +1471,7 @@ class FamilyManagerDialog(object):
             panel.Height = self._canvas_height_for(total)
         if end < total:
             self._set_status(
-                u"Загрузка: {} / {} семейств\u2026".format(end, total))
+                i18n.t("loading_cards_progress", done=end, total=total))
             self.win.Dispatcher.BeginInvoke(
                 System.Action(self._add_card_batch))
             return
@@ -1431,13 +1522,13 @@ class FamilyManagerDialog(object):
                 if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
                     flush_pending()
                     if gen == self._preview_gen and not self._virtual_mode:
-                        msg = u"Обработано семейств: {} / {}".format(
-                            done[0], total)
+                        msg = i18n.t("previews_progress",
+                                       done=done[0], total=total)
                         self.win.Dispatcher.Invoke(
                             System.Action(lambda m=msg: self._set_status(m)))
             flush_pending()
             if gen == self._preview_gen and not self._virtual_mode:
-                msg = u"Готово: {} семейств.".format(total)
+                msg = i18n.t("previews_done", n=total)
                 self.win.Dispatcher.Invoke(
                     System.Action(lambda m=msg: self._set_status(m)))
 
@@ -1517,7 +1608,7 @@ class FamilyManagerDialog(object):
         path = libcache._norm_path(fi.path)
         if not path or not os.path.isfile(path):
             self._set_status(
-                u"Файл не найден: {}".format(_as_unicode(fi.name)))
+                i18n.t("file_not_found", name=_as_unicode(fi.name)))
             return
         try:
             from System.Diagnostics import Process
@@ -1525,10 +1616,10 @@ class FamilyManagerDialog(object):
                 "explorer.exe",
                 '/select,"{}"'.format(path.replace(u'"', u"")))
             self._set_status(
-                u"Проводник: {}".format(_as_unicode(fi.name)))
+                i18n.t("explorer_opened", name=_as_unicode(fi.name)))
         except Exception as ex:
             self._set_status(
-                u"Не удалось открыть проводник: {}".format(_as_unicode(ex)))
+                i18n.t("explorer_failed", err=_as_unicode(ex)))
 
     def _on_card_right_click(self, card, fi, e):
         if e.ClickCount >= 2:
@@ -1563,33 +1654,38 @@ class FamilyManagerDialog(object):
                 ver = _as_unicode(getattr(fi, "revit_version", u"") or u"")
                 folder = _as_unicode(getattr(fi, "folder", u"") or u"")
                 size_mb = fi.size_kb / 1024.0
-                self._set_status(u"{}  |  {}  |  {:.2f} МБ  |  {}".format(
-                    folder, _as_unicode(fi.name), size_mb, ver or u"?"))
+                self._set_status(i18n.t(
+                    "status_item",
+                    folder=folder,
+                    name=_as_unicode(fi.name),
+                    size=i18n.t("size_mb").format(size_mb),
+                    ver=ver or i18n.t("ver_unknown")))
             return
-        self._set_status(u"Выбрано семейств: {}".format(n))
+        self._set_status(i18n.t("selected_count", n=n))
 
     def _on_clear_search(self, sender, e):
         if not self.ui.SearchBox.Text.strip():
             return
         self._stop_search_timer()
         self._reset_search_field()
+        self._active_search_query = u""
         self._show_families(self._folder_scope)
-        self._set_breadcrumb(self._folder_scope_label)
+        self._update_breadcrumb_display()
 
     def _apply_search(self, query):
         query = _as_unicode(query).strip()
+        self._active_search_query = query
         if not query:
             self._show_families(self._folder_scope)
-            self._set_breadcrumb(self._folder_scope_label)
+            self._update_breadcrumb_display()
             return
         if not self._folder_scope:
             self._show_families([])
             return
         results = scanner.flat_search(self._folder_scope, query)
         self._show_families(results)
-        self._set_breadcrumb(
-            u"{} / Поиск: «{}»".format(self._folder_scope_label, query))
-        self.ui.CountText.Text = u"{} / {} шт.".format(
+        self._update_breadcrumb_display()
+        self._update_count_display(
             len(results), len(self._folder_scope))
 
     def _on_search_debounced(self, sender, e):
@@ -1647,7 +1743,7 @@ class FamilyManagerDialog(object):
         """Return (Family, error_message). error_message is None on success."""
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
-            return None, u"Файл не найден"
+            return None, i18n.t("file_not_found_short")
 
         err_text = None
 
@@ -1666,10 +1762,8 @@ class FamilyManagerDialog(object):
         if err_text:
             return None, err_text
         ver = _as_unicode(getattr(fi, "revit_version", u"") or u"")
-        hint = u" (файл {})".format(ver) if ver else u""
-        return None, (
-            u"Не удалось загрузить семейство{}. "
-            u"Проверьте версию Revit или нажмите «Загрузить».".format(hint))
+        hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
+        return None, i18n.t("load_failed", hint=hint)
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -1699,7 +1793,7 @@ class FamilyManagerDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        t = Transaction(self.doc, u"Load family")
+        t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
         try:
             fam, err = self._load_family_element(fi)
@@ -1710,8 +1804,7 @@ class FamilyManagerDialog(object):
             if symbol is None:
                 t.RollBack()
                 raise Exception(
-                    u"У семейства «{}» нет типоразмеров для размещения".format(
-                        _revit_name(fam)))
+                    i18n.t("no_symbol", name=_revit_name(fam)))
             if not symbol.IsActive:
                 symbol.Activate()
             t.Commit()
@@ -1727,17 +1820,16 @@ class FamilyManagerDialog(object):
     def _place_family(self, fi):
         uidoc = revit.uidoc
         if uidoc is None or uidoc.ActiveView is None:
-            self._set_status(u"Нет активного вида — откройте вид в проекте.")
+            self._set_status(i18n.t("no_active_view"))
             return
         try:
             symbol = self._get_family_symbol(fi)
         except Exception as ex:
-            self._set_status(u"Ошибка загрузки: {}".format(_as_unicode(ex)))
+            self._set_status(i18n.t("load_error", err=_as_unicode(ex)))
             return
         if symbol is None:
             self._set_status(
-                u"Не удалось подготовить семейство к размещению: {}".format(
-                    fi.name))
+                i18n.t("place_prepare_failed", name=fi.name))
             return
         search_query = u""
         if self.ui is not None:
@@ -1762,19 +1854,19 @@ class FamilyManagerDialog(object):
         try:
             symbol = self.doc.GetElement(ElementId(int(sym_id)))
             if symbol is None:
-                return u"Семейство не найдено в проекте"
+                return i18n.t("family_not_in_project")
             if not symbol.IsActive:
-                t = Transaction(self.doc, u"Activate family type")
+                t = Transaction(self.doc, i18n.t("txn_activate"))
                 t.Start()
                 symbol.Activate()
                 t.Commit()
             try:
                 uidoc.PromptForFamilyInstancePlacement(symbol)
             except OperationCanceledException:
-                return u"Размещение отменено"
-            return u"Размещено: {}".format(family_name)
+                return i18n.t("placement_cancelled")
+            return i18n.t("placed", name=family_name)
         except Exception as ex:
-            return u"Ошибка размещения: {}".format(ex)
+            return i18n.t("placement_error", err=ex)
 
     def _pump_ui_before_reopen(self):
         """Let Revit/WPF finish the placement command before ShowDialog again."""
@@ -1805,9 +1897,11 @@ class FamilyManagerDialog(object):
         loaded = []
         skipped = []
         errors = []
-        label = paths[0] if len(paths) == 1 else u"{} families".format(len(paths))
+        label = (paths[0] if len(paths) == 1
+                 else i18n.t("load_batch_label", n=len(paths)))
         try:
-            t = Transaction(self.doc, u"Load Family: {}".format(label))
+            t = Transaction(self.doc,
+                            i18n.t("txn_load_family", label=label))
             t.Start()
             for path in paths:
                 fi = self._fi_by_path.get(path)
@@ -1835,21 +1929,22 @@ class FamilyManagerDialog(object):
                     t.RollBack()
                 except Exception:
                     pass
-            self._set_status(u"Ошибка: {}".format(str(ex)))
+            self._set_status(i18n.t("error_generic", err=str(ex)))
             return
 
         parts = []
         if loaded:
-            parts.append(u"Загружено семейств: {}".format(len(loaded)))
+            parts.append(i18n.t("loaded_n", n=len(loaded)))
         if skipped:
-            parts.append(u"Уже в проекте: {}".format(len(skipped)))
+            parts.append(i18n.t("already_in_project", n=len(skipped)))
         if errors:
-            parts.append(u"Не загружено (ошибки): {}".format(len(errors)))
-        self._set_status(u"  |  ".join(parts) if parts else u"Готово.")
+            parts.append(i18n.t("not_loaded", n=len(errors)))
+        self._set_status(
+            u"  |  ".join(parts) if parts else i18n.t("done"))
 
     def _on_settings(self, sender, e):
         dlg = FolderBrowserDialog()
-        dlg.Description = u"Корневая папка библиотеки семейств Revit (одна библиотека)"
+        dlg.Description = i18n.t("library_dialog_desc")
         current = self._library_path()
         if current and os.path.isdir(current):
             dlg.SelectedPath = current
@@ -1866,8 +1961,7 @@ class FamilyManagerDialog(object):
 
     def _on_reload(self, sender, e):
         if not self._library_path():
-            self._set_status(
-                u"Путь к библиотеке не задан. Нажмите «Библиотека».")
+            self._set_status(i18n.t("library_path_required"))
             return
         config.clear_recent()
         self.cfg = config.load()
@@ -1879,10 +1973,11 @@ class FamilyManagerDialog(object):
         self._scan = {"roots": [], "all": [], "index": {}}
         self._folder_scope = []
         self._folder_scope_label = u""
+        self._scope_is_recent = False
         if self.ui is not None:
             self._build_tree(self._scan)
             self._show_recents_default()
-        self._set_status(u"Сканирование библиотеки\u2026")
+        self._set_status(i18n.t("scanning"))
         self._schedule_scan()
 
     def _set_status(self, text):
@@ -1898,10 +1993,12 @@ class FamilyManagerDialog(object):
         while True:
             self._init_window()
             if first_open:
-                self._set_status(u"Открытие\u2026")
+                self._set_status(i18n.t("opening"))
                 self._start_initial_load()
                 first_open = False
             else:
+                i18n.init_from_config()
+                self._apply_language()
                 self._restore_ui_after_reopen()
                 if self._placement_status_msg:
                     self._set_status(self._placement_status_msg)
@@ -1929,5 +2026,5 @@ class FamilyManagerDialog(object):
 # ---------------------------------------------------------------------------
 # pyRevit runs scripts directly - no __main__ guard needed
 # ---------------------------------------------------------------------------
-dlg = FamilyManagerDialog()
+dlg = FamilyBrowserDialog()
 dlg.show()

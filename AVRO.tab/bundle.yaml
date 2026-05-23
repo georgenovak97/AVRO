@@ -1,1 +1,6 @@
-title: Дополнительно
+title:
+  ru: Дополнительно
+  en_us: Additional
+layout:
+  - 01_Settings
+  - 02_Tools

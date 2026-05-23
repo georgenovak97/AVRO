@@ -1,0 +1,4 @@
+# Braille Pattern Blank (U+2800): non-empty for Revit API, invisible on ribbon.
+title: "⠀"
+layout:
+  - Settings

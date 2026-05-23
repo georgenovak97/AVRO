@@ -1,35 +1,35 @@
-#### Инструменты
+#### Tools
 
-- **Диспетчер семейств** - просмотр и загрузка семейств Revit из локальной библиотеки
-  ![Family Manager](familybr.jpg)
-	- Просмотр папок с `.rfa` и превью-иконок
-	- Дерево папок с уровнями
-	- Поиск по имени
-	- Двойной левый клик или «Загрузить» — загрузка в проект
-	- Двойной правый клик — открыть семейство в проводнике Windows
-	- Размещение в модели с возвратом в окно диспетчера
-	- Список «Недавние»
-	- Темная/Светлая тема
-	- Путь к библиотеке сохраняется в `%APPDATA%\pyRevit\AVRO\config.json`
+- **Family Browser** — browse and load Revit families from your local library
+  ![Family Browser](familybrowser.jpg)
+	- Browse folders with `.rfa` files and thumbnail previews
+	- Folder tree with multiple levels
+	- Search by name
+	- Left double-click or "Load" button — load family into project
+	- Right double-click — open family location in Windows Explorer
+	- Place in model with return to the browser window
+	- Recent files list
+	- Dark/light theme
+	- Library path is saved to `%APPDATA%\pyRevit\AVRO\config.json`
+	
+---
+#### Installation
+
+1. Copy the `AVRO.extension` folder to `%APPDATA%\pyRevit\Extensions\`  
+   (or add it via **pyRevit → Settings → Custom Extension Directories**).
+2. Reload pyRevit (**Reload**).
+3. In the Revit ribbon: tab **"AVRO"** → panel **"Tools"** → **"Family Browser"**.
 
 ---
-#### Установка
+#### First Launch
 
-1. Скопируйте папку `AVRO.extension` в `%APPDATA%\pyRevit\Extensions\`  
-   (или в каталог из **pyRevit → Settings → Custom Extension Directories**).
-2. Перезагрузите pyRevit (**Reload**).
-3. В ленте Revit: вкладка **«Дополнительно»** → панель **«Инструменты»** → **«Диспетчер семейств»**.
-
----
-#### Первый запуск
-
-1. Перейдите на вкладку **"Дополнительно"** в Revit.
-2. Запустите **"Диспетчер семейств"**.
-3. Нажмите **"Библиотека"** и укажите корневую папку с семействами.
-4. Дождитесь загрузки из кэша.
+1. Go to the **"AVRO"** tab in Revit.
+2. Open **"Family Browser"**.
+3. Click **"Library"** and select the root folder with your families.
+4. Wait for the cache to load.
 
 ---
-#### Требования
+#### Requirements
 
 - pyRevit 4.8+
 - Revit 2020+

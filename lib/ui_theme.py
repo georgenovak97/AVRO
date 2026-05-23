@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Light / Revit 2024 dark palettes for Family Manager WPF UI."""
+"""Light / Revit 2024 dark palettes for Family Browser WPF UI."""
 from System.Windows.Media import SolidColorBrush, Color
 
 # Dark UI: base #222836 (darkest), #3B4254 (panels), derived blues-grays

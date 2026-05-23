@@ -1,0 +1,8 @@
+title:
+  ru: Настройки
+  en_us: Settings
+tooltip:
+  ru: "Язык, тема и ссылки AVRO"
+  en_us: "AVRO language, theme, and links"
+author: AVRO Consulting
+min_revit_ver: 2020

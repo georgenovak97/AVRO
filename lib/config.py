@@ -23,6 +23,8 @@ DEFAULTS = {
     "library_cache_hash": "",
     "library_cache_count": 0,
     "ui_theme": "light",
+    "ui_language": "ru",            # used when ui_language_override is True
+    "ui_language_override": False,  # False → follow Revit UI language
 }
 
 _RECENTS_MIGRATED = False
@@ -150,6 +152,29 @@ def _normalize_library_cfg(cfg):
     return cfg
 
 
+def _migrate_ui_language_flags(data):
+    """Legacy configs: only ``en`` was a deliberate user choice."""
+    if "ui_language_override" in data:
+        return data
+    lang = (data.get("ui_language") or u"").lower()
+    data["ui_language_override"] = lang == "en"
+    return data
+
+
+def get_ui_language():
+    """Effective UI language: user override from config, else Revit UI language."""
+    data = load()
+    if data.get("ui_language_override"):
+        lang = (data.get("ui_language") or u"ru").lower()
+        return u"en" if lang == u"en" else u"ru"
+    try:
+        import revit_lang
+        return revit_lang.detect_ui_language()
+    except Exception:
+        lang = (data.get("ui_language") or u"ru").lower()
+        return u"en" if lang == u"en" else u"ru"
+
+
 def load():
     """Return config dict. ``recent_families`` always from recent_families.json."""
     _ensure_dir()
@@ -161,6 +186,7 @@ def load():
                 data = json.load(f)
             for k, v in DEFAULTS.items():
                 data.setdefault(k, v)
+            data = _migrate_ui_language_flags(data)
         except Exception:
             data = dict(DEFAULTS)
     data = _normalize_library_cfg(data)

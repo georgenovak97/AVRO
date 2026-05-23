@@ -1,0 +1,85 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="300"
+        MinWidth="300" MaxWidth="300"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        FontFamily="Segoe UI"
+        FontSize="12"
+        Background="#F0F0F0">
+    <Window.Resources>
+        <SolidColorBrush x:Key="TextMain" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="BtnFace" Color="#E1E1E1"/>
+        <SolidColorBrush x:Key="BtnFaceHov" Color="#CCE4F7"/>
+        <SolidColorBrush x:Key="BtnPressed" Color="#B9D7F5"/>
+        <SolidColorBrush x:Key="BtnBorder" Color="#707070"/>
+        <SolidColorBrush x:Key="BorderMain" Color="#ABABAB"/>
+        <Style x:Key="RevitButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BtnFace}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,5"/>
+            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource BtnFaceHov}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{StaticResource BtnPressed}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="14,0,14,14">
+        <Button x:Name="BtnLangRu"
+                Content="Russian" Style="{StaticResource RevitButton}"
+                Margin="0,48,0,6"/>
+        <Button x:Name="BtnLangEn"
+                Content="English" Style="{StaticResource RevitButton}"/>
+        <Border Height="1" Margin="0,2,0,8"
+                Background="{StaticResource BorderMain}"/>
+        <Button x:Name="BtnThemeLight"
+                Content="Light" Style="{StaticResource RevitButton}"/>
+        <Button x:Name="BtnThemeDark"
+                Content="Dark" Style="{StaticResource RevitButton}"/>
+        <Grid Margin="0,48,0,48">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="6"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button x:Name="BtnGithub" Grid.Column="0"
+                    Content="GitHub" Style="{StaticResource RevitButton}"
+                    Margin="0"/>
+            <Button x:Name="BtnLinkedIn" Grid.Column="2"
+                    Content="LinkedIn" Style="{StaticResource RevitButton}"
+                    Margin="0"/>
+        </Grid>
+        <Button x:Name="BtnOk"
+                Content="OK"
+                Style="{StaticResource RevitButton}"
+                HorizontalAlignment="Center"
+                MinWidth="88" Margin="0"
+                IsDefault="True"/>
+    </StackPanel>
+</Window>
