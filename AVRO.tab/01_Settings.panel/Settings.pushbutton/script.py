@@ -184,6 +184,4 @@ def _show_settings_dialog():
     win.ShowDialog()
 
 
-i18n.init_from_config()
-ribbon_i18n.init_from_config()
 _show_settings_dialog()

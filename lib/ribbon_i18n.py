@@ -126,10 +126,9 @@ def _set_item_label(item, text):
 
 
 def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
-    """Full Revit/pyRevit tooltip: title, description, Bundle Name, Author(s)."""
+    """pyRevit-style tooltip via Revit API only (safe on reload)."""
     if item is None:
         return
-    title = _as_unicode(title).strip()
     pb = _get_revit_pushbutton(item)
     name = bundle_name
     if not name and pb is not None:
@@ -138,9 +137,8 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
         except Exception:
             name = u""
     if not name:
-        name = title.replace(u" ", u"") or u"AVRO"
+        name = _as_unicode(title).strip().replace(u" ", u"") or u"AVRO"
     full_tip = _pyrevit_tooltip_body(description, name)
-
     if pb is not None:
         try:
             pb.ToolTip = full_tip
@@ -151,19 +149,16 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
         except Exception:
             pass
 
+
+def _count_buttons_on_tab(tab):
+    count = 0
     try:
-        import clr
-        clr.AddReference("AdWindows")
-        from Autodesk.Windows import RibbonToolTip
-        rt = RibbonToolTip()
-        rt.Title = title
-        rt.Content = full_tip
-        item.ToolTip = rt
-        resolve = getattr(item, "ResolveToolTip", None)
-        if resolve is not None:
-            resolve()
+        for panel in tab.Panels:
+            for _item in _walk_items(panel):
+                count += 1
     except Exception:
         pass
+    return count
 
 
 def _walk_items(container):
@@ -245,6 +240,9 @@ def apply(lang=None):
             title = tab.Title or u""
             if title not in tab_names:
                 continue
+            # After pyRevit Reload the tab can exist before all panels load.
+            if _count_buttons_on_tab(tab) < 2:
+                return False
             tab.Title = new_tab
             updated = True
             for panel in tab.Panels:
