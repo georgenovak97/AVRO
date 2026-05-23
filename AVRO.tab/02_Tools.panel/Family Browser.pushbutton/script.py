@@ -572,6 +572,7 @@ class FamilyBrowserDialog(object):
                 return
         except Exception:
             return
+        i18n.init_from_config()
         self._apply_language()
 
     def _update_count_display(self, shown, total=None):

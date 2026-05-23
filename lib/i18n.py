@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 _LANGUAGES = (u"ru", u"en")
-_CURRENT = u"ru"
+_CURRENT = u"en"
 
 _STRINGS = {
     u"ru": {
@@ -201,7 +201,7 @@ _STRINGS = {
 
 def set_language(lang):
     global _CURRENT
-    lang = (lang or u"ru").lower()
+    lang = (lang or u"en").lower()
     if lang in _LANGUAGES:
         _CURRENT = lang
 
@@ -225,4 +225,4 @@ def init_from_config():
         import config
         set_language(config.get_ui_language())
     except Exception:
-        set_language(u"ru")
+        set_language(u"en")

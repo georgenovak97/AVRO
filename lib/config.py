@@ -23,8 +23,8 @@ DEFAULTS = {
     "library_cache_hash": "",
     "library_cache_count": 0,
     "ui_theme": "light",
-    "ui_language": "ru",            # used when ui_language_override is True
-    "ui_language_override": False,  # False → follow Revit UI language
+    "ui_language": "en",            # ru only after user picks Russian in Settings
+    "ui_language_override": False,  # True + ru → Russian; otherwise English
 }
 
 _RECENTS_MIGRATED = False
@@ -152,27 +152,34 @@ def _normalize_library_cfg(cfg):
     return cfg
 
 
-def _migrate_ui_language_flags(data):
-    """Legacy configs: only ``en`` was a deliberate user choice."""
-    if "ui_language_override" in data:
-        return data
-    lang = (data.get("ui_language") or u"").lower()
-    data["ui_language_override"] = lang == "en"
-    return data
+def _save_config_core(data):
+    """Write config.json from a dict (no ``load()`` — avoids migration recursion)."""
+    _ensure_dir()
+    data = _normalize_library_cfg(dict(data))
+    stored = dict(DEFAULTS)
+    for k in DEFAULTS:
+        if k == "recent_families":
+            continue
+        v = data.get(k, DEFAULTS[k])
+        if k == "library_path":
+            v = _u(v)
+        stored[k] = v
+    try:
+        text = json.dumps(stored, ensure_ascii=False, indent=2)
+    except Exception:
+        text = json.dumps(stored, ensure_ascii=True, indent=2)
+    if isinstance(text, str):
+        text = _u(text)
+    _atomic_write_text(CONFIG_FILE, text)
 
 
 def get_ui_language():
-    """Effective UI language: user override from config, else Revit UI language."""
+    """English by default; Russian only if user chose it in Settings (OK)."""
     data = load()
-    if data.get("ui_language_override"):
-        lang = (data.get("ui_language") or u"ru").lower()
-        return u"en" if lang == u"en" else u"ru"
-    try:
-        import revit_lang
-        return revit_lang.detect_ui_language()
-    except Exception:
-        lang = (data.get("ui_language") or u"ru").lower()
-        return u"en" if lang == u"en" else u"ru"
+    if (data.get("ui_language_override")
+            and (data.get("ui_language") or u"").lower() == u"ru"):
+        return u"ru"
+    return u"en"
 
 
 def load():
@@ -186,7 +193,6 @@ def load():
                 data = json.load(f)
             for k, v in DEFAULTS.items():
                 data.setdefault(k, v)
-            data = _migrate_ui_language_flags(data)
         except Exception:
             data = dict(DEFAULTS)
     data = _normalize_library_cfg(data)
@@ -196,23 +202,7 @@ def load():
 
 def save(cfg):
     """Persist settings to config.json (recents are NOT stored here)."""
-    _ensure_dir()
-    cfg = _normalize_library_cfg(dict(cfg))
-    stored = dict(DEFAULTS)
-    for k in DEFAULTS:
-        if k == "recent_families":
-            continue
-        v = cfg.get(k, DEFAULTS[k])
-        if k == "library_path":
-            v = _u(v)
-        stored[k] = v
-    try:
-        text = json.dumps(stored, ensure_ascii=False, indent=2)
-    except Exception:
-        text = json.dumps(stored, ensure_ascii=True, indent=2)
-    if isinstance(text, str):
-        text = _u(text)
-    _atomic_write_text(CONFIG_FILE, text)
+    _save_config_core(cfg)
 
 
 def patch_fields(updates):
