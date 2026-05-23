@@ -22,6 +22,39 @@ def _as_unicode(text):
         return u""
 
 
+def tab_has_avro_settings_panel(tab):
+    """True if tab contains AVRO ``01_Settings`` panel (braille blank title)."""
+    if tab is None:
+        return False
+    try:
+        for panel in tab.Panels:
+            src = getattr(panel, "Source", None)
+            if src is None:
+                continue
+            if _as_unicode(getattr(src, "Title", None) or u"") == _BRAILLE_PANEL:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def find_avro_tab():
+    """Return the AVRO ribbon tab, or None (never the core pyRevit tab)."""
+    try:
+        import clr
+        clr.AddReference("AdWindows")
+        from Autodesk.Windows import ComponentManager
+    except Exception:
+        return None
+    try:
+        for tab in ComponentManager.Ribbon.Tabs:
+            if tab is not None and tab_has_avro_settings_panel(tab):
+                return tab
+    except Exception:
+        pass
+    return None
+
+
 def _is_text(value):
     try:
         basestring
@@ -185,13 +218,6 @@ def _walk_items(container):
 def apply(lang=None):
     """Update tab, panel, button captions, and pyRevit-style tooltips."""
     try:
-        import clr
-        clr.AddReference("AdWindows")
-        from Autodesk.Windows import ComponentManager
-    except Exception:
-        return False
-
-    try:
         import config
         import i18n
     except Exception:
@@ -200,7 +226,6 @@ def apply(lang=None):
     lng = lang or config.get_ui_language()
     i18n.set_language(lng)
 
-    tab_names = _texts_for_key("tab_title") | {_PYREVIT_TAB_KEY}
     settings_names = _texts_for_key("settings_dialog_title")
     settings_tips = _texts_for_key("settings_ribbon_tooltip")
     fm_names = _texts_for_key("ribbon_title") | {
@@ -215,51 +240,43 @@ def apply(lang=None):
     new_fm = i18n.t("ribbon_title")
     new_fm_tip = i18n.t("ribbon_tooltip")
 
+    tab = find_avro_tab()
+    if tab is None:
+        return False
+
     updated = False
     try:
-        for tab in ComponentManager.Ribbon.Tabs:
-            if tab is None:
+        tab.Title = new_tab
+        updated = True
+        for panel in tab.Panels:
+            src = getattr(panel, "Source", None)
+            if src is None:
                 continue
-            try:
-                if not tab.IsVisible:
-                    continue
-            except Exception:
-                pass
-            title = tab.Title or u""
-            if title not in tab_names:
-                continue
-            tab.Title = new_tab
-            updated = True
-            for panel in tab.Panels:
-                src = getattr(panel, "Source", None)
-                if src is None:
-                    continue
-                for item in _walk_items(panel):
-                    label = u""
+            for item in _walk_items(panel):
+                label = u""
+                try:
+                    label = item.Text or u""
+                except Exception:
+                    pass
+                if not label:
                     try:
-                        label = item.Text or u""
+                        label = item.Source.Title or u""
                     except Exception:
-                        pass
-                    if not label:
-                        try:
-                            label = item.Source.Title or u""
-                        except Exception:
-                            label = u""
-                    pb = _get_revit_pushbutton(item)
-                    tip = _read_tooltip_text(item, pb)
-                    if (label in settings_names
-                            or _tip_matches(tip, settings_tips)):
-                        _set_item_label(item, new_settings)
-                        _set_item_pyrevit_tooltip(
-                            item, new_settings, new_settings_tip,
-                            _BUNDLE_SETTINGS)
-                    elif (label in fm_names
-                            or _tip_matches(tip, fm_tips)):
-                        _set_item_label(item, new_fm)
-                        _set_item_pyrevit_tooltip(
-                            item, new_fm, new_fm_tip,
-                            _BUNDLE_FAMILY_BROWSER)
-            break
+                        label = u""
+                pb = _get_revit_pushbutton(item)
+                tip = _read_tooltip_text(item, pb)
+                if (label in settings_names
+                        or _tip_matches(tip, settings_tips)):
+                    _set_item_label(item, new_settings)
+                    _set_item_pyrevit_tooltip(
+                        item, new_settings, new_settings_tip,
+                        _BUNDLE_SETTINGS)
+                elif (label in fm_names
+                        or _tip_matches(tip, fm_tips)):
+                    _set_item_label(item, new_fm)
+                    _set_item_pyrevit_tooltip(
+                        item, new_fm, new_fm_tip,
+                        _BUNDLE_FAMILY_BROWSER)
     except Exception:
         return False
     return updated
