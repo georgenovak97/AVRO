@@ -84,17 +84,73 @@ def _pyrevit_tooltip_body(description, bundle_name, author=_RIBBON_AUTHOR):
 
 
 def _get_revit_pushbutton(item):
+    """Revit ``PushButton`` from AdWindows ribbon item (reflection)."""
     try:
         from Autodesk.Revit.UI import PushButton
-        rvt = getattr(item, "GetRevitItem", None)
-        if rvt is None:
-            return None
-        pb = rvt()
-        if isinstance(pb, PushButton):
-            return pb
+        import System.Reflection as rf
+    except Exception:
+        return None
+
+    for host in (item, getattr(item, "Source", None)):
+        if host is None:
+            continue
+        try:
+            rvt = getattr(host, "GetRevitItem", None)
+            if rvt is not None:
+                pb = rvt()
+                if isinstance(pb, PushButton):
+                    return pb
+        except Exception:
+            pass
+        try:
+            get_item = host.GetType().GetMethod(
+                "getRibbonItem",
+                rf.BindingFlags.NonPublic | rf.BindingFlags.Instance,
+            )
+            if get_item is not None:
+                pb = get_item.Invoke(host, None)
+                if isinstance(pb, PushButton):
+                    return pb
+        except Exception:
+            pass
+    return None
+
+
+def _find_avro_pyrvt_tab():
+    """pyRevit UI tree for AVRO tab (Settings + FamilyBrowser)."""
+    try:
+        from pyrevit.coreutils import ribbon
+        ui = ribbon.get_current_ui()
+        for tab in ui.get_pyrevit_tabs():
+            if (tab.find_child(_BUNDLE_SETTINGS) is not None
+                    and tab.find_child(_BUNDLE_FAMILY_BROWSER) is not None):
+                return tab
     except Exception:
         pass
     return None
+
+
+def _apply_buttons_via_pyrevit(pyrvt_tab, new_settings, new_settings_tip,
+                               new_fm, new_fm_tip):
+    """Update tooltips through pyRevit (same path as bundle reload)."""
+    updated = False
+    specs = (
+        (_BUNDLE_SETTINGS, new_settings, new_settings_tip),
+        (_BUNDLE_FAMILY_BROWSER, new_fm, new_fm_tip),
+    )
+    for bundle_name, title, description in specs:
+        btn = pyrvt_tab.find_child(bundle_name)
+        if btn is None:
+            continue
+        full_tip = _pyrevit_tooltip_body(description, bundle_name)
+        try:
+            btn.set_title(title)
+            btn.set_tooltip(full_tip)
+            btn.set_tooltip_ext(u"")
+            updated = True
+        except Exception:
+            pass
+    return updated
 
 
 def _tip_matches(tip, variants):
@@ -159,8 +215,31 @@ def _set_item_label(item, text):
             pass
 
 
+def _set_adwindows_tooltip(item, title, full_tip):
+    """Replace cached ``RibbonToolTip`` so Revit shows new description text."""
+    try:
+        import clr
+        clr.AddReference("AdWindows")
+        import Autodesk.Windows as AdWindows
+    except Exception:
+        return
+    title_u = _as_unicode(title)
+    for host in (item, getattr(item, "Source", None)):
+        if host is None:
+            continue
+        try:
+            host.ToolTip = AdWindows.RibbonToolTip()
+            host.ToolTip.Title = title_u
+            host.ToolTip.Content = full_tip
+            resolve = getattr(host, "ResolveToolTip", None)
+            if resolve is not None:
+                resolve()
+        except Exception:
+            pass
+
+
 def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
-    """pyRevit-style tooltip: Revit ``PushButton`` string + AdWindows ``Content``."""
+    """pyRevit-style tooltip on Revit API + fresh AdWindows ``RibbonToolTip``."""
     if item is None:
         return
     pb = _get_revit_pushbutton(item)
@@ -172,9 +251,8 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
             name = u""
     if not name:
         name = _as_unicode(title).strip().replace(u" ", u"") or u"AVRO"
-    desc = _as_unicode(description).strip()
     title_u = _as_unicode(title)
-    full_tip = _pyrevit_tooltip_body(desc, name)
+    full_tip = _pyrevit_tooltip_body(description, name)
 
     if pb is not None:
         try:
@@ -186,33 +264,7 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
         except Exception:
             pass
 
-    # Extended tooltip body comes from AdWindows RibbonToolTip.Content (not PushButton).
-    for host in (item, getattr(item, "Source", None)):
-        if host is None:
-            continue
-        try:
-            tip = host.ToolTip
-        except Exception:
-            tip = None
-        if tip is None:
-            continue
-        if _is_text(tip):
-            try:
-                host.ToolTip = full_tip
-            except Exception:
-                pass
-            continue
-        try:
-            tip.Title = title_u
-            tip.Content = desc
-        except Exception:
-            pass
-        try:
-            resolve = getattr(host, "ResolveToolTip", None)
-            if resolve is not None:
-                resolve()
-        except Exception:
-            pass
+    _set_adwindows_tooltip(item, title_u, full_tip)
 
 
 def _walk_items(container):
@@ -272,13 +324,22 @@ def apply(lang=None):
     new_fm_tip = i18n.t("ribbon_tooltip")
 
     tab = find_avro_tab()
-    if tab is None:
+    pyrvt_tab = _find_avro_pyrvt_tab()
+    if tab is None and pyrvt_tab is None:
         return False
 
     updated = False
     try:
-        tab.Title = new_tab
-        updated = True
+        if tab is not None:
+            tab.Title = new_tab
+            updated = True
+        if pyrvt_tab is not None:
+            if _apply_buttons_via_pyrevit(
+                    pyrvt_tab, new_settings, new_settings_tip,
+                    new_fm, new_fm_tip):
+                updated = True
+        if tab is None:
+            return updated
         for panel in tab.Panels:
             src = getattr(panel, "Source", None)
             if src is None:
