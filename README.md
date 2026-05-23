@@ -17,7 +17,7 @@
 ---
 #### Installation
   ![Instsall](install.jpg)
-1. Add via **pyRevit → Settings → Custom Extension Directories**.
+1. Add `https://github.com/georgenovak97/AVRO.git` via **pyRevit → Extentions → Git URL → Add and install**.
 2. In the Revit ribbon: tab **"Additional"** → panel **"Tools"** → **"Family Browser"**.
 
 ---
