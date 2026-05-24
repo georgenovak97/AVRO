@@ -1,6 +1,5 @@
-title:
-  ru: Дополнительно
-  en_us: Additional
+# Fixed tab key for all Revit locales (display title set by ribbon_i18n from config).
+title: AVRO
 layout:
   - 01_Settings
   - 02_Tools

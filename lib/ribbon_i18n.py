@@ -299,6 +299,82 @@ def _walk_items(container):
         yield it
 
 
+def _find_tab_by_display_titles():
+    """Fallback when Settings panel is not built yet (early startup)."""
+    try:
+        import clr
+        clr.AddReference("AdWindows")
+        from Autodesk.Windows import ComponentManager
+    except Exception:
+        return None
+    titles = _texts_for_key("tab_title") | {_PYREVIT_TAB_KEY, u"AVRO"}
+    try:
+        for tab in ComponentManager.Ribbon.Tabs:
+            if tab is None:
+                continue
+            if _as_unicode(getattr(tab, "Title", None) or u"") in titles:
+                return tab
+    except Exception:
+        pass
+    return None
+
+
+def prepare_match_keys():
+    """
+    Reset tab/panel keys before pyRevit ``update_pyrevit_ui``.
+
+    pyRevit matches the Tools panel by bundle title (``Tools``). After
+    ``apply()``, titles may be localized; this restores match keys on reload.
+    """
+    tab = find_avro_tab() or _find_tab_by_display_titles()
+    if tab is None:
+        return False
+    panel_keys = _texts_for_key("ribbon_panel_tools") | {_PYREVIT_TOOLS_PANEL_KEY}
+    try:
+        tab.Title = _PYREVIT_TAB_KEY
+    except Exception:
+        pass
+    try:
+        for panel in tab.Panels:
+            src = getattr(panel, "Source", None)
+            if src is None:
+                continue
+            ptitle = _as_unicode(getattr(src, "Title", None) or u"")
+            if ptitle == _BRAILLE_PANEL:
+                continue
+            if ptitle in panel_keys:
+                try:
+                    src.Title = _PYREVIT_TOOLS_PANEL_KEY
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return True
+
+
+def has_family_browser_button():
+    """True if Family Browser pushbutton exists on the AVRO ribbon."""
+    pyrvt_tab = _find_avro_pyrvt_tab()
+    if pyrvt_tab is not None:
+        try:
+            if pyrvt_tab.find_child(_BUNDLE_FAMILY_BROWSER) is not None:
+                return True
+        except Exception:
+            pass
+    tab = find_avro_tab()
+    if tab is None:
+        return False
+    try:
+        for panel in tab.Panels:
+            for item in _walk_items(panel):
+                pb = _get_revit_pushbutton(item)
+                if pb is not None and _as_unicode(pb.Name) == _BUNDLE_FAMILY_BROWSER:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 def _apply_tools_panel_display(tab, tools_display):
     """Localized panel caption (internal key stays ``Tools`` for pyRevit Reload)."""
     if tab is None or not tools_display:
@@ -329,7 +405,7 @@ def apply(lang=None):
     except Exception:
         return False
 
-    lng = lang or config.get_ui_language()
+    lng = lang or config.read_ui_language()
     i18n.set_language(lng)
 
     settings_names = _texts_for_key("settings_dialog_title")
@@ -409,6 +485,6 @@ def apply(lang=None):
 def init_from_config():
     try:
         import config
-        return apply(config.get_ui_language())
+        return apply(config.read_ui_language())
     except Exception:
         return False

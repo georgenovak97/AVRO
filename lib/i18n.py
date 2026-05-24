@@ -231,6 +231,7 @@ def t(key, lang=None, **kwargs):
 
 
 def init_from_config():
+    """Load language from config.json (use after every Reload / Update)."""
     try:
         import config
         set_language(config.read_ui_language())
