@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-AVRO extension startup (runs on every pyRevit Reload).
-
-Runs before pyRevit builds ribbon UI: restores tab/panel keys pyRevit expects,
-then schedules button label localization after Reload completes.
-"""
+"""AVRO startup: hide tab during Reload / Update, restore and activate when done."""
 from __future__ import print_function
 
 import os
@@ -22,7 +17,7 @@ except Exception:
 
 try:
     import reload_fixup
-    reload_fixup.prepare_ribbon_for_pyrevit_update()
+    reload_fixup.begin_reload()
     reload_fixup.schedule_after_reload()
 except Exception:
     pass

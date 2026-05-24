@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Ribbon stability across pyRevit Reload (local Reload, not remote Update).
-
-Never calls ``asmmaker.create_assembly`` after Reload — that can race with
-pyRevit session load and break Reload telemetry (``result_dict`` is None).
+Reload / Update UX: hide AVRO tab → pyRevit rebuilds → show tab and select it.
 """
 from __future__ import print_function
 
@@ -11,6 +8,12 @@ _PYREVIT_TAB_KEY = u"AVRO"
 _PYREVIT_TOOLS_PANEL_KEY = u"Tools"
 _BRAILLE_PANEL = u"\u2800"
 _BUNDLE_FAMILY_BROWSER = u"FamilyBrowser"
+
+# pyRevit Reload / Update command_name (hooks/command-before-exec.py).
+_PYREVIT_RELOAD_CMDS = frozenset([
+    u"pyrevitcore_pyrevit_pyrevit_tools_reload",
+    u"pyrevitcore_pyrevit_update",
+])
 
 
 def _as_unicode(text):
@@ -32,7 +35,6 @@ def _tools_panel_title_variants():
 
 
 def _session_ready():
-    """True when Reload finished and AVRO assembly is registered."""
     try:
         from pyrevit.loader import sessioninfo
         assms = sessioninfo.get_loaded_pyrevit_assemblies()
@@ -41,8 +43,65 @@ def _session_ready():
         return False
 
 
-def prepare_ribbon_for_pyrevit_update():
-    """Reset AVRO tab/panel keys before pyRevit ``update_pyrevit_ui`` (startup)."""
+def is_reload_or_update_command(command_name):
+    """True for pyRevit Reload / Update (command-before-exec hook)."""
+    name = _as_unicode(command_name).strip()
+    if not name:
+        return False
+    low = name.lower()
+    if low in _PYREVIT_RELOAD_CMDS:
+        return True
+    if low.endswith(u"_tools_reload") or low.endswith(u"tools_reload"):
+        return True
+    if u"update" in low and u"pyrevit" in low and u"pyrevitcore" in low:
+        return True
+    return False
+
+
+def hide_avro_tab():
+    """Hide AVRO ribbon tab (Reload / Update — hook or startup)."""
+    try:
+        import clr
+        clr.AddReference("AdWindows")
+        from Autodesk.Windows import ComponentManager
+        import ribbon_i18n
+        tab = ribbon_i18n.find_avro_tab()
+        if tab is not None:
+            tab.IsVisible = False
+            try:
+                ribbon = ComponentManager.Ribbon
+                if ribbon is not None:
+                    ribbon.UpdateLayout()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def show_avro_tab_and_activate():
+    """Show AVRO tab and make it the active ribbon tab."""
+    try:
+        import clr
+        clr.AddReference("AdWindows")
+        from Autodesk.Windows import ComponentManager
+        import ribbon_i18n
+        tab = ribbon_i18n.find_avro_tab()
+        if tab is None:
+            return
+        tab.IsVisible = True
+        try:
+            tab.IsEnabled = True
+        except Exception:
+            pass
+        try:
+            ComponentManager.Ribbon.ActiveTab = tab
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def prepare_ribbon_for_pyrevit_update(reset_tab_title=True):
     try:
         import ribbon_i18n
         tab = ribbon_i18n.find_avro_tab()
@@ -52,10 +111,11 @@ def prepare_ribbon_for_pyrevit_update():
         return
 
     variants = _tools_panel_title_variants()
-    try:
-        tab.Title = _PYREVIT_TAB_KEY
-    except Exception:
-        pass
+    if reset_tab_title:
+        try:
+            tab.Title = _PYREVIT_TAB_KEY
+        except Exception:
+            pass
     try:
         for panel in tab.Panels:
             src = getattr(panel, "Source", None)
@@ -72,6 +132,8 @@ def prepare_ribbon_for_pyrevit_update():
     except Exception:
         pass
 
+    if not reset_tab_title:
+        return
     try:
         from pyrevit import HOST_APP
         for rpanel in HOST_APP.uiapp.GetRibbonPanels(_PYREVIT_TAB_KEY):
@@ -86,7 +148,6 @@ def prepare_ribbon_for_pyrevit_update():
 
 
 def _get_avro_asm_info(ui_ext):
-    """Reuse DLL from current session (no new assembly build)."""
     try:
         import os
         from pyrevit.loader import asmmaker
@@ -114,7 +175,6 @@ def _get_avro_asm_info(ui_ext):
                 return asmmaker.ExtensionAssemblyInfo(fname, loc, True)
     except Exception:
         pass
-
     try:
         for path in appdata.list_data_files(framework.ASSEMBLY_FILE_TYPE):
             base = os.path.basename(path).upper()
@@ -127,7 +187,6 @@ def _get_avro_asm_info(ui_ext):
 
 
 def _rerun_avro_ui_update():
-    """Second UI pass using the already-loaded AVRO DLL."""
     if not _session_ready():
         return False
     try:
@@ -137,14 +196,11 @@ def _rerun_avro_ui_update():
         from pyrevit.userconfig import user_config
     except Exception:
         return False
-
     try:
         uimaker.current_ui = ribbon.get_current_ui()
     except Exception:
         return False
-
-    prepare_ribbon_for_pyrevit_update()
-
+    prepare_ribbon_for_pyrevit_update(reset_tab_title=False)
     for ui_ext in extensionmgr.get_installed_ui_extensions():
         ext_name = (getattr(ui_ext, "name", None) or u"").upper()
         if ext_name != u"AVRO":
@@ -160,58 +216,6 @@ def _rerun_avro_ui_update():
         except Exception:
             return False
     return False
-
-
-def _activate_pyrvt_tree(container):
-    if container is None:
-        return
-    try:
-        container.activate()
-    except Exception:
-        pass
-    try:
-        for child in container:
-            _activate_pyrvt_tree(child)
-    except Exception:
-        pass
-
-
-def _activate_avro_ribbon():
-    try:
-        import ribbon_i18n
-        tab = ribbon_i18n.find_avro_tab()
-    except Exception:
-        tab = None
-    if tab is not None:
-        try:
-            tab.IsVisible = True
-            tab.IsEnabled = True
-        except Exception:
-            pass
-        try:
-            for panel in tab.Panels:
-                try:
-                    panel.IsVisible = True
-                    panel.IsEnabled = True
-                except Exception:
-                    pass
-                src = getattr(panel, "Source", None)
-                if src is not None:
-                    try:
-                        src.IsVisible = True
-                        src.IsEnabled = True
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-    try:
-        import ribbon_i18n
-        pyrvt_tab = ribbon_i18n._find_avro_pyrvt_tab()
-        if pyrvt_tab is not None:
-            _activate_pyrvt_tree(pyrvt_tab)
-    except Exception:
-        pass
 
 
 def _family_browser_on_ribbon():
@@ -241,11 +245,16 @@ def _family_browser_on_ribbon():
     return False
 
 
-def fix_after_reload():
-    """Restore ribbon labels and Family Browser (safe after Reload completes)."""
-    if not _session_ready():
-        return
-    prepare_ribbon_for_pyrevit_update()
+def begin_reload():
+    """Startup during Reload: keep tab hidden, fix panel keys for pyRevit."""
+    hide_avro_tab()
+    prepare_ribbon_for_pyrevit_update(reset_tab_title=True)
+
+
+def finish_reload():
+    """After Reload: restore ribbon, labels, show tab and activate it."""
+    hide_avro_tab()
+    prepare_ribbon_for_pyrevit_update(reset_tab_title=False)
     if not _family_browser_on_ribbon():
         _rerun_avro_ui_update()
     try:
@@ -253,21 +262,21 @@ def fix_after_reload():
         ribbon_i18n.apply()
     except Exception:
         pass
-    _activate_avro_ribbon()
+    show_avro_tab_and_activate()
 
 
 def schedule_after_reload():
-    """Post-Reload: wait for session, then fix ribbon (does not block Reload)."""
     try:
         from pyrevit import HOST_APP
         uiapp = HOST_APP.uiapp
         if uiapp is None:
             return
 
-        state = {"ticks": 0, "handler": None, "min_ticks": 8, "max_ticks": 60}
+        state = {"ticks": 0, "handler": None, "min_ticks": 4, "max_ticks": 60}
 
         def on_idling(sender, args):
             state["ticks"] += 1
+            hide_avro_tab()
             if state["ticks"] < state["min_ticks"]:
                 return
             if not _session_ready():
@@ -276,11 +285,12 @@ def schedule_after_reload():
                         uiapp.Idling -= state["handler"]
                     except Exception:
                         pass
+                    show_avro_tab_and_activate()
                 return
             try:
-                fix_after_reload()
+                finish_reload()
             except Exception:
-                pass
+                show_avro_tab_and_activate()
             try:
                 uiapp.Idling -= state["handler"]
             except Exception:
