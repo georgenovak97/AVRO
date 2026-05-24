@@ -4,6 +4,7 @@ from __future__ import print_function
 
 _BRAILLE_PANEL = u"\u2800"
 _PYREVIT_TAB_KEY = u"AVRO"
+_PYREVIT_TOOLS_PANEL_KEY = u"Tools"
 _RIBBON_AUTHOR = u"AVRO Consulting"
 
 # Revit internal command names (see pyRevit Bundle Name footer).
@@ -298,6 +299,28 @@ def _walk_items(container):
         yield it
 
 
+def _apply_tools_panel_display(tab, tools_display):
+    """Localized panel caption (internal key stays ``Tools`` for pyRevit Reload)."""
+    if tab is None or not tools_display:
+        return
+    keys = _texts_for_key("ribbon_panel_tools") | {_PYREVIT_TOOLS_PANEL_KEY}
+    try:
+        for panel in tab.Panels:
+            src = getattr(panel, "Source", None)
+            if src is None:
+                continue
+            ptitle = _as_unicode(getattr(src, "Title", None) or u"")
+            if ptitle == _BRAILLE_PANEL:
+                continue
+            if ptitle in keys:
+                try:
+                    src.Title = _as_unicode(tools_display)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def apply(lang=None):
     """Update tab, panel, button captions, and pyRevit-style tooltips."""
     try:
@@ -332,6 +355,7 @@ def apply(lang=None):
     try:
         if tab is not None:
             tab.Title = new_tab
+            _apply_tools_panel_display(tab, i18n.t("ribbon_panel_tools"))
             updated = True
         if pyrvt_tab is not None:
             if _apply_buttons_via_pyrevit(
