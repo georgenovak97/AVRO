@@ -2,16 +2,17 @@
 """
 Post-load ribbon orchestration for pyRevit Reload / Update.
 
-Works with pyRevit ``sessionmgr._new_session`` order:
+Aligned with ``sessionmgr._new_session``:
 
 1. ``startup.py`` → ``ribbon_i18n.prepare_match_keys()`` (before ``update_pyrevit_ui``)
 2. pyRevit builds UI → ``cleanup_pyrevit_ui``
-3. One-shot ``Idling`` → optional UI refresh → ``ribbon_i18n.init_from_config()``
+3. One-shot ``Idling`` (waits for ribbon) → optional UI refresh → ``ribbon_i18n.init_from_config()``
 """
 from __future__ import print_function
 
 _EXTENSION_NAME = u"AVRO"
-_IDLING_TICKS_BEFORE_FINISH = 2
+_MIN_IDLING_TICKS = 2
+_MAX_IDLING_TICKS = 90
 
 _post_load_idling = None
 
@@ -37,10 +38,12 @@ def prepare_ribbon_for_pyrevit_update():
 def _avro_assembly_info():
     """Return (ui_extension, assembly_info) for AVRO, or (None, None)."""
     try:
-        import extensionmgr
+        from pyrevit.extensions import extensionmgr
         from pyrevit.loader import asmmaker, sessioninfo
         from pyrevit.coreutils import assmutils, coreutils
-    except Exception:
+        import config
+    except Exception as ex:
+        _log(u"reload: pyRevit imports failed: {}".format(ex))
         return None, None
 
     try:
@@ -50,7 +53,7 @@ def _avro_assembly_info():
 
     avro_asm = None
     for assm_name in assms:
-        name = assm_name if isinstance(assm_name, unicode) else unicode(assm_name)
+        name = config._u(assm_name)
         if _EXTENSION_NAME in name.upper():
             avro_asm = assm_name
             break
@@ -58,10 +61,14 @@ def _avro_assembly_info():
         return None, None
 
     ui_ext = None
-    for ext in extensionmgr.get_installed_ui_extensions():
-        if (getattr(ext, "name", None) or u"").upper() == _EXTENSION_NAME:
-            ui_ext = ext
-            break
+    try:
+        for ext in extensionmgr.get_installed_ui_extensions():
+            if config._u(getattr(ext, "name", None)).upper() == _EXTENSION_NAME:
+                ui_ext = ext
+                break
+    except Exception as ex:
+        _log(u"reload: extension lookup failed: {}".format(ex))
+        return None, None
     if ui_ext is None:
         return None, None
 
@@ -71,12 +78,7 @@ def _avro_assembly_info():
     if loaded is None:
         return None, None
 
-    loc = getattr(loaded, "Location", None) or u""
-    if isinstance(loc, str):
-        try:
-            loc = unicode(loc)
-        except Exception:
-            loc = u""
+    loc = config._u(getattr(loaded, "Location", None))
     if not loc:
         return None, None
 
@@ -91,8 +93,8 @@ def _refresh_avro_ui_if_needed():
         import ribbon_i18n
         if ribbon_i18n.has_family_browser_button():
             return False
-    except Exception:
-        pass
+    except Exception as ex:
+        _log(u"reload: family browser check failed: {}".format(ex))
 
     ui_ext, info = _avro_assembly_info()
     if ui_ext is None or info is None:
@@ -112,15 +114,37 @@ def _refresh_avro_ui_if_needed():
         return False
 
 
+def _finish_post_load():
+    """Refresh UI if needed, then apply ribbon language from config."""
+    refreshed = False
+    try:
+        refreshed = _refresh_avro_ui_if_needed()
+    except Exception as ex:
+        _log(u"reload: refresh step failed: {}".format(ex))
+    try:
+        import ribbon_i18n
+        if ribbon_i18n.init_from_config():
+            _log(u"reload: ribbon i18n applied from config")
+        elif refreshed:
+            if ribbon_i18n.init_from_config():
+                _log(u"reload: ribbon i18n applied after UI refresh")
+            else:
+                _log(u"reload: ribbon i18n apply returned false")
+    except Exception as ex:
+        _log(u"reload: ribbon i18n failed: {}".format(ex))
+
+
 def schedule_post_load_ribbon_i18n():
-    """One-shot Idling handler: refresh UI if needed, then apply ``ui_language``."""
+    """One-shot Idling: wait for ribbon, then refresh UI / apply ``ui_language``."""
     global _post_load_idling
     try:
         from pyrevit import HOST_APP
         uiapp = HOST_APP.uiapp
         if uiapp is None:
+            _log(u"reload: HOST_APP.uiapp is None")
             return
-    except Exception:
+    except Exception as ex:
+        _log(u"reload: HOST_APP unavailable: {}".format(ex))
         return
 
     if _post_load_idling is not None:
@@ -135,20 +159,24 @@ def schedule_post_load_ribbon_i18n():
     def on_idling(sender, args):
         global _post_load_idling
         state["n"] += 1
-        if state["n"] < _IDLING_TICKS_BEFORE_FINISH:
+        if state["n"] < _MIN_IDLING_TICKS:
+            return
+        try:
+            import ribbon_i18n
+            ready = ribbon_i18n.ribbon_ui_ready()
+        except Exception:
+            ready = False
+        if not ready and state["n"] < _MAX_IDLING_TICKS:
             return
         try:
             uiapp.Idling -= on_idling
         except Exception:
             pass
         _post_load_idling = None
-        try:
-            _refresh_avro_ui_if_needed()
-            import ribbon_i18n
-            if ribbon_i18n.init_from_config():
-                _log(u"reload: ribbon i18n applied from config")
-        except Exception as ex:
-            _log(u"reload: post-load ribbon failed: {}".format(ex))
+        if not ready:
+            _log(u"reload: ribbon not ready after {} idling ticks".format(
+                state["n"]))
+        _finish_post_load()
 
     _post_load_idling = on_idling
     try:

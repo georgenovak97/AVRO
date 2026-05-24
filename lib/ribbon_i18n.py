@@ -352,6 +352,13 @@ def prepare_match_keys():
     return True
 
 
+def ribbon_ui_ready():
+    """True when AVRO ribbon exists (AdWindows tab or pyRevit UI tree)."""
+    if find_avro_tab() is not None:
+        return True
+    return _find_avro_pyrvt_tab() is not None
+
+
 def has_family_browser_button():
     """True if Family Browser pushbutton exists on the AVRO ribbon."""
     pyrvt_tab = _find_avro_pyrvt_tab()
