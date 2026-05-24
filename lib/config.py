@@ -235,10 +235,6 @@ def patch_fields(updates):
     save(cfg)
 
 
-def get(key, default=None):
-    return load().get(key, default)
-
-
 def set_value(key, value):
     if key == "recent_families":
         save_recents(value or [])
@@ -248,18 +244,10 @@ def set_value(key, value):
     save(cfg)
 
 
-def get_library_path():
-    return load().get("library_path", "") or ""
-
-
 def set_library_path(path):
     cfg = load()
     cfg["library_path"] = path or ""
     save(cfg)
-
-
-def add_library_path(path):
-    set_library_path(path)
 
 
 def add_recent(rfa_path):

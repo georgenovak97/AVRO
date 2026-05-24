@@ -293,20 +293,3 @@ def flat_search(all_families, query):
             results.append(fi)
     results.sort(key=lambda f: f.name.lower())
     return results
-
-
-# ---------------------------------------------------------------------------
-# Preview extraction (embedded PNG in .rfa compound file)
-# ---------------------------------------------------------------------------
-def extract_preview_png_bytes(rfa_path):
-    """Return raw PNG bytes from an .rfa preview stream, or None."""
-    try:
-        import rfa_preview
-        return rfa_preview.extract_preview_png_bytes(rfa_path)
-    except Exception:
-        return None
-
-
-def extract_preview(app, rfa_path):
-    """Legacy alias; returns PNG bytes (not BitmapSource)."""
-    return extract_preview_png_bytes(rfa_path)
