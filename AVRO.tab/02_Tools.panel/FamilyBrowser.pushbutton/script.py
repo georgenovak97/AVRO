@@ -8,6 +8,7 @@ import sys
 import threading
 import codecs
 import tempfile
+import time
 
 # ---------------------------------------------------------------------------
 # CLR / .NET imports
@@ -31,7 +32,7 @@ from System.Windows.Controls import (
     WrapPanel,
 )
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper, Stretch
-from System.Windows.Input import Keyboard, ModifierKeys
+from System.Windows.Input import Keyboard, ModifierKeys, Key
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from System.IO import MemoryStream
 from System.Windows.Markup import XamlReader
@@ -278,6 +279,7 @@ _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
 _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
+_DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
 _CARD_MARGIN = 10
 _CARD_W = 156
 _CARD_H = 182
@@ -517,10 +519,12 @@ class FamilyBrowserDialog(object):
         self._catalog_changing = False
         self._project_family_index = None
         self._project_family_index_doc = None
+        self._last_escape_press_at = 0.0
 
     def _init_window(self):
         self._search_timer = None
         self._grid_relayout_timer = None
+        self._last_escape_press_at = 0.0
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
@@ -900,8 +904,30 @@ class FamilyBrowserDialog(object):
         ui_notify.unregister(self._on_external_language_changed)
         self._persist_cache(async_save=True)
 
+    def _on_window_preview_keydown(self, sender, e):
+        try:
+            if e.IsRepeat:
+                return
+        except Exception:
+            pass
+
+        if e.Key != Key.Escape:
+            self._last_escape_press_at = 0.0
+            return
+
+        now = time.time()
+        if ((now - self._last_escape_press_at)
+                <= _DOUBLE_ESC_CLOSE_WINDOW_S):
+            self._last_escape_press_at = 0.0
+            e.Handled = True
+            self.win.Close()
+            return
+
+        self._last_escape_press_at = now
+
     def _bind(self):
         u = self.ui
+        self.win.PreviewKeyDown            += self._on_window_preview_keydown
         u.SearchBox.TextChanged            += self._on_search
         u.BtnClearSearch.Click             += self._on_clear_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
