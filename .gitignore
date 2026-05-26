@@ -1,0 +1,3 @@
+# Keep the tmp folder in git, but ignore its runtime contents.
+tmp/*
+!tmp/.gitignore
