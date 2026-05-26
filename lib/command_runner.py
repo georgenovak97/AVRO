@@ -39,10 +39,7 @@ def _u(text):
 
 def _activate_revit_main_window():
     try:
-        uiapp = HOST_APP.uiapp if HOST_APP is not None else None
-        if uiapp is None:
-            return
-        hwnd = getattr(uiapp, "MainWindowHandle", 0)
+        hwnd = get_revit_main_window_handle()
         if not hwnd:
             return
         _user32.ShowWindow(hwnd, 5)
@@ -51,6 +48,16 @@ def _activate_revit_main_window():
         _user32.SetActiveWindow(hwnd)
     except Exception:
         pass
+
+
+def get_revit_main_window_handle():
+    try:
+        uiapp = HOST_APP.uiapp if HOST_APP is not None else None
+        if uiapp is None:
+            return 0
+        return int(getattr(uiapp, "MainWindowHandle", 0) or 0)
+    except Exception:
+        return 0
 
 
 def post_command_sync(command_id):
