@@ -10,6 +10,8 @@ Aligned with ``sessionmgr._new_session``:
 """
 from __future__ import print_function
 
+import os
+
 _EXTENSION_NAME = u"AVRO"
 _MIN_IDLING_TICKS = 2
 _MAX_IDLING_TICKS = 90
@@ -40,7 +42,7 @@ def _avro_assembly_info():
     try:
         from pyrevit.extensions import extensionmgr
         from pyrevit.loader import asmmaker, sessioninfo
-        from pyrevit.coreutils import assmutils, coreutils
+        from pyrevit.coreutils import assmutils
         import config
     except Exception as ex:
         _log(u"reload: pyRevit imports failed: {}".format(ex))
@@ -83,7 +85,7 @@ def _avro_assembly_info():
         return None, None
 
     info = asmmaker.ExtensionAssemblyInfo(
-        coreutils.get_file_name(loc), loc, True)
+        os.path.basename(loc), loc, True)
     return ui_ext, info
 
 
@@ -117,16 +119,19 @@ def _refresh_avro_ui_if_needed():
 def _finish_post_load():
     """Refresh UI if needed, then apply ribbon language from config."""
     refreshed = False
+    applied = False
     try:
         refreshed = _refresh_avro_ui_if_needed()
     except Exception as ex:
         _log(u"reload: refresh step failed: {}".format(ex))
     try:
         import ribbon_i18n
-        if ribbon_i18n.init_from_config():
+        applied = ribbon_i18n.init_from_config()
+        if applied:
             _log(u"reload: ribbon i18n applied from config")
         elif refreshed:
-            if ribbon_i18n.init_from_config():
+            applied = ribbon_i18n.init_from_config()
+            if applied:
                 _log(u"reload: ribbon i18n applied after UI refresh")
             else:
                 _log(u"reload: ribbon i18n apply returned false")
@@ -135,7 +140,7 @@ def _finish_post_load():
 
 
 def schedule_post_load_ribbon_i18n():
-    """One-shot Idling: wait for ribbon, then refresh UI / apply ``ui_language``."""
+    """One-shot Idling: wait for ribbon, then refresh UI / apply Revit UI language."""
     global _post_load_idling
     try:
         from pyrevit import HOST_APP

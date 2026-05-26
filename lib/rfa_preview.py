@@ -10,10 +10,10 @@ import os
 import hashlib
 import struct
 
-THUMB_CACHE_DIR = os.path.join(
-    os.getenv("APPDATA", ""), "pyRevit", "AVRO", "thumbs")
-LOG_FILE = os.path.join(
-    os.getenv("APPDATA", ""), "pyRevit", "AVRO", "cache.log")
+import config
+
+THUMB_CACHE_DIR = config.THUMB_CACHE_DIR
+LOG_FILE = config.LOG_FILE
 
 
 def _log(msg):
@@ -51,6 +51,21 @@ _preview_miss_log_count = 0
 def _ensure_cache_dir():
     if not os.path.exists(THUMB_CACHE_DIR):
         os.makedirs(THUMB_CACHE_DIR)
+
+
+def clear_preview_cache():
+    if not os.path.isdir(THUMB_CACHE_DIR):
+        return
+    try:
+        for name in os.listdir(THUMB_CACHE_DIR):
+            path = os.path.join(THUMB_CACHE_DIR, name)
+            if os.path.isfile(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+    except Exception as ex:
+        _log(u"preview cache clear failed: {}".format(ex))
 
 
 def _cache_key(rfa_path):

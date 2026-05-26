@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 """
 Config manager for AVRO pyRevit extension.
-Settings: %APPDATA%\\pyRevit\\AVRO\\config.json
-Recent families: %APPDATA%\\pyRevit\\AVRO\\recent_families.json (separate file)
+All AVRO state lives inside ``AVRO.extension\\tmp``.
 """
 import os
 import json
 import codecs
+import threading
 import time
 
-CONFIG_DIR  = os.path.join(os.getenv("APPDATA", ""), "pyRevit", "AVRO")
+EXTENSION_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TMP_DIR = os.path.join(EXTENSION_DIR, "tmp")
+CONFIG_DIR  = TMP_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 RECENT_FILE = os.path.join(CONFIG_DIR, "recent_families.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "cache.log")
+THUMB_CACHE_DIR = os.path.join(CONFIG_DIR, "thumbs")
+SEARCH_STATE_DIR = os.path.join(CONFIG_DIR, "search")
 
 APP_NAME = u"Диспетчер семейств"
+_IO_LOCK = threading.RLock()
 
 DEFAULTS = {
     "library_path": "",
@@ -23,15 +28,15 @@ DEFAULTS = {
     "library_cache_hash": "",
     "library_cache_count": 0,
     "ui_theme": "light",
-    "ui_language": "en",            # "ru" after user picks Russian in Settings → OK
 }
 
 _RECENTS_MIGRATED = False
 
 
-def _ensure_dir():
-    if not os.path.exists(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR)
+def _ensure_dir(path=None):
+    target = path or CONFIG_DIR
+    if not os.path.exists(target):
+        os.makedirs(target)
 
 
 def _log(msg):
@@ -64,25 +69,26 @@ def _u(text):
 
 def _atomic_write_text(path, text):
     """Write UTF-8 text via temp file (IronPython / Windows safe)."""
-    _ensure_dir()
-    tmp = path + u".tmp"
-    with codecs.open(tmp, "w", "utf-8") as f:
-        f.write(text)
-    try:
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception:
-        pass
-    try:
-        os.rename(tmp, path)
-    except Exception:
-        with codecs.open(path, "w", "utf-8") as f:
+    _ensure_dir(os.path.dirname(path))
+    with _IO_LOCK:
+        tmp = path + u".tmp"
+        with codecs.open(tmp, "w", "utf-8") as f:
             f.write(text)
         try:
-            if os.path.exists(tmp):
-                os.remove(tmp)
+            if os.path.exists(path):
+                os.remove(path)
         except Exception:
             pass
+        try:
+            os.rename(tmp, path)
+        except Exception:
+            with codecs.open(path, "w", "utf-8") as f:
+                f.write(text)
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
 
 
 def _migrate_recents_from_config():
@@ -109,32 +115,34 @@ def _migrate_recents_from_config():
 def load_recents():
     """Last-used .rfa paths (newest first), from dedicated JSON file."""
     _ensure_dir()
-    _migrate_recents_from_config()
-    if not os.path.exists(RECENT_FILE):
-        return []
-    try:
-        with codecs.open(RECENT_FILE, "r", "utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, list):
+    with _IO_LOCK:
+        _migrate_recents_from_config()
+        if not os.path.exists(RECENT_FILE):
             return []
-        return [_u(p) for p in data if p]
-    except Exception as ex:
-        _log(u"recents load failed: {}".format(_u(ex)))
-        return []
+        try:
+            with codecs.open(RECENT_FILE, "r", "utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return []
+            return [_u(p) for p in data if p]
+        except Exception as ex:
+            _log(u"recents load failed: {}".format(_u(ex)))
+            return []
 
 
 def save_recents(paths):
     """Persist recent list only — never touches config.json."""
-    paths = [_u(p) for p in (paths or []) if p][:20]
-    try:
-        text = json.dumps(paths, ensure_ascii=False, indent=2)
-    except Exception:
-        text = json.dumps(
-            [p.encode("utf-8") if isinstance(p, unicode) else p for p in paths],
-            ensure_ascii=True, indent=2)
-    if isinstance(text, str):
-        text = _u(text)
-    _atomic_write_text(RECENT_FILE, text)
+    with _IO_LOCK:
+        paths = [_u(p) for p in (paths or []) if p][:20]
+        try:
+            text = json.dumps(paths, ensure_ascii=False, indent=2)
+        except Exception:
+            text = json.dumps(
+                [p.encode("utf-8") if isinstance(p, unicode) else p for p in paths],
+                ensure_ascii=True, indent=2)
+        if isinstance(text, str):
+            text = _u(text)
+        _atomic_write_text(RECENT_FILE, text)
 
 
 def _normalize_library_cfg(cfg):
@@ -154,68 +162,70 @@ def _normalize_library_cfg(cfg):
 def _save_config_core(data):
     """Write config.json; merge onto existing file so fields are not lost."""
     _ensure_dir()
-    data = _normalize_library_cfg(dict(data))
-    stored = dict(DEFAULTS)
-    if os.path.exists(CONFIG_FILE):
+    with _IO_LOCK:
+        data = _normalize_library_cfg(dict(data))
+        stored = dict(DEFAULTS)
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
+                    on_disk = json.load(f)
+                if isinstance(on_disk, dict):
+                    stored.update(on_disk)
+            except Exception:
+                pass
+        for k in DEFAULTS:
+            if k == "recent_families":
+                continue
+            v = data.get(k, DEFAULTS[k])
+            if k == "library_path":
+                v = _u(v)
+            stored[k] = v
+        stored.pop("recent_families", None)
+        stored.pop("library_paths", None)
+        stored.pop("last_path", None)
+        stored.pop("ui_language", None)
+        stored.pop("ui_language_override", None)
         try:
-            with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
-                on_disk = json.load(f)
-            if isinstance(on_disk, dict):
-                stored.update(on_disk)
+            text = json.dumps(stored, ensure_ascii=False, indent=2)
         except Exception:
-            pass
-    for k in DEFAULTS:
-        if k == "recent_families":
-            continue
-        v = data.get(k, DEFAULTS[k])
-        if k == "library_path":
-            v = _u(v)
-        stored[k] = v
-    stored.pop("ui_language_override", None)
-    try:
-        text = json.dumps(stored, ensure_ascii=False, indent=2)
-    except Exception:
-        text = json.dumps(stored, ensure_ascii=True, indent=2)
-    if isinstance(text, str):
-        text = _u(text)
-    _atomic_write_text(CONFIG_FILE, text)
+            text = json.dumps(stored, ensure_ascii=True, indent=2)
+        if isinstance(text, str):
+            text = _u(text)
+        _atomic_write_text(CONFIG_FILE, text)
 
 
 def read_ui_language():
-    """Read ``ui_language`` directly from config.json (no ``load()`` side effects)."""
-    if not os.path.exists(CONFIG_FILE):
-        return u"en"
+    """Read UI language from Revit UI, not from config."""
     try:
-        with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
-            data = json.load(f)
-        lang = _u(data.get("ui_language", u"en")).strip().lower()
-        return u"ru" if lang == u"ru" else u"en"
+        import revit_lang
+        return revit_lang.detect_ui_language()
     except Exception as ex:
         _log(u"read_ui_language failed: {}".format(_u(ex)))
         return u"en"
 
 
 def get_ui_language():
-    """English by default; Russian only when ``ui_language`` is ``ru`` in config."""
+    """English by default; Russian only for Russian Revit UI."""
     return read_ui_language()
 
 
 def load():
     """Return config dict. ``recent_families`` always from recent_families.json."""
     _ensure_dir()
-    if not os.path.exists(CONFIG_FILE):
-        data = dict(DEFAULTS)
-    else:
-        try:
-            with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
-                data = json.load(f)
-            for k, v in DEFAULTS.items():
-                data.setdefault(k, v)
-        except Exception:
+    with _IO_LOCK:
+        if not os.path.exists(CONFIG_FILE):
             data = dict(DEFAULTS)
-    data = _normalize_library_cfg(data)
-    data["recent_families"] = load_recents()
-    return data
+        else:
+            try:
+                with codecs.open(CONFIG_FILE, "r", "utf-8") as f:
+                    data = json.load(f)
+                for k, v in DEFAULTS.items():
+                    data.setdefault(k, v)
+            except Exception:
+                data = dict(DEFAULTS)
+        data = _normalize_library_cfg(data)
+        data["recent_families"] = load_recents()
+        return data
 
 
 def save(cfg):
@@ -252,22 +262,24 @@ def set_library_path(path):
 
 def add_recent(rfa_path):
     import library_cache as _lc
-    rfa_path = _lc._norm_path(rfa_path)
-    if not rfa_path:
-        _log(u"add_recent: empty path")
-        return False
-    recent = [_lc._norm_path(p) for p in load_recents()]
-    if rfa_path in recent:
-        recent.remove(rfa_path)
-    recent.insert(0, rfa_path)
-    recent = recent[:20]
-    save_recents(recent)
-    ok = rfa_path in load_recents()
-    _log(u"add_recent path={} count={} ok={}".format(
-        rfa_path, len(recent), ok))
-    return ok
+    with _IO_LOCK:
+        rfa_path = _lc._norm_path(rfa_path)
+        if not rfa_path:
+            _log(u"add_recent: empty path")
+            return False
+        recent = [_lc._norm_path(p) for p in load_recents()]
+        if rfa_path in recent:
+            recent.remove(rfa_path)
+        recent.insert(0, rfa_path)
+        recent = recent[:20]
+        save_recents(recent)
+        ok = rfa_path in load_recents()
+        _log(u"add_recent path={} count={} ok={}".format(
+            rfa_path, len(recent), ok))
+        return ok
 
 
 def clear_recent():
-    save_recents([])
-    _log(u"recents cleared")
+    with _IO_LOCK:
+        save_recents([])
+        _log(u"recents cleared")

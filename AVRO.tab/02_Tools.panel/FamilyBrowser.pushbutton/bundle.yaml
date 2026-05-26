@@ -2,7 +2,7 @@ title:
   ru: Диспетчер семейств
   en_us: Family Browser
 tooltip:
-  ru: "Библиотека семейств Revit. Поиск, фильтрация, двойной клик — загрузить в проект. Версия 1.1."
-  en_us: "Revit family library. Search, filter by category, double-click to place in project. Version 1.1."
+  ru: "Библиотека семейств Revit. Поиск, фильтрация, двойной клик — загрузить в проект."
+  en_us: "Revit family library. Search, filter by category, double-click to place in project."
 author: AVRO Consulting
 min_revit_ver: 2020

@@ -520,18 +520,24 @@ class FamilyBrowserDialog(object):
         self._project_family_index = None
         self._project_family_index_doc = None
         self._last_escape_press_at = 0.0
+        self._window_gen = 0
+        self._scan_gen = 0
 
     def _init_window(self):
         self._search_timer = None
         self._grid_relayout_timer = None
         self._last_escape_press_at = 0.0
+        self._window_gen += 1
         self.win = _load_xaml()
         self.ui = NamedUiControls(self.win)
         self._bind()
         i18n.init_from_config()
         self._apply_ui_theme(self._dark_theme, persist=False)
         self._apply_language()
-        ui_notify.register(self._on_external_language_changed)
+        ui_notify.unregister_language_listener(self._on_external_language_changed)
+        ui_notify.unregister_theme_listener(self._on_external_theme_changed)
+        ui_notify.register_language_listener(self._on_external_language_changed)
+        ui_notify.register_theme_listener(self._on_external_theme_changed)
         self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
@@ -573,6 +579,17 @@ class FamilyBrowserDialog(object):
             return
         i18n.init_from_config()
         self._apply_language()
+
+    def _on_external_theme_changed(self):
+        if self.ui is None or self.win is None:
+            return
+        try:
+            if not self.win.IsVisible:
+                return
+        except Exception:
+            return
+        dark = config.load().get("ui_theme", "light") == "dark"
+        self._apply_ui_theme(dark, persist=False)
 
     def _update_count_display(self, shown, total=None):
         if self.ui is None:
@@ -748,28 +765,25 @@ class FamilyBrowserDialog(object):
         self._project_family_index_doc = None
 
     def _start_project_family_index_build(self):
-        """Background index of project families — speeds up double-click place."""
+        """Build the project family index on the UI thread after window init."""
         doc = self.doc
-        if doc is None:
+        win = self.win
+        gen = self._window_gen
+        if doc is None or win is None:
             return
 
-        def worker():
+        def build_on_ui():
+            if self.win is not win or gen != self._window_gen:
+                return
             try:
-                idx = {}
-                for fam in FilteredElementCollector(doc).OfClass(RevitFamily):
-                    key = _normalize_family_key(_revit_name(fam))
-                    if key and key not in idx:
-                        idx[key] = fam
-                if self.win is None:
-                    return
-                self.win.Dispatcher.BeginInvoke(
-                    System.Action(lambda m=idx: self._store_project_family_index(m)))
+                self._build_project_family_index_sync()
             except Exception as ex:
                 libcache._log(u"family index build: {}".format(_as_unicode(ex)))
 
-        t = threading.Thread(target=worker)
-        t.setDaemon(True)
-        t.start()
+        try:
+            win.Dispatcher.BeginInvoke(System.Action(build_on_ui))
+        except Exception as ex:
+            libcache._log(u"family index schedule: {}".format(_as_unicode(ex)))
 
     def _store_project_family_index(self, index):
         self._project_family_index = index
@@ -826,13 +840,17 @@ class FamilyBrowserDialog(object):
         self._initial_load_started = True
         paths = self._library_paths()
         key = libcache.cache_key(paths)
+        win = self.win
+        gen = self._window_gen
         libcache._log(u"startup paths={} key={}".format(paths, key))
 
         def worker():
             scan, disk_miss, err = None, set(), u"no_key"
             try:
                 if key and libcache.cache_available(key):
-                    self.win.Dispatcher.Invoke(
+                    if self.win is not win or gen != self._window_gen:
+                        return
+                    win.Dispatcher.Invoke(
                         System.Action(
                             lambda: self._set_status(
                                 i18n.t("loading_cache"))))
@@ -844,7 +862,9 @@ class FamilyBrowserDialog(object):
             except Exception as ex:
                 err = unicode(ex)
                 libcache._log(u"startup worker error: {}".format(err))
-            self.win.Dispatcher.Invoke(
+            if self.win is not win or gen != self._window_gen:
+                return
+            win.Dispatcher.Invoke(
                 System.Action(
                     lambda: self._on_initial_load_done(scan, disk_miss, err)))
 
@@ -861,6 +881,10 @@ class FamilyBrowserDialog(object):
             err, self._library_paths()))
         self._build_tree({"roots": [], "all": [], "index": {}})
         self._show_recents_default()
+        if self._library_path():
+            self._set_status(i18n.t("scanning"))
+            self._schedule_scan()
+            return
         self._set_status(i18n.t("cache_not_found"))
 
     def _apply_cache(self, scan, disk_miss):
@@ -897,11 +921,13 @@ class FamilyBrowserDialog(object):
         return True
 
     def _on_window_closing(self, sender, e):
+        self._window_gen += 1
         # Placement closes the window and reopens it; async cache save must not
         # overwrite recent_families written right after placement.
         if self._pending_symbol_id:
             return
-        ui_notify.unregister(self._on_external_language_changed)
+        ui_notify.unregister_language_listener(self._on_external_language_changed)
+        ui_notify.unregister_theme_listener(self._on_external_theme_changed)
         self._persist_cache(async_save=True)
 
     def _on_window_preview_keydown(self, sender, e):
@@ -944,15 +970,22 @@ class FamilyBrowserDialog(object):
             self._set_status(i18n.t("library_path_required"))
             return
         paths = valid
+        self._scan_gen += 1
         self._set_status(i18n.t("scanning"))
-        t = threading.Thread(target=self._do_scan, args=(list(paths),))
+        t = threading.Thread(
+            target=self._do_scan,
+            args=(list(paths), self._scan_gen, self.win, self._window_gen))
         t.setDaemon(True)
         t.start()
 
-    def _do_scan(self, paths):
+    def _do_scan(self, paths, scan_gen, win, window_gen):
         try:
             def progress(n):
-                self.win.Dispatcher.BeginInvoke(
+                if self.win is not win or window_gen != self._window_gen:
+                    return
+                if scan_gen != self._scan_gen:
+                    return
+                win.Dispatcher.BeginInvoke(
                     System.Action(
                         lambda c=n: self._set_status(
                             i18n.t("scanning_progress", n=c))))
@@ -960,13 +993,23 @@ class FamilyBrowserDialog(object):
             scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
             msg = i18n.t("scan_error", err=ex)
-            self.win.Dispatcher.Invoke(
+            if self.win is not win or window_gen != self._window_gen:
+                return
+            if scan_gen != self._scan_gen:
+                return
+            win.Dispatcher.Invoke(
                 System.Action(lambda: self._set_status(msg)))
             return
-        self.win.Dispatcher.Invoke(
-            System.Action(lambda: self._scan_done(scan)))
+        if self.win is not win or window_gen != self._window_gen:
+            return
+        if scan_gen != self._scan_gen:
+            return
+        win.Dispatcher.Invoke(
+            System.Action(lambda: self._scan_done(scan, scan_gen)))
 
-    def _scan_done(self, scan):
+    def _scan_done(self, scan, scan_gen=None):
+        if scan_gen is not None and scan_gen != self._scan_gen:
+            return
         self._scan = self._normalize_scan(scan)
         total = len(self._scan.get("all", []))
         n_folders = len(self._scan.get("index", {}))
@@ -1505,6 +1548,8 @@ class FamilyBrowserDialog(object):
     def _schedule_previews(self, families, disk_only=False):
         self._preview_gen += 1
         gen = self._preview_gen
+        win = self.win
+        window_gen = self._window_gen
         if not families:
             return
         paths = [fi.path for fi in families]
@@ -1514,18 +1559,22 @@ class FamilyBrowserDialog(object):
         pending = []
 
         def flush_pending():
-            if not pending or gen != self._preview_gen:
+            if (not pending or gen != self._preview_gen
+                    or self.win is not win
+                    or window_gen != self._window_gen):
                 pending[:] = []
                 return
             batch = list(pending)
             pending[:] = []
-            self.win.Dispatcher.Invoke(
+            win.Dispatcher.Invoke(
                 System.Action(
                     lambda items=batch: self._apply_preview_batch(items, gen)))
 
         def worker():
             for path in paths:
-                if gen != self._preview_gen:
+                if (gen != self._preview_gen
+                        or self.win is not win
+                        or window_gen != self._window_gen):
                     return
                 if path in self._preview_mem or path in self._preview_miss:
                     done[0] += 1
@@ -1543,15 +1592,19 @@ class FamilyBrowserDialog(object):
                         flush_pending()
                 if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
                     flush_pending()
-                    if gen == self._preview_gen and not self._virtual_mode:
+                    if (gen == self._preview_gen and not self._virtual_mode
+                            and self.win is win
+                            and window_gen == self._window_gen):
                         msg = i18n.t("previews_progress",
                                        done=done[0], total=total)
-                        self.win.Dispatcher.Invoke(
+                        win.Dispatcher.Invoke(
                             System.Action(lambda m=msg: self._set_status(m)))
             flush_pending()
-            if gen == self._preview_gen and not self._virtual_mode:
+            if (gen == self._preview_gen and not self._virtual_mode
+                    and self.win is win
+                    and window_gen == self._window_gen):
                 msg = i18n.t("previews_done", n=total)
-                self.win.Dispatcher.Invoke(
+                win.Dispatcher.Invoke(
                     System.Action(lambda m=msg: self._set_status(m)))
 
         t = threading.Thread(target=worker)

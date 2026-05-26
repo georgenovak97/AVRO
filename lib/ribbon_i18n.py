@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Apply AVRO ribbon labels and pyRevit-style tooltips from config ui_language."""
+"""Apply AVRO ribbon labels and pyRevit-style tooltips from Revit UI language."""
 from __future__ import print_function
 
 _BRAILLE_PANEL = u"\u2800"
@@ -10,6 +10,7 @@ _RIBBON_AUTHOR = u"AVRO Consulting"
 # Revit internal command names (see pyRevit Bundle Name footer).
 _BUNDLE_SETTINGS = u"Settings"
 _BUNDLE_FAMILY_BROWSER = u"FamilyBrowser"  # matches FamilyBrowser.pushbutton folder
+_BUNDLE_SEARCH = u"Search"  # matches Search.pushbutton folder
 
 
 def _as_unicode(text):
@@ -39,6 +40,22 @@ def tab_has_avro_settings_panel(tab):
     return False
 
 
+def _tab_has_bundle(tab, bundle_name):
+    if tab is None or not bundle_name:
+        return False
+    try:
+        for panel in tab.Panels:
+            for item in _walk_items(panel):
+                pb = _get_revit_pushbutton(item)
+                if pb is None:
+                    continue
+                if _as_unicode(getattr(pb, "Name", None)) == bundle_name:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 def find_avro_tab():
     """Return the AVRO ribbon tab, or None (never the core pyRevit tab)."""
     try:
@@ -49,7 +66,13 @@ def find_avro_tab():
         return None
     try:
         for tab in ComponentManager.Ribbon.Tabs:
-            if tab is not None and tab_has_avro_settings_panel(tab):
+            if tab is None:
+                continue
+            if tab_has_avro_settings_panel(tab):
+                return tab
+            if (_tab_has_bundle(tab, _BUNDLE_SETTINGS)
+                    and (_tab_has_bundle(tab, _BUNDLE_FAMILY_BROWSER)
+                         or _tab_has_bundle(tab, _BUNDLE_SEARCH))):
                 return tab
     except Exception:
         pass
@@ -132,12 +155,13 @@ def _find_avro_pyrvt_tab():
 
 
 def _apply_buttons_via_pyrevit(pyrvt_tab, new_settings, new_settings_tip,
-                               new_fm, new_fm_tip):
+                               new_fm, new_fm_tip, new_search, new_search_tip):
     """Update tooltips through pyRevit (same path as bundle reload)."""
     updated = False
     specs = (
         (_BUNDLE_SETTINGS, new_settings, new_settings_tip),
         (_BUNDLE_FAMILY_BROWSER, new_fm, new_fm_tip),
+        (_BUNDLE_SEARCH, new_search, new_search_tip),
     )
     for bundle_name, title, description in specs:
         btn = pyrvt_tab.find_child(bundle_name)
@@ -422,12 +446,16 @@ def apply(lang=None):
         u"Family Manager",
     }
     fm_tips = _texts_for_key("ribbon_tooltip")
+    search_names = _texts_for_key("search_ribbon_title") | {u"Search", u"Поиск"}
+    search_tips = _texts_for_key("search_ribbon_tooltip")
 
     new_tab = i18n.t("tab_title")
     new_settings = i18n.t("settings_dialog_title")
     new_settings_tip = i18n.t("settings_ribbon_tooltip")
     new_fm = i18n.t("ribbon_title")
     new_fm_tip = i18n.t("ribbon_tooltip")
+    new_search = i18n.t("search_ribbon_title")
+    new_search_tip = i18n.t("search_ribbon_tooltip")
 
     tab = find_avro_tab()
     pyrvt_tab = _find_avro_pyrvt_tab()
@@ -443,7 +471,8 @@ def apply(lang=None):
         if pyrvt_tab is not None:
             if _apply_buttons_via_pyrevit(
                     pyrvt_tab, new_settings, new_settings_tip,
-                    new_fm, new_fm_tip):
+                    new_fm, new_fm_tip,
+                    new_search, new_search_tip):
                 updated = True
         if tab is None:
             return updated
@@ -484,6 +513,13 @@ def apply(lang=None):
                     _set_item_pyrevit_tooltip(
                         item, new_fm, new_fm_tip,
                         _BUNDLE_FAMILY_BROWSER)
+                elif (bundle_id == _BUNDLE_SEARCH
+                        or label in search_names
+                        or _tip_matches(tip, search_tips)):
+                    _set_item_label(item, new_search)
+                    _set_item_pyrevit_tooltip(
+                        item, new_search, new_search_tip,
+                        _BUNDLE_SEARCH)
     except Exception:
         return False
     return updated

@@ -8,18 +8,18 @@
         ResizeMode="NoResize"
         FontFamily="Segoe UI"
         FontSize="12"
-        Background="#F0F0F0">
+        Background="{DynamicResource BgWindow}">
     <Window.Resources>
+        <SolidColorBrush x:Key="BgWindow" Color="#F0F0F0"/>
         <SolidColorBrush x:Key="TextMain" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="BtnFace" Color="#E1E1E1"/>
         <SolidColorBrush x:Key="BtnFaceHov" Color="#CCE4F7"/>
         <SolidColorBrush x:Key="BtnPressed" Color="#B9D7F5"/>
         <SolidColorBrush x:Key="BtnBorder" Color="#707070"/>
-        <SolidColorBrush x:Key="BorderMain" Color="#ABABAB"/>
         <Style x:Key="RevitButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource BtnFace}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BtnBorder}"/>
+            <Setter Property="Background" Value="{DynamicResource BtnFace}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BtnBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,5"/>
             <Setter Property="MinHeight" Value="26"/>
@@ -38,10 +38,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BtnFaceHov}"/>
+                                <Setter Property="Background" Value="{DynamicResource BtnFaceHov}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BtnPressed}"/>
+                                <Setter Property="Background" Value="{DynamicResource BtnPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -51,15 +51,16 @@
     </Window.Resources>
 
     <StackPanel Margin="14,0,14,14">
-        <Button x:Name="BtnLangRu"
-                Content="Russian" Style="{StaticResource RevitButton}"
-                Margin="0,48,0,6"/>
-        <Button x:Name="BtnLangEn"
-                Content="English" Style="{StaticResource RevitButton}"/>
-        <Border Height="1" Margin="0,2,0,8"
-                Background="{StaticResource BorderMain}"/>
+        <TextBlock Text="1.1"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Margin="0,14,0,20"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextMain}"/>
         <Button x:Name="BtnThemeLight"
-                Content="Light" Style="{StaticResource RevitButton}"/>
+                Content="Light" Style="{StaticResource RevitButton}"
+                Margin="0,0,0,6"/>
         <Button x:Name="BtnThemeDark"
                 Content="Dark" Style="{StaticResource RevitButton}"/>
         <Grid Margin="0,48,0,48">

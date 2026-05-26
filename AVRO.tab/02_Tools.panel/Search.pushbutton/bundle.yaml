@@ -1,0 +1,7 @@
+title:
+  ru: Поиск
+  en_us: Search
+tooltip:
+  ru: "Двойной левый CTL для поиска."
+  en_us: "Double left CTL for search."
+min_revit_ver: 2020

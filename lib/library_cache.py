@@ -4,7 +4,7 @@ Persist library scan index to disk (survives pyRevit script reload).
 
 Stores plain dicts only (pickle-safe). Files:
   library_meta.json   - quick validation
-  library_index.pkl   - fast load
+  library_index.pkl   - quick load
   library_index.json  - backup / legacy
 """
 import os
@@ -174,8 +174,13 @@ def cache_available(key_tuple):
     if not key_tuple:
         return False
     kh = key_hash(key_tuple)
+    fp = library_fingerprint(key_tuple)
     meta = _read_meta()
     if not meta or meta.get("key_hash") != kh:
+        return False
+    saved_fp = meta.get("library_fingerprint")
+    if saved_fp and fp and saved_fp != fp:
+        _log(u"cache stale: fingerprint mismatch {} vs {}".format(saved_fp, fp))
         return False
     if os.path.isfile(PICKLE_FILE) or os.path.isfile(INDEX_FILE):
         return True
@@ -451,8 +456,9 @@ def load(key_tuple):
     fp = library_fingerprint(key_tuple)
     saved_fp = (meta or {}).get("library_fingerprint") or blob.get("library_fingerprint")
     if saved_fp and fp and saved_fp != fp:
-        _log(u"load ok (library folder changed since cache) fp {} vs {}".format(
+        _log(u"load rejected: library folder changed since cache {} vs {}".format(
             saved_fp, fp))
+        return None, set(), u"stale_cache"
 
     _log(u"load ok from {} : {} families".format(src, len(scan["all"])))
     return scan, preview_miss, None
@@ -466,4 +472,9 @@ def clear():
                 os.remove(path)
             except Exception:
                 pass
+    try:
+        import rfa_preview
+        rfa_preview.clear_preview_cache()
+    except Exception as ex:
+        _log(u"preview cache clear failed: {}".format(_u(ex)))
     _log(u"cache cleared")

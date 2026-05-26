@@ -23,9 +23,23 @@ def _log_startup_error(ex):
         pass
 
 
-try:
+def _run_startup_step(name, callback):
+    try:
+        callback()
+    except Exception as ex:
+        _log_startup_error(u"{}: {}".format(name, ex))
+
+
+def _startup_reload_fixup():
     import reload_fixup
     reload_fixup.prepare_ribbon_for_pyrevit_update()
     reload_fixup.schedule_post_load_ribbon_i18n()
-except Exception as ex:
-    _log_startup_error(ex)
+
+
+def _startup_search():
+    import search_integration
+    search_integration.ensure_search_started()
+
+
+_run_startup_step("reload_fixup", _startup_reload_fixup)
+_run_startup_step("search", _startup_search)
