@@ -33,10 +33,12 @@ def _blocked():
 
 
 def _install_search():
+    import command_runner
     import search_window
     import hotkey
     hotkey.ensure_installed(_activate, is_blocked=_blocked)
     search_window.prepare_external_event()
+    command_runner.prepare_family_browser_event()
 
 
 def _on_bootstrap(sender, args):

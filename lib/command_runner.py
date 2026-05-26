@@ -93,7 +93,7 @@ class _RunFamilyBrowserHandler(IExternalEventHandler):
         return "Family Browser Run"
 
 
-def _prepare_family_browser_event():
+def prepare_family_browser_event():
     global _family_browser_event, _family_browser_handler
     if _family_browser_event is not None:
         return True
@@ -111,7 +111,7 @@ def run_family_browser():
         _activate_revit_main_window()
     except Exception:
         pass
-    if not _prepare_family_browser_event():
+    if not prepare_family_browser_event():
         return False
     try:
         _family_browser_event.Raise()
