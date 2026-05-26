@@ -8,6 +8,7 @@
   - Search Revit commands by name
   - Fast command launch directly from the keyboard
   - Recent commands list
+  - Right click in search results — remove from recent commands list
   - Command ranking based on usage history
   - Supports Revit command catalogs by version and UI language
   - Dark/light theme
