@@ -9,6 +9,7 @@ _COMMANDS = [
         "key": u"slash:family_browser",
         "title": u"/familybrowser",
         "command_id": u"CustomCtrl_%CustomCtrl_%AVRO%Tools%FamilyBrowser",
+        "action": u"family_browser",
     },
     {
         "key": u"slash:clear_all_history",

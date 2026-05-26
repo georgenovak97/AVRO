@@ -151,26 +151,6 @@
   <ShortcutItem CommandName="Transmit a model" CommandId="CustomCtrl_%CustomCtrl_%Add-Ins%eTransmit%eTransmit" Paths="Add-Ins&gt;eTransmit" />
   <ShortcutItem CommandName="Help" CommandId="CustomCtrl_%CustomCtrl_%Add-Ins%eTransmit%eTransmitHelp" Paths="Add-Ins&gt;eTransmit" />
   <ShortcutItem CommandName="About" CommandId="CustomCtrl_%CustomCtrl_%Add-Ins%eTransmit%eTransmitAbout" Paths="Add-Ins&gt;eTransmit" />
-  <ShortcutItem CommandName="SheetLink" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Data IO%SheetLink" Paths="DiRootsOne&gt;Data IO" />
-  <ShortcutItem CommandName="PanelLink" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Data IO%PanelLink" Paths="DiRootsOne&gt;Data IO" />
-  <ShortcutItem CommandName="TableGen" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Data IO%TableGen" Paths="DiRootsOne&gt;Data IO" />
-  <ShortcutItem CommandName="SheetGen" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Views and Sheets%btnSheetGen" Paths="DiRootsOne&gt;Views and Sheets" />
-  <ShortcutItem CommandName="ViewManager" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Views and Sheets%btnViewManager" Paths="DiRootsOne&gt;Views and Sheets" />
-  <ShortcutItem CommandName="FamilyReviser" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Manage%FamilyReviser" Paths="DiRootsOne&gt;Manage" />
-  <ShortcutItem CommandName="ParaManager" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Manage%ParaManager" Paths="DiRootsOne&gt;Manage" />
-  <ShortcutItem CommandName="OneFilter" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Find%OneFilter" Paths="DiRootsOne&gt;Find" />
-  <ShortcutItem CommandName="SelectionsManager" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Find%Selections Manager" Paths="DiRootsOne&gt;Find" />
-  <ShortcutItem CommandName="ReOrdering" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Utility%btnReOrdering" Paths="DiRootsOne&gt;Utility" />
-  <ShortcutItem CommandName="Select Points:Select Points" CommandId="CustomCtrl_%CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Select Points%Select Points" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Select Points:Select Between Levels" CommandId="CustomCtrl_%CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Select Points%Select Between Levels" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Undo" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Undo" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Redo" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Redo" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Reset" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Reset" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Show/Hide" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Show/Hide" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Import DXF File:Import DXF File" CommandId="CustomCtrl_%CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Import &#xA;DXF File%Import DXF File" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Import DXF File:Import ASCII point cloud file" CommandId="CustomCtrl_%CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Import &#xA;DXF File%Import ASCII point cloud file" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="Export" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne% Point Cloud%Export" Paths="DiRootsOne&gt; Point Cloud" />
-  <ShortcutItem CommandName="ProSheets" CommandId="CustomCtrl_%CustomCtrl_%DiRootsOne%Export%ProSheets" Paths="DiRootsOne&gt;Export" />
   <ShortcutItem CommandName="Settings" CommandId="CustomCtrl_%CustomCtrl_%AVRO%⠀%Settings" Paths="AVRO&gt;⠀" />
   <ShortcutItem CommandName="Family Browser" CommandId="CustomCtrl_%CustomCtrl_%AVRO%Tools%FamilyBrowser" Paths="AVRO&gt;Tools" />
   <ShortcutItem CommandName="Paste; Paste from Clipboard" CommandId="ID_EDIT_PASTE" Paths="Modify&gt;Clipboard" />
