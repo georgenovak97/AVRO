@@ -427,6 +427,21 @@ class SearchWindow(forms.WPFWindow):
         if not entry:
             return
         action = entry.get("action")
+        if action == "family_browser":
+            self._hide_to_revit()
+            if command_runner.run_family_browser():
+                recent_history.record(entry.get("key"))
+                return
+            try:
+                self.Topmost = True
+            except Exception:
+                pass
+            try:
+                self.Show()
+                self._defer_search_focus()
+            except Exception:
+                pass
+            return
         if action == "clear_all_history":
             recent_history.clear_all_history()
             self.Hide()

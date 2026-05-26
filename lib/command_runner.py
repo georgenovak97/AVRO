@@ -3,6 +3,8 @@
 from __future__ import print_function
 
 import ctypes
+import codecs
+import os
 
 import clr
 
@@ -12,6 +14,14 @@ from Autodesk.Revit.UI import RevitCommandId
 from pyrevit import HOST_APP
 
 _user32 = ctypes.windll.user32
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_FAMILY_BROWSER_SCRIPT = os.path.join(
+    _ROOT_DIR,
+    "AVRO.tab",
+    "02_Tools.panel",
+    "FamilyBrowser.pushbutton",
+    "script.py",
+)
 
 
 def _u(text):
@@ -52,6 +62,27 @@ def post_command_sync(command_id):
             return False
         _activate_revit_main_window()
         HOST_APP.uiapp.PostCommand(rcid)
+        return True
+    except Exception:
+        return False
+
+
+def run_family_browser():
+    """Open Family Browser directly from Search slash command."""
+    if not os.path.isfile(_FAMILY_BROWSER_SCRIPT):
+        return False
+    try:
+        _activate_revit_main_window()
+    except Exception:
+        pass
+    scope = {
+        "__file__": _FAMILY_BROWSER_SCRIPT,
+        "__name__": "__main__",
+    }
+    try:
+        with codecs.open(_FAMILY_BROWSER_SCRIPT, "r", "utf-8") as stream:
+            code = compile(stream.read(), _FAMILY_BROWSER_SCRIPT, "exec")
+        exec code in scope, scope
         return True
     except Exception:
         return False
