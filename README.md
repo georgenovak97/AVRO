@@ -11,6 +11,7 @@
   - Right click in search results — remove from recent commands list
   - Command ranking based on usage history
   - Supports Revit command catalogs by version and UI language
+  - Slash commands
   - Dark/light theme
 	
 - **Family Browser** — browse and load Revit families from your local library
