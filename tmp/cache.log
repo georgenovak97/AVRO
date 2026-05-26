@@ -1306,3 +1306,5 @@
 [2026-05-26 05:34:42] load ok from json : 2386 families
 [2026-05-26 05:34:42] startup using cache (not scanning folders)
 [2026-05-26 05:34:49] save ok json 2386 families hash 623386af935e06cac0f2b9e4cb49a956
+[2026-05-26 05:44:24] search: runtime installed
+[2026-05-26 05:44:32] reload: ribbon i18n applied from config
