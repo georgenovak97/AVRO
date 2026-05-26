@@ -4,14 +4,18 @@ from __future__ import print_function
 
 import os
 
+import clr
+clr.AddReference("System.Windows.Forms")
+
 from pyrevit import forms
 from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
-from System import Action
+from System import Action, IntPtr
 from System.Windows import LogicalTreeHelper, Visibility
 from System.Windows.Controls import ItemsControl, ListBoxItem
 from System.Windows.Input import Key, Keyboard
 from System.Windows.Media import VisualTreeHelper
 from System.Windows.Threading import DispatcherPriority
+from System.Windows.Forms import Screen
 
 import command_runner
 import config
@@ -468,25 +472,60 @@ class SearchWindow(forms.WPFWindow):
 
 
 def _center_search_on_screen(win):
-    from System.Windows import SystemParameters, Point
+    from System.Windows import Point, PresentationSource
 
-    sw = SystemParameters.PrimaryScreenWidth
-    sh = SystemParameters.PrimaryScreenHeight
+    left_px = 0.0
+    top_px = 0.0
+    sw_px = 0.0
+    sh_px = 0.0
+    try:
+        hwnd = command_runner.get_revit_main_window_handle()
+        screen = Screen.FromHandle(IntPtr(hwnd)) if hwnd else Screen.PrimaryScreen
+        if screen is not None:
+            area = screen.WorkingArea
+            left_px = float(area.Left)
+            top_px = float(area.Top)
+            sw_px = float(area.Width)
+            sh_px = float(area.Height)
+    except Exception:
+        pass
 
-    win.Left = (sw - win.Width) / 2.0
-    win.Top = (sh - win.Height) / 2.0
     win.UpdateLayout()
+    left = left_px
+    top = top_px
+    sw = sw_px
+    sh = sh_px
+    try:
+        source = PresentationSource.FromVisual(win)
+        target = source.CompositionTarget if source is not None else None
+        if target is not None:
+            transform = target.TransformFromDevice
+            tl = transform.Transform(Point(left_px, top_px))
+            br = transform.Transform(Point(left_px + sw_px, top_px + sh_px))
+            left = tl.X
+            top = tl.Y
+            sw = br.X - tl.X
+            sh = br.Y - tl.Y
+    except Exception:
+        pass
 
     sb = win.SearchBox if hasattr(win, "SearchBox") else None
-    if sb is None:
-        return
+    try:
+        if sb is not None:
+            w = sb.ActualWidth if sb.ActualWidth > 0 else max(100.0, win.Width - 20.0)
+            h = sb.ActualHeight if sb.ActualHeight > 0 else 30.0
+            center_in_window = sb.TranslatePoint(Point(w / 2.0, h / 2.0), win)
+        else:
+            ww = win.ActualWidth if win.ActualWidth > 0 else win.Width
+            wh = win.ActualHeight if win.ActualHeight > 0 else win.Height
+            center_in_window = Point(ww / 2.0, wh / 2.0)
+    except Exception:
+        ww = win.ActualWidth if win.ActualWidth > 0 else win.Width
+        wh = win.ActualHeight if win.ActualHeight > 0 else win.Height
+        center_in_window = Point(ww / 2.0, wh / 2.0)
 
-    w = sb.ActualWidth if sb.ActualWidth > 0 else max(100.0, win.Width - 20.0)
-    h = sb.ActualHeight if sb.ActualHeight > 0 else 30.0
-    pt = sb.PointToScreen(Point(w / 2.0, h / 2.0))
-
-    win.Left = win.Left + (sw / 2.0 - pt.X)
-    win.Top = win.Top + (sh / 2.0 - pt.Y)
+    win.Left = left + (sw / 2.0) - center_in_window.X
+    win.Top = top + (sh / 2.0) - center_in_window.Y
 
 
 class _ShowSearchHandler(IExternalEventHandler):
