@@ -10,7 +10,7 @@ import clr
 
 clr.AddReference("RevitAPIUI")
 
-from Autodesk.Revit.UI import RevitCommandId
+from Autodesk.Revit.UI import RevitCommandId, IExternalEventHandler, ExternalEvent
 from pyrevit import HOST_APP
 
 _user32 = ctypes.windll.user32
@@ -22,6 +22,8 @@ _FAMILY_BROWSER_SCRIPT = os.path.join(
     "FamilyBrowser.pushbutton",
     "script.py",
 )
+_family_browser_event = None
+_family_browser_handler = None
 
 
 def _u(text):
@@ -67,14 +69,9 @@ def post_command_sync(command_id):
         return False
 
 
-def run_family_browser():
-    """Open Family Browser directly from Search slash command."""
+def _run_family_browser_sync():
     if not os.path.isfile(_FAMILY_BROWSER_SCRIPT):
         return False
-    try:
-        _activate_revit_main_window()
-    except Exception:
-        pass
     scope = {
         "__file__": _FAMILY_BROWSER_SCRIPT,
         "__name__": "__main__",
@@ -83,6 +80,41 @@ def run_family_browser():
         with codecs.open(_FAMILY_BROWSER_SCRIPT, "r", "utf-8") as stream:
             code = compile(stream.read(), _FAMILY_BROWSER_SCRIPT, "exec")
         exec code in scope, scope
+        return True
+    except Exception:
+        return False
+
+
+class _RunFamilyBrowserHandler(IExternalEventHandler):
+    def Execute(self, uiapp):
+        _run_family_browser_sync()
+
+    def GetName(self):
+        return "Family Browser Run"
+
+
+def _prepare_family_browser_event():
+    global _family_browser_event, _family_browser_handler
+    if _family_browser_event is not None:
+        return True
+    try:
+        _family_browser_handler = _RunFamilyBrowserHandler()
+        _family_browser_event = ExternalEvent.Create(_family_browser_handler)
+        return _family_browser_event is not None
+    except Exception:
+        return False
+
+
+def run_family_browser():
+    """Open Family Browser from Search slash command in API context."""
+    try:
+        _activate_revit_main_window()
+    except Exception:
+        pass
+    if not _prepare_family_browser_event():
+        return False
+    try:
+        _family_browser_event.Raise()
         return True
     except Exception:
         return False
