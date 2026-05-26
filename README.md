@@ -22,8 +22,7 @@
 	- Place in model with return to the browser window
 	- Recent files list
 	- Dark/light theme
-	- English/Russian
-	
+
 ---
 #### Installation
   ![Instsall](install.jpg)
