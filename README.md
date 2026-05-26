@@ -2,6 +2,16 @@
 
 #### Tools
 
+- **Search**  
+  ![Search](search.jpg)
+  - Double `CTL` opens Search
+  - Search Revit commands by name
+  - Fast command launch directly from the keyboard
+  - Recent commands list
+  - Command ranking based on usage history
+  - Supports Revit command catalogs by version and UI language
+  - Dark/light theme
+	
 - **Family Browser** — browse and load Revit families from your local library
   ![Family Browser](familybrowser.jpg)
 	- Browse folders with `.rfa` files and thumbnail previews
