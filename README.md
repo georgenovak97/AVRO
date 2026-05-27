@@ -4,7 +4,7 @@
 
 - **Search** — quickly find and run Revit commands
   ![Search](search.jpg)
-  - Double `CTL` opens Search
+  - Double left `CTL` opens Search
   - Search Revit commands by name
   - Fast command launch directly from the keyboard
   - Recent commands list
