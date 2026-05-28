@@ -213,7 +213,8 @@
                      IsTabStop="False"
                      KeyboardNavigation.TabNavigation="None"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ScrollViewer.CanContentScroll="True">
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="False">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid>
