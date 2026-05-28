@@ -12,7 +12,7 @@ from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
 from System import Action, IntPtr
 from System.Windows import LogicalTreeHelper, Visibility
 from System.Windows import GridLength, GridUnitType
-from System.Windows.Controls import ListBoxItem
+from System.Windows.Controls import ListBoxItem, ScrollBarVisibility, ScrollViewer
 from System.Windows.Input import Key, Keyboard
 from System.Windows.Media import VisualTreeHelper
 from System.Windows.Threading import DispatcherPriority
@@ -327,6 +327,55 @@ class SearchWindow(forms.WPFWindow):
                 return index if has_recent else -1
         return -1
 
+    def _find_scrollviewer(self, dep):
+        if dep is None:
+            return None
+        if isinstance(dep, ScrollViewer):
+            return dep
+        try:
+            count = VisualTreeHelper.GetChildrenCount(dep)
+        except Exception:
+            return None
+        for i in range(count):
+            try:
+                child = VisualTreeHelper.GetChild(dep, i)
+            except Exception:
+                continue
+            found = self._find_scrollviewer(child)
+            if found is not None:
+                return found
+        return None
+
+    def _sync_results_scrollbar(self):
+        lst = self.ResultsList if hasattr(self, "ResultsList") else None
+        if lst is None:
+            return
+        try:
+            lst.UpdateLayout()
+        except Exception:
+            pass
+        sv = self._find_scrollviewer(lst)
+        if sv is None:
+            return
+        try:
+            if sv.ScrollableHeight > 0.5:
+                sv.VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            else:
+                sv.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled
+        except Exception:
+            pass
+
+    def _defer_sync_results_scrollbar(self):
+        def _apply():
+            self._sync_results_scrollbar()
+
+        try:
+            self.Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded, Action(_apply)
+            )
+        except Exception:
+            _apply()
+
     def _refresh_results(self):
         query = self._query()
         if query.strip():
@@ -342,6 +391,7 @@ class SearchWindow(forms.WPFWindow):
         self._result_items = items
         if hasattr(self, "ResultsList") and self.ResultsList is not None:
             self.ResultsList.ItemsSource = self._result_items
+        self._defer_sync_results_scrollbar()
 
     def _rebuild_nav_items(self):
         self._nav_items = list(self._result_items)
