@@ -11,7 +11,8 @@ from pyrevit import forms
 from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
 from System import Action, IntPtr
 from System.Windows import LogicalTreeHelper, Visibility
-from System.Windows.Controls import ItemsControl, ListBoxItem
+from System.Windows import GridLength, GridUnitType
+from System.Windows.Controls import ListBoxItem
 from System.Windows.Input import Key, Keyboard
 from System.Windows.Media import VisualTreeHelper
 from System.Windows.Threading import DispatcherPriority
@@ -28,6 +29,7 @@ import ui_theme
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 _XAML_PATH = os.path.join(_LIB_DIR, "search_ui.xaml")
 _EMPTY_SEARCH_VISIBLE_COUNT = 10
+_TOP_COMMANDS_COUNT = 6
 
 _window = None
 _show_event = None
@@ -58,6 +60,21 @@ class _ResultItem(object):
         return self._entry
 
 
+class _TopCommandItem(object):
+    def __init__(self, entry):
+        self._entry = entry or {}
+        self.Title = (
+            self._entry.get("search_title")
+            or self._entry.get("title")
+            or self._entry.get("display")
+            or u""
+        )
+
+    @property
+    def Entry(self):
+        return self._entry
+
+
 class SearchWindow(forms.WPFWindow):
     def __init__(self):
         forms.WPFWindow.__init__(
@@ -73,6 +90,7 @@ class SearchWindow(forms.WPFWindow):
         self._nav_index = -1
         self._in_list = False
         self._dark_theme = False
+        self._top_items = []
         self.Focusable = True
 
         if hasattr(self, "SearchBox") and self.SearchBox is not None:
@@ -82,6 +100,8 @@ class SearchWindow(forms.WPFWindow):
         if hasattr(self, "ResultsList") and self.ResultsList is not None:
             self.ResultsList.MouseLeftButtonUp += self._on_results_click
             self.ResultsList.PreviewMouseRightButtonDown += self._on_results_right_click
+        self._top_entries = []
+        self._bind_top_command_slots()
 
         self.PreviewKeyDown += self._on_preview_key
         self.Deactivated += self._on_deactivated
@@ -104,6 +124,7 @@ class SearchWindow(forms.WPFWindow):
         self._nav_index = -1
         self._refresh_all()
         self._update_clear_button()
+        self._update_top_commands_visibility()
         self._clear_list_selection()
         if request_focus:
             self._defer_search_focus()
@@ -198,6 +219,102 @@ class SearchWindow(forms.WPFWindow):
             else Visibility.Collapsed
         )
 
+    def _bind_top_command_slots(self):
+        for i in range(_TOP_COMMANDS_COUNT):
+            btn = getattr(self, "TopCmd{}".format(i), None)
+            if btn is None:
+                continue
+            try:
+                btn.Click += self._on_top_slot_click
+            except Exception:
+                pass
+
+    def _top_slot_button(self, idx):
+        return getattr(self, "TopCmd{}".format(idx), None)
+
+    def _top_slot_text(self, idx):
+        return getattr(self, "TopCmd{}Text".format(idx), None)
+
+    def _set_top_slot_visible_count(self, count):
+        bar = getattr(self, "TopCommandsBar", None)
+        if bar is None:
+            return
+        try:
+            n = max(0, min(_TOP_COMMANDS_COUNT, int(count)))
+        except Exception:
+            n = 0
+        for i in range(_TOP_COMMANDS_COUNT):
+            is_on = i < n
+            try:
+                col = bar.ColumnDefinitions[i]
+                col.Width = (
+                    GridLength(1, GridUnitType.Star)
+                    if is_on
+                    else GridLength(0, GridUnitType.Pixel)
+                )
+            except Exception:
+                pass
+            btn = self._top_slot_button(i)
+            if btn is not None:
+                try:
+                    btn.Visibility = Visibility.Visible if is_on else Visibility.Collapsed
+                except Exception:
+                    pass
+
+    def _build_top_commands(self, limit):
+        limit_n = max(0, int(limit))
+        try:
+            entries = recent_history.get_search_recent_entries(limit=limit_n) or []
+        except Exception:
+            entries = []
+        return [_TopCommandItem(e) for e in entries[:limit_n]]
+
+    def _refresh_top_commands(self):
+        items = self._build_top_commands(_TOP_COMMANDS_COUNT)
+        self._top_entries = [it.Entry for it in items if it and it.Entry]
+        self._set_top_slot_visible_count(_TOP_COMMANDS_COUNT)
+        for i in range(_TOP_COMMANDS_COUNT):
+            txt = self._top_slot_text(i)
+            if txt is None:
+                continue
+            btn = self._top_slot_button(i)
+            if i < len(self._top_entries):
+                entry = self._top_entries[i]
+                title = (
+                    entry.get("search_title")
+                    or entry.get("title")
+                    or entry.get("display")
+                    or u""
+                )
+                try:
+                    txt.Text = title
+                except Exception:
+                    pass
+                if btn is not None:
+                    try:
+                        btn.IsEnabled = True
+                        btn.Opacity = 1.0
+                    except Exception:
+                        pass
+            else:
+                try:
+                    txt.Text = u""
+                except Exception:
+                    pass
+                if btn is not None:
+                    try:
+                        btn.IsEnabled = False
+                        btn.Opacity = 0.35
+                    except Exception:
+                        pass
+
+    def _update_top_commands_visibility(self):
+        bar = self.TopCommandsBar if hasattr(self, "TopCommandsBar") else None
+        if bar is None:
+            return
+        show = (not self._query().strip())
+        bar.Visibility = Visibility.Visible if show else Visibility.Collapsed
+
     def _load_history(self):
         self._history_entries = recent_history.get_history_entries()
 
@@ -230,9 +347,11 @@ class SearchWindow(forms.WPFWindow):
         self._nav_items = list(self._result_items)
 
     def _refresh_all(self):
+        self._refresh_top_commands()
         self._load_history()
         self._refresh_results()
         self._rebuild_nav_items()
+        self._update_top_commands_visibility()
 
     def _clear_list_selection(self):
         if hasattr(self, "ResultsList") and self.ResultsList is not None:
@@ -335,6 +454,7 @@ class SearchWindow(forms.WPFWindow):
         self._in_list = False
         self._nav_index = -1
         self._update_clear_button()
+        self._update_top_commands_visibility()
         self._refresh_results()
         self._rebuild_nav_items()
         self._clear_list_selection()
@@ -344,6 +464,7 @@ class SearchWindow(forms.WPFWindow):
         if sb is None:
             return
         sb.Text = u""
+        self._update_top_commands_visibility()
         try:
             sb.Focus()
             Keyboard.Focus(sb)
@@ -416,6 +537,51 @@ class SearchWindow(forms.WPFWindow):
         self._clear_list_selection()
         self._ensure_search_focus()
         args.Handled = True
+
+    def _on_top_slot_click(self, sender, args):
+        if sender is None:
+            return
+        idx = -1
+        try:
+            name = getattr(sender, "Name", "") or ""
+            if name.startswith("TopCmd"):
+                idx = int(name.replace("TopCmd", ""))
+        except Exception:
+            idx = -1
+        if idx < 0 or idx >= len(self._top_entries):
+            return
+        entry = self._top_entries[idx]
+        if not entry:
+            return
+        action = entry.get("action")
+        if action == "family_browser":
+            self._hide_to_revit()
+            if command_runner.run_family_browser():
+                recent_history.record(entry.get("key"))
+                return
+            try:
+                self.Topmost = True
+            except Exception:
+                pass
+            try:
+                self.Show()
+                self._defer_search_focus()
+            except Exception:
+                pass
+            return
+        self._hide_to_revit()
+        if command_runner.post_command_sync(entry.get("command_id")):
+            recent_history.record(entry.get("key"))
+            return
+        try:
+            self.Topmost = True
+        except Exception:
+            pass
+        try:
+            self.Show()
+            self._defer_search_focus()
+        except Exception:
+            pass
 
     def _run_selected(self):
         entry = None
