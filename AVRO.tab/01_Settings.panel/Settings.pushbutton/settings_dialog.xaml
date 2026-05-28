@@ -51,7 +51,7 @@
     </Window.Resources>
 
     <StackPanel Margin="14,0,14,14">
-        <TextBlock Text="1.1"
+        <TextBlock Text="1.2"
                    HorizontalAlignment="Center"
                    TextAlignment="Center"
                    Margin="0,14,0,20"
