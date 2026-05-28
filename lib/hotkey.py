@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Double-tap left Ctrl to open Search."""
+"""Press Left Ctrl + Space to open Search."""
 from __future__ import print_function
 
 import ctypes
@@ -22,18 +22,16 @@ WH_KEYBOARD_LL = 13
 WM_KEYDOWN = 0x0100
 HC_ACTION = 0
 
+VK_SPACE = 0x20
 VK_LCTRL = 0xA2
 
-_TAP_WINDOW_SEC = 0.55
-_TAP_DEBOUNCE_SEC = 0.04
 _TRIGGER_COOLDOWN = 0.45
 
 _on_activate = None
 _is_blocked = None
 _installed = False
 _last_trigger = 0.0
-_tap_times = []
-_lctrl_was_down = False
+_space_was_down = False
 _idling_handler = None
 _hook_proc_ref = None
 _hook_id = None
@@ -100,9 +98,9 @@ def _is_revit_foreground():
         return False
 
 
-def _is_left_ctrl_key(vk, scan):
+def _is_space_key(vk, scan):
     try:
-        if int(vk) == VK_LCTRL:
+        if int(vk) == VK_SPACE:
             return True
     except Exception:
         pass
@@ -112,7 +110,6 @@ def _is_left_ctrl_key(vk, scan):
 def _trigger():
     global _last_trigger
     if not _is_revit_foreground():
-        _tap_times[:] = []
         return
     if _search_open():
         return
@@ -124,27 +121,16 @@ def _trigger():
         return
     try:
         _on_activate()
-        _log(u"trigger left ctrl left ctrl")
+        _log(u"trigger left ctrl + space")
     except Exception as ex:
         _log(u"activate: {}".format(ex))
 
 
-def _register_left_ctrl_tap():
-    global _tap_times
-    if not _is_revit_foreground():
-        _tap_times = []
-        return
-    if _search_open():
-        _tap_times = []
-        return
-    now = time.time()
-    if _tap_times and (now - _tap_times[-1]) < _TAP_DEBOUNCE_SEC:
-        return
-    _tap_times = [t for t in _tap_times if (now - t) <= _TAP_WINDOW_SEC]
-    _tap_times.append(now)
-    if len(_tap_times) >= 2:
-        _tap_times = []
-        _trigger()
+def _left_ctrl_key_down():
+    try:
+        return (_user32.GetAsyncKeyState(VK_LCTRL) & 0x8000) != 0
+    except Exception:
+        return False
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -161,8 +147,8 @@ def _low_level_proc(nCode, wParam, lParam):
     try:
         if nCode == HC_ACTION and wParam == WM_KEYDOWN:
             kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-            if _is_left_ctrl_key(kb.vkCode, kb.scanCode):
-                _register_left_ctrl_tap()
+            if _is_space_key(kb.vkCode, kb.scanCode) and _left_ctrl_key_down():
+                _trigger()
     except Exception as ex:
         _log(u"hook: {}".format(ex))
     return _user32.CallNextHookEx(_hook_id, nCode, wParam, lParam)
@@ -180,7 +166,7 @@ def _hook_thread_main():
         if not _hook_id:
             _log(u"hook fail err={}".format(_kernel32.GetLastError()))
             return
-        _log(u"hook left ctrl OK")
+        _log(u"hook left ctrl + space OK")
         msg = wintypes.MSG()
         while _user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             _user32.TranslateMessage(ctypes.byref(msg))
@@ -206,23 +192,23 @@ def _start_hook_thread():
     runtime["hook_thread"] = _hook_thread
 
 
-def _left_ctrl_key_down():
+def _space_key_down():
     try:
-        return (_user32.GetAsyncKeyState(VK_LCTRL) & 0x8000) != 0
+        return (_user32.GetAsyncKeyState(VK_SPACE) & 0x8000) != 0
     except Exception:
         return False
 
 
 def _poll_keyboard():
-    global _lctrl_was_down, _tap_times
+    global _space_was_down
     if (not _is_revit_foreground()) or _search_open():
-        _lctrl_was_down = False
-        _tap_times = []
+        _space_was_down = False
         return
-    down = _left_ctrl_key_down()
-    if down and not _lctrl_was_down:
-        _register_left_ctrl_tap()
-    _lctrl_was_down = down
+    down = _space_key_down()
+    if down and not _space_was_down:
+        if _left_ctrl_key_down():
+            _trigger()
+    _space_was_down = down
 
 
 def _on_idling(sender, args):
@@ -277,18 +263,17 @@ def _prepare_search_event():
 
 
 def install(activate_callback, is_blocked=None):
-    global _on_activate, _is_blocked, _tap_times, _lctrl_was_down
+    global _on_activate, _is_blocked, _space_was_down
     global _installed
 
     _on_activate = activate_callback
     _is_blocked = is_blocked
-    _tap_times = []
-    _lctrl_was_down = False
+    _space_was_down = False
     _start_hook_thread()
     _register_idling()
     _installed = True
     _prepare_search_event()
-    _log(u"install left ctrl left ctrl")
+    _log(u"install left ctrl + space")
 
 
 def ensure_installed(activate_callback, is_blocked=None):
