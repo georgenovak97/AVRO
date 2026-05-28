@@ -195,6 +195,38 @@ def get_launch_rankings():
     return _load_rankings()
 
 
+def get_most_used_entries(limit=6):
+    """Commands ranked by total launch count (all-time), then last used."""
+    try:
+        limit_n = max(0, int(limit))
+    except Exception:
+        limit_n = 0
+    if limit_n <= 0:
+        return []
+
+    catalog = _catalog()
+    rankings = _load_rankings()
+    ranked = []
+    for key, stats in (rankings or {}).items():
+        entry = catalog.get(key)
+        if not entry:
+            continue
+        try:
+            count = int((stats or {}).get("count", 0) or 0)
+        except Exception:
+            count = 0
+        if count <= 0:
+            continue
+        try:
+            last_used = float((stats or {}).get("last_used", 0) or 0)
+        except Exception:
+            last_used = 0
+        ranked.append((count, last_used, entry))
+
+    ranked.sort(key=lambda x: (-x[0], -x[1]))
+    return [entry for _, __, entry in ranked[:limit_n]]
+
+
 def clear_all_history():
     _save_keys([])
     _save_search_recent_keys([])
