@@ -3,7 +3,7 @@
 #### Tools
 
 - **Search** — quickly find and run Revit commands
-  ![Search](search.jpg)
+  ![Search](__search.jpg)
   - Left `CTL` + `Space` opens Search
   - Search Revit commands by name
   - Fast command launch directly from the keyboard
@@ -16,7 +16,7 @@
   - Dark/light theme
 	
 - **Family Browser** — browse and load Revit families from your local library
-  ![Family Browser](familybrowser.jpg)
+  ![Family Browser](__familybrowser.jpg)
 	- Browse folders with `.rfa` files and thumbnail previews
 	- Folder tree with multiple levels
 	- Search by name
