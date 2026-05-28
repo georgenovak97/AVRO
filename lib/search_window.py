@@ -28,7 +28,7 @@ import ui_theme
 
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 _XAML_PATH = os.path.join(_LIB_DIR, "search_ui.xaml")
-_EMPTY_SEARCH_VISIBLE_COUNT = 10
+_EMPTY_SEARCH_VISIBLE_COUNT = 8
 _TOP_COMMANDS_COUNT = 6
 
 _window = None
