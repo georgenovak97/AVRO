@@ -56,6 +56,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -86,8 +87,124 @@
                         Content="×"/>
             </Grid>
 
+            <Grid x:Name="TopCommandsBar"
+                  Grid.Row="1"
+                  Margin="10,8,10,0"
+                  Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="TopCmd0"
+                        Grid.Column="0"
+                        Margin="0,0,6,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd0Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+
+                <Button x:Name="TopCmd1"
+                        Grid.Column="1"
+                        Margin="0,0,6,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd1Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+
+                <Button x:Name="TopCmd2"
+                        Grid.Column="2"
+                        Margin="0,0,6,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd2Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+
+                <Button x:Name="TopCmd3"
+                        Grid.Column="3"
+                        Margin="0,0,6,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd3Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+
+                <Button x:Name="TopCmd4"
+                        Grid.Column="4"
+                        Margin="0,0,6,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd4Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+
+                <Button x:Name="TopCmd5"
+                        Grid.Column="5"
+                        Margin="0,0,0,0"
+                        Padding="10,6"
+                        Background="{DynamicResource BgWindow}"
+                        BorderBrush="{DynamicResource BorderLight}"
+                        BorderThickness="1"
+                        Focusable="False">
+                    <TextBlock x:Name="TopCmd5Text"
+                               Text=""
+                               Foreground="{DynamicResource TextMain}"
+                               FontSize="12"
+                               TextWrapping="NoWrap"
+                               TextTrimming="None"
+                               ClipToBounds="True"/>
+                </Button>
+            </Grid>
+
             <ListBox x:Name="ResultsList"
-                     Grid.Row="1"
+                     Grid.Row="2"
                      Margin="4,6,4,0"
                      Background="{DynamicResource BgPanel}"
                      BorderThickness="0"

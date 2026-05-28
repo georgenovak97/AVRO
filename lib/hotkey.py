@@ -149,6 +149,8 @@ def _low_level_proc(nCode, wParam, lParam):
             kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
             if _is_space_key(kb.vkCode, kb.scanCode) and _left_ctrl_key_down():
                 _trigger()
+                # swallow key to avoid Revit/pyRevit default handling (e.g. debug)
+                return 1
     except Exception as ex:
         _log(u"hook: {}".format(ex))
     return _user32.CallNextHookEx(_hook_id, nCode, wParam, lParam)
@@ -203,6 +205,10 @@ def _poll_keyboard():
     global _space_was_down
     if (not _is_revit_foreground()) or _search_open():
         _space_was_down = False
+        return
+    # If low-level hook is installed, let it own the hotkey (so we can swallow it).
+    if _hook_id:
+        _space_was_down = _space_key_down()
         return
     down = _space_key_down()
     if down and not _space_was_down:

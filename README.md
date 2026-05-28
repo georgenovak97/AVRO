@@ -7,6 +7,7 @@
   - Left `CTL` + `Space` opens Search
   - Search Revit commands by name
   - Fast command launch directly from the keyboard
+  - Most used commands list
   - Recent commands list
   - Right click in search results — remove from recent commands list
   - Command ranking based on usage history
