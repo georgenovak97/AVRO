@@ -264,10 +264,10 @@ class SearchWindow(forms.WPFWindow):
     def _build_top_commands(self, limit):
         limit_n = max(0, int(limit))
         try:
-            entries = recent_history.get_search_recent_entries(limit=limit_n) or []
+            entries = recent_history.get_most_used_entries(limit=limit_n) or []
         except Exception:
             entries = []
-        return [_TopCommandItem(e) for e in entries[:limit_n]]
+        return [_TopCommandItem(e) for e in entries]
 
     def _refresh_top_commands(self):
         items = self._build_top_commands(_TOP_COMMANDS_COUNT)
@@ -312,7 +312,7 @@ class SearchWindow(forms.WPFWindow):
         bar = self.TopCommandsBar if hasattr(self, "TopCommandsBar") else None
         if bar is None:
             return
-        show = (not self._query().strip())
+        show = (not self._query().strip()) and bool(self._top_entries)
         bar.Visibility = Visibility.Visible if show else Visibility.Collapsed
 
     def _load_history(self):
