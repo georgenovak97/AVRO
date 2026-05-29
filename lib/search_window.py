@@ -21,6 +21,7 @@ from System.Windows.Forms import Screen
 import command_runner
 import config
 import recent_history
+import revit_context
 import search
 import slash_commands
 import ui_notify
@@ -753,6 +754,8 @@ class _ShowSearchHandler(IExternalEventHandler):
 
 
 def _show_on_ui_thread():
+    if not revit_context.is_project_document_active():
+        return
     global _window
     if _window is None:
         _window = SearchWindow()
@@ -787,6 +790,8 @@ def request_show():
 
 
 def show():
+    if not revit_context.is_project_document_active():
+        return
     prepare_external_event()
     _show_on_ui_thread()
 

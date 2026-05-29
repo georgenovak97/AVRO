@@ -161,6 +161,23 @@ def get_profile_info():
     return resolved
 
 
+def is_project_document_active():
+    """True when Search may run: open project document, not family editor."""
+    try:
+        uiapp = HOST_APP.uiapp if HOST_APP is not None else None
+        if uiapp is None:
+            return False
+        uidoc = uiapp.ActiveUIDocument
+        if uidoc is None:
+            return False
+        doc = uidoc.Document
+        if doc is None:
+            return False
+        return not bool(getattr(doc, "IsFamilyDocument", False))
+    except Exception:
+        return False
+
+
 def iter_version_profile_infos():
     info = get_profile_info()
     return [info] if info.get("xml_exists") else []

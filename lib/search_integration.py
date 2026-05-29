@@ -23,7 +23,10 @@ def search_runtime_exists():
 
 
 def _activate():
+    import revit_context
     import search_window
+    if not revit_context.is_project_document_active():
+        return
     search_window.request_show()
 
 
@@ -107,6 +110,9 @@ def show_search():
         except Exception:
             pass
         return False
+    import revit_context
     import search_window
+    if not revit_context.is_project_document_active():
+        return False
     search_window.show()
     return True
