@@ -6,7 +6,6 @@ Entry point script.
 import os
 import sys
 import threading
-import codecs
 import tempfile
 import time
 
@@ -25,17 +24,16 @@ import System
 from System.Windows import (
     Thickness, HorizontalAlignment, VerticalAlignment, Visibility,
     MessageBox, MessageBoxButton, MessageBoxImage,
-    TextWrapping, FrameworkElement, FontWeights,
+    TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
     TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
     WrapPanel, ComboBox, ComboBoxItem, CheckBox,
 )
-from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper, Stretch
+from System.Windows.Media import SolidColorBrush, Color, Stretch
 from System.Windows.Input import Keyboard, ModifierKeys, Key
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from System.IO import MemoryStream
-from System.Windows.Markup import XamlReader
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 from System.Windows.Threading import DispatcherTimer
 import Autodesk.Revit.DB as RDB
@@ -71,6 +69,7 @@ import i18n
 import ribbon_i18n
 import ui_notify
 import family_utils
+import ui_utils
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -142,16 +141,6 @@ def _sync_card_colors(palette):
 
 _sync_card_colors(ui_theme.LIGHT)
 
-# ---------------------------------------------------------------------------
-# Load XAML
-# ---------------------------------------------------------------------------
-def _load_xaml():
-    xaml_path = os.path.join(_THIS_DIR, "ui.xaml")
-    with codecs.open(xaml_path, "r", "utf-8") as f:
-        xaml_str = f.read()
-    return XamlReader.Parse(xaml_str)
-
-
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
     "FiltersTitle", "FiltersCount", "BtnResetFilters", "BtnApplyFilters",
@@ -170,42 +159,9 @@ _UI_CONTROL_NAMES = [
 ]
 
 
-def _find_named(root, name):
-    ctrl = root.FindName(name)
-    if ctrl is not None:
-        return ctrl
-    return _find_in_visual_tree(root, name)
-
-
-def _find_in_visual_tree(element, name):
-    if element is None:
-        return None
-    if isinstance(element, FrameworkElement) and element.Name == name:
-        return element
-    count = VisualTreeHelper.GetChildrenCount(element)
-    for i in range(count):
-        child = VisualTreeHelper.GetChild(element, i)
-        found = _find_in_visual_tree(child, name)
-        if found is not None:
-            return found
-    return None
-
-
-class NamedUiControls(object):
-    """Resolve x:Name elements after XamlReader.Parse (no code-behind fields)."""
-
-    def __init__(self, root):
-        missing = []
-        for name in _UI_CONTROL_NAMES:
-            ctrl = _find_named(root, name)
-            if ctrl is None:
-                missing.append(name)
-            else:
-                setattr(self, name, ctrl)
-        if missing:
-            raise Exception(
-                "Named controls not found in ui.xaml: " + ", ".join(missing))
-
+# ---------------------------------------------------------------------------
+# Load XAML
+# ---------------------------------------------------------------------------
 _TAG_FOLDER_PREFIX = "folder:"
 # Build medium folder grids in UI batches so the window stays responsive.
 _CARD_UI_BATCH = 80
@@ -496,8 +452,8 @@ class FamilyBrowserDialog(object):
         self._grid_relayout_gen = 0
         self._last_escape_press_at = 0.0
         self._window_gen += 1
-        self.win = _load_xaml()
-        self.ui = NamedUiControls(self.win)
+        self.win = ui_utils.load_xaml(_THIS_DIR)
+        self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
         self._bind()
         i18n.init_from_config()
         self._apply_ui_theme(self._dark_theme, persist=False)
