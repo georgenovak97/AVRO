@@ -50,6 +50,15 @@ class FamilyInspectorTriStateTests(unittest.TestCase):
         self._set_cached(None)
         self.assertEqual(fi.has_imported_geometry_of_fi(Dummy()), fi.BOOL_UNKNOWN)
 
+
+    def test_category_of_returns_cached_revit_category(self):
+        self._set_cached({'ok': True, 'category': 'Doors'})
+        self.assertEqual(fi.category_of(Dummy('a.rfa')), 'Doors')
+
+    def test_category_of_empty_without_cache(self):
+        self._set_cached(None)
+        self.assertEqual(fi.category_of(Dummy('a.rfa')), '')
+
     def test_collect_filter_options_keeps_unknown(self):
         self._set_cached({'ok': True, 'has_imported_geometry': None, 'has_shared_nested': 'unknown',
                           'is_shared_family': False, 'work_plane_based': True, 'always_vertical': None,

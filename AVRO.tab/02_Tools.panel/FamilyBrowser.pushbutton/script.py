@@ -358,13 +358,16 @@ class FamilyBrowserDialog(object):
             lbl_ver.Text = i18n.t("filter_version_label")
         lbl_imp = getattr(self.ui, "LblImportedFilter", None)
         if lbl_imp is not None:
-            lbl_imp.Text = i18n.t("filter_imported_label")
+            lbl_imp.Text = i18n.t("filter_work_plane_label")
         lbl_sn = getattr(self.ui, "LblSharedNestedFilter", None)
         if lbl_sn is not None:
-            lbl_sn.Text = i18n.t("filter_shared_nested_label")
+            lbl_sn.Visibility = Visibility.Collapsed
+        sn_list = getattr(self.ui, "SharedNestedFilterList", None)
+        if sn_list is not None and getattr(sn_list, "Parent", None) is not None:
+            sn_list.Parent.Visibility = Visibility.Collapsed
         lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
         if lbl_sf is not None:
-            lbl_sf.Text = i18n.t("filter_shared_family_label")
+            lbl_sf.Text = i18n.t("filter_shared_label")
         self._rebuild_meta_filters(preserve=True)
         props_title = getattr(self.ui, "PropsTitle", None)
         if props_title is not None:
@@ -915,8 +918,8 @@ class FamilyBrowserDialog(object):
 
         # New filter axes from cache (revit format + boolean flags)
         ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or [])]
-        imp_available = set(k.lower() for k in (opts.get("has_imported_geometry") or []))
-        shared_nested_available = set(k.lower() for k in (opts.get("has_shared_nested") or []))
+        imp_available = set(k.lower() for k in (opts.get("work_plane_based") or []))
+        shared_nested_available = set()
         shared_family_available = set(k.lower() for k in (opts.get("is_shared_family") or []))
 
         # Keep only category selections that still exist in this catalog;
@@ -1009,7 +1012,7 @@ class FamilyBrowserDialog(object):
             self._fill_check_list(
                 getattr(self.ui, "ImportedFilterList", None), imp_entries, imp_sel)
             self._fill_check_list(
-                getattr(self.ui, "SharedNestedFilterList", None), sn_entries, sn_sel)
+                getattr(self.ui, "SharedNestedFilterList", None), [], set())
             self._fill_check_list(
                 getattr(self.ui, "SharedFamilyFilterList", None), sf_entries, sf_sel)
         finally:
@@ -1119,8 +1122,7 @@ class FamilyBrowserDialog(object):
             hosting=self._host_filter_keys,
             placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
-            has_imported_geometry=self._imported_filter_keys,
-            has_shared_nested=self._shared_nested_filter_keys,
+            work_plane_based=self._imported_filter_keys,
             is_shared_family=self._shared_family_filter_keys,
         )
         self._show_families(families)

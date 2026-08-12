@@ -455,38 +455,23 @@ def hosting_of(rfa_path):
 
 
 def category_of(fi_or_path):
-    """
-    Category for browser filters = library folder name (last segment under root).
-    Revit inspected category is shown in Properties, not used for this axis.
-    """
+    """Revit category for filter axis (from cached inspector metadata)."""
     if fi_or_path is None:
         return u""
-    try:
-        import family_scanner as scanner
-    except Exception:
-        scanner = None
 
+    path = u""
     if not isinstance(fi_or_path, basestring):
         path = getattr(fi_or_path, "path", None) or getattr(
             fi_or_path, "Path", None) or u""
-        root = getattr(fi_or_path, "library_root", None) or getattr(
-            fi_or_path, "LibraryRoot", None) or u""
-        if scanner is not None and path:
-            cat = _u(scanner.category_from_path(path, root) or u"").strip()
-            if cat:
-                return cat
-        cat = _u(
-            getattr(fi_or_path, "category", None)
-            or getattr(fi_or_path, "Category", None)
-            or u""
-        ).strip()
+    else:
+        path = fi_or_path
+
+    cached = load_cached(path) if path else None
+    if cached and cached.get("ok"):
+        cat = _u(cached.get("category") or u"").strip()
         if cat:
             return cat
-        return u""
 
-    path = fi_or_path
-    if scanner is not None:
-        return _u(scanner.category_from_path(path, None) or u"").strip()
     return u""
 
 
