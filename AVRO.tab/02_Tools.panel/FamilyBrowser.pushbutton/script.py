@@ -28,7 +28,7 @@ from System.Windows import (
 )
 from System.Windows.Controls import (
     TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
-    WrapPanel, ComboBox, ComboBoxItem, CheckBox, TextBox,
+    WrapPanel, ComboBox, ComboBoxItem, CheckBox,
 )
 from System.Windows.Media import SolidColorBrush, Color, Stretch
 from System.Windows.Input import Keyboard, ModifierKeys, Key
@@ -981,14 +981,6 @@ class FamilyBrowserDialog(object):
             cb.IsChecked = bool(self._quality_flags.get(key, False))
             row.Children.Add(cb)
 
-            if limit_key is not None:
-                tb = TextBox()
-                tb.Tag = u"limit:" + limit_key
-                tb.Text = as_unicode(self._quality_limits.get(limit_key, 10))
-                tb.Width = 46
-                tb.Margin = Thickness(8, 0, 0, 0)
-                tb.VerticalContentAlignment = VerticalAlignment.Center
-                row.Children.Add(tb)
 
             panel.Children.Add(row)
 
@@ -1000,13 +992,10 @@ class FamilyBrowserDialog(object):
 
         def _read_row(row):
             cb = None
-            tb = None
             try:
                 for child in row.Children:
                     if isinstance(child, CheckBox):
                         cb = child
-                    elif isinstance(child, TextBox):
-                        tb = child
             except Exception:
                 return
             if cb is None:
@@ -1014,14 +1003,6 @@ class FamilyBrowserDialog(object):
             tag = as_unicode(getattr(cb, 'Tag', u''))
             if tag in self._quality_flags:
                 self._quality_flags[tag] = bool(cb.IsChecked)
-            if tb is not None:
-                ttag = as_unicode(getattr(tb, 'Tag', u''))
-                if ttag.startswith(u"limit:"):
-                    lkey = ttag.split(u":", 1)[1]
-                    if lkey in self._quality_limits:
-                        self._quality_limits[lkey] = self._coerce_quality_limit(
-                            lkey, as_unicode(tb.Text))
-                        tb.Text = as_unicode(self._quality_limits[lkey])
 
         try:
             for child in panel.Children:
