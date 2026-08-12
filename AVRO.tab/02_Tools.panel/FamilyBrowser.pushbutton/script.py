@@ -148,6 +148,7 @@ _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
 _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
 _CARD_MARGIN = 10
+_CARD_OUTER_PAD = 10
 _CARD_W = 156
 _CARD_H = 182
 _CARD_MIN_W = 132
@@ -1528,44 +1529,49 @@ class FamilyBrowserDialog(object):
         return float(w)
 
     def _layout_metrics(self):
-        """Adaptive grid: stretch cards so columns fill the viewport width."""
+        """Adaptive grid: equal outer pad + equal gutters; cards fill width."""
         w = self._viewport_width()
         gap = float(_CARD_MARGIN)
+        pad = float(_CARD_OUTER_PAD)
+        inner_w = max(1.0, float(w) - 2.0 * pad)
         min_w = float(_CARD_MIN_W)
         max_w = float(_CARD_MAX_W)
-        cols = max(1, int((w + gap) / (min_w + gap)))
-        card_w = (w - gap * (cols - 1)) / float(cols) if cols > 1 else w
+        cols = max(1, int((inner_w + gap) / (min_w + gap)))
+        card_w = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
         # Prefer more columns over oversized cards on wide screens.
         while card_w > max_w + 0.5:
             next_cols = cols + 1
-            next_w = (w - gap * (next_cols - 1)) / float(next_cols)
+            next_w = (inner_w - gap * (next_cols - 1)) / float(next_cols)
             if next_w < min_w:
                 break
             cols = next_cols
             card_w = next_w
         if card_w < min_w:
-            cols = max(1, int((w + gap) / (min_w + gap)))
-            card_w = (w - gap * (cols - 1)) / float(cols) if cols > 1 else w
+            cols = max(1, int((inner_w + gap) / (min_w + gap)))
+            card_w = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
         card_h = card_w * (float(_CARD_H) / float(_CARD_W))
-        return cols, float(card_w), float(card_h), gap, w
+        return cols, float(card_w), float(card_h), gap, float(w), pad
 
     def _layout_cols(self):
         return self._layout_metrics()[0]
 
     def _card_slot_xy(self, index):
-        cols, card_w, card_h, gap, _w = self._layout_metrics()
+        cols, card_w, card_h, gap, _w, pad = self._layout_metrics()
         col = index % cols
         row = index // cols
-        x = col * (card_w + gap)
-        y = row * (card_h + gap)
+        x = pad + col * (card_w + gap)
+        y = pad + row * (card_h + gap)
         return float(x), float(y)
 
     def _canvas_height_for(self, count):
         if count <= 0:
             return 0.0
-        cols, _cw, card_h, gap, _w = self._layout_metrics()
+        cols, _cw, card_h, gap, _w, pad = self._layout_metrics()
         rows = (count + cols - 1) // cols
-        return float(rows * (card_h + gap))
+        # equal outer pad top+bottom; gutters only between rows
+        if rows <= 0:
+            return 0.0
+        return float(2.0 * pad + rows * card_h + max(0, rows - 1) * gap)
 
     def _on_family_scroll(self, sender, e):
         if self._catalog_changing or not self._virtual_mode:
@@ -1627,17 +1633,16 @@ class FamilyBrowserDialog(object):
         if self._virtual_mode:
             n = len(self._active)
             if isinstance(panel, Canvas):
-                cols, _cw, card_h, gap, vw = self._layout_metrics()
-                rows = (n + cols - 1) // cols if n else 0
+                _cols, _cw, _ch, _gap, vw, _pad = self._layout_metrics()
                 panel.Width = vw
-                panel.Height = float(rows * (card_h + gap))
+                panel.Height = self._canvas_height_for(n)
             self._virtual_sync_viewport()
             return
 
         for i, fi in enumerate(self._active):
             self._add_family_card(fi, index=i)
         if isinstance(panel, Canvas):
-            _cols, _cw, _ch, _gap, vw = self._layout_metrics()
+            _cols, _cw, _ch, _gap, vw, _pad = self._layout_metrics()
             panel.Width = vw
             panel.Height = self._canvas_height_for(len(self._active))
         self._preview_gen += 1
@@ -1725,10 +1730,10 @@ class FamilyBrowserDialog(object):
         sv = self.ui.FamilyScrollViewer
         panel = self.ui.FamilyPanel
 
-        cols, card_w, card_h, gap, vw = self._layout_metrics()
+        cols, card_w, card_h, gap, vw, pad = self._layout_metrics()
         row_h = float(card_h + gap)
         total_rows = (n + cols - 1) // cols
-        canvas_h = total_rows * row_h
+        canvas_h = self._canvas_height_for(n)
         self._virtual_updating = True
         try:
             panel.Width = vw
@@ -1749,10 +1754,13 @@ class FamilyBrowserDialog(object):
             finally:
                 self._virtual_updating = False
 
-        first_row = max(0, int(scroll_y / row_h) - _VIRTUAL_ROW_BUFFER)
+        # Account for equal outer top pad when mapping scroll Y → row index.
+        y0 = max(0.0, float(scroll_y) - float(pad))
+        y1 = max(0.0, float(scroll_y) + float(view_h) - float(pad))
+        first_row = max(0, int(y0 / row_h) - _VIRTUAL_ROW_BUFFER)
         last_row = min(
             total_rows,
-            int((scroll_y + view_h) / row_h) + _VIRTUAL_ROW_BUFFER + 1)
+            int(y1 / row_h) + _VIRTUAL_ROW_BUFFER + 1)
         first_i = first_row * cols
         last_i = min(n, last_row * cols)
         if first_i >= last_i:
@@ -1794,7 +1802,7 @@ class FamilyBrowserDialog(object):
         panel = self.ui.FamilyPanel
         if fi.path in self._preview_mem:
             fi.preview = self._preview_mem[fi.path]
-        _cols, card_w, card_h, _gap, _vw = self._layout_metrics()
+        _cols, card_w, card_h, _gap, _vw, _pad = self._layout_metrics()
         card, preview_img = _make_card(fi, self, card_w=card_w, card_h=card_h)
         self._fi_by_path[fi.path] = fi
         self._card_views[fi.path] = preview_img

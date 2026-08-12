@@ -241,7 +241,7 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Background="{DynamicResource BgPanel}"
-                              Margin="8,0,8,0">
+                              Margin="10,8,10,8">
                     <Canvas x:Name="FamilyPanel" Margin="0"
                             VerticalAlignment="Top"
                             HorizontalAlignment="Left"/>
