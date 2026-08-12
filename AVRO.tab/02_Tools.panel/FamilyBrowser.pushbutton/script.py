@@ -255,6 +255,7 @@ class FamilyBrowserDialog(object):
         self._shared_nested_filter_keys = set()  # reserved
         self._shared_family_filter_keys = set()  # Shared axis
         self._quality_flags = {
+            "shared_only": False,
             "no_imported_cad": False,
             "limit_types": False,
             "limit_ref_planes": False,
@@ -391,7 +392,10 @@ class FamilyBrowserDialog(object):
             sn_list.Parent.Visibility = Visibility.Visible
         lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
         if lbl_sf is not None:
-            lbl_sf.Text = i18n.t("filter_shared_label")
+            lbl_sf.Visibility = Visibility.Collapsed
+        sf_list = getattr(self.ui, "SharedFamilyFilterList", None)
+        if sf_list is not None and getattr(sf_list, "Parent", None) is not None:
+            sf_list.Parent.Visibility = Visibility.Collapsed
         self._rebuild_meta_filters(preserve=True)
         props_title = getattr(self.ui, "PropsTitle", None)
         if props_title is not None:
@@ -953,6 +957,7 @@ class FamilyBrowserDialog(object):
             return
         panel.Children.Clear()
         defs = [
+            ("shared_only", i18n.t("qf_shared_only"), None),
             ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
             ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
             ("limit_ref_planes", i18n.t("qf_limit_ref_planes"), "limit_ref_planes"),
@@ -1044,6 +1049,8 @@ class FamilyBrowserDialog(object):
         path = getattr(fi, 'path', None) or u''
         meta = family_inspector.load_cached(path) if path else None
 
+        if flags.get('shared_only') and meta and not bool(meta.get('is_shared_family')):
+            return False
         if flags.get('no_imported_cad') and meta and bool(meta.get('has_imported_geometry')):
             return False
         if flags.get('limit_types') and self._meta_int(meta, 'type_count') > int(self._quality_limits.get('limit_types', 10)):
@@ -1088,7 +1095,7 @@ class FamilyBrowserDialog(object):
         self._placement_filter_keys = _many("PlacementFilterList")
         self._version_filter_keys = _many("VersionFilterList")
         self._imported_filter_keys = _many("ImportedFilterList")   # Work Plane-Based
-        self._shared_family_filter_keys = _many("SharedFamilyFilterList")  # Shared
+        self._shared_family_filter_keys = set()  # moved to quality flag shared_only
         self._shared_nested_filter_keys = set()
         self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
@@ -1129,7 +1136,6 @@ class FamilyBrowserDialog(object):
             or self._placement_filter_keys
             or self._version_filter_keys
             or self._imported_filter_keys
-            or self._shared_family_filter_keys
             or any(self._quality_flags.values())
         )
 
@@ -1164,7 +1170,6 @@ class FamilyBrowserDialog(object):
 
         ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or []) if as_unicode(v).strip()]
         wp_available = [as_unicode(k) for k in (opts.get("work_plane_based") or [])]
-        sh_available = [as_unicode(k) for k in (opts.get("is_shared_family") or [])]
 
         def _pick_set(existing, available):
             if not preserve:
@@ -1182,7 +1187,7 @@ class FamilyBrowserDialog(object):
         self._placement_filter_keys = _pick_set(self._placement_filter_keys, place_keys)
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
         self._imported_filter_keys = _pick_set(self._imported_filter_keys, wp_available)
-        self._shared_family_filter_keys = _pick_set(self._shared_family_filter_keys, sh_available)
+        self._shared_family_filter_keys = set()
         self._shared_nested_filter_keys = set()
 
         def _bool_label(k):
@@ -1198,7 +1203,6 @@ class FamilyBrowserDialog(object):
         place_entries = [(p, self._placement_label(p)) for p in place_keys]
         ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
         wp_entries = [(k, _bool_label(k)) for k in sorted(set(wp_available), key=lambda s: s.lower())]
-        sh_entries = [(k, _bool_label(k)) for k in sorted(set(sh_available), key=lambda s: s.lower())]
 
         self._filter_suppress = True
         try:
@@ -1207,7 +1211,6 @@ class FamilyBrowserDialog(object):
             self._fill_check_list(getattr(self.ui, "PlacementFilterList", None), place_entries, self._placement_filter_keys)
             self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
             self._fill_check_list(getattr(self.ui, "ImportedFilterList", None), wp_entries, self._imported_filter_keys)
-            self._fill_check_list(getattr(self.ui, "SharedFamilyFilterList", None), sh_entries, self._shared_family_filter_keys)
             self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
@@ -1220,7 +1223,6 @@ class FamilyBrowserDialog(object):
             + len(self._placement_filter_keys)
             + len(self._version_filter_keys)
             + len(self._imported_filter_keys)
-            + len(self._shared_family_filter_keys)
             + sum(1 for v in self._quality_flags.values() if v)
         )
 
@@ -1329,7 +1331,6 @@ class FamilyBrowserDialog(object):
             placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
             work_plane_based=self._imported_filter_keys,
-            is_shared_family=self._shared_family_filter_keys,
         )
         families = self._apply_quality_flag_filters(families)
         self._show_families(families)
