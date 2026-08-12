@@ -21,6 +21,9 @@ try:
         BuiltInParameter,
         FilteredElementCollector,
         ImportInstance,
+        ReferencePlane,
+        Dimension,
+        Material,
         Family as RevitFamily,
         OpenOptions,
         ModelPathUtils,
@@ -99,6 +102,10 @@ def _empty_meta(path=u""):
         "param_type_count": 0,
         "param_has_formulas": False,
         "param_has_formulas_count": 0,
+        "reference_plane_count": 0,
+        "dimension_count": 0,
+        "nested_family_count": 0,
+        "material_count": 0,
         "revit_format": u"",
         "inspected_at": u"",
     }
@@ -291,12 +298,14 @@ def _inspect_document(doc, rfa_path):
 
     # Nested families with Shared
     shared = []
+    nested_total = 0
     try:
         owner_id = owner.Id if owner is not None else None
         for fam in FilteredElementCollector(doc).OfClass(RevitFamily):
             try:
                 if owner_id is not None and fam.Id == owner_id:
                     continue
+                nested_total += 1
                 if not _is_family_shared(fam):
                     continue
                 name = _element_name(fam)
@@ -309,6 +318,27 @@ def _inspect_document(doc, rfa_path):
     shared = sorted(set(shared), key=lambda s: s.lower())
     meta["shared_nested"] = shared
     meta["has_shared_nested"] = len(shared) > 0
+    meta["nested_family_count"] = int(nested_total)
+
+    # Extra complexity counters for quality filters
+    try:
+        meta["reference_plane_count"] = int(
+            FilteredElementCollector(doc).OfClass(ReferencePlane).GetElementCount()
+        )
+    except Exception:
+        meta["reference_plane_count"] = 0
+    try:
+        meta["dimension_count"] = int(
+            FilteredElementCollector(doc).OfClass(Dimension).GetElementCount()
+        )
+    except Exception:
+        meta["dimension_count"] = 0
+    try:
+        meta["material_count"] = int(
+            FilteredElementCollector(doc).OfClass(Material).GetElementCount()
+        )
+    except Exception:
+        meta["material_count"] = 0
 
     # Version hint from BasicFileInfo (no open needed, but cheap while here)
     try:

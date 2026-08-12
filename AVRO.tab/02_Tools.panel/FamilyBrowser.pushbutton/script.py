@@ -250,9 +250,20 @@ class FamilyBrowserDialog(object):
         self._category_filter_keys = set()
         self._placement_filter_keys = set()
         self._version_filter_keys = set()
-        self._imported_filter_keys = set()
-        self._shared_nested_filter_keys = set()
-        self._shared_family_filter_keys = set()
+        self._imported_filter_keys = set()  # mapped to Work Plane-Based axis
+        self._shared_nested_filter_keys = set()  # reserved
+        self._shared_family_filter_keys = set()  # Shared axis
+        self._quality_flags = {
+            "no_imported_cad": False,
+            "limit_types": False,
+            "limit_ref_planes": False,
+            "limit_dimensions": False,
+            "limit_nested": False,
+            "limit_params": False,
+            "limit_formulas": False,
+            "limit_materials": False,
+            "not_huge": False,
+        }
         self._filter_suppress = False
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
@@ -361,10 +372,11 @@ class FamilyBrowserDialog(object):
             lbl_imp.Text = i18n.t("filter_work_plane_label")
         lbl_sn = getattr(self.ui, "LblSharedNestedFilter", None)
         if lbl_sn is not None:
-            lbl_sn.Visibility = Visibility.Collapsed
+            lbl_sn.Text = i18n.t("filter_quality_flags_label")
+            lbl_sn.Visibility = Visibility.Visible
         sn_list = getattr(self.ui, "SharedNestedFilterList", None)
         if sn_list is not None and getattr(sn_list, "Parent", None) is not None:
-            sn_list.Parent.Visibility = Visibility.Collapsed
+            sn_list.Parent.Visibility = Visibility.Visible
         lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
         if lbl_sf is not None:
             lbl_sf.Text = i18n.t("filter_shared_label")
@@ -822,22 +834,155 @@ class FamilyBrowserDialog(object):
                 cb.IsChecked = False
             panel.Children.Add(cb)
 
+    def _selected_key_from_panel(self, panel):
+        if panel is None:
+            return u""
+        try:
+            if panel.Children.Count < 1:
+                return u""
+            cmb = panel.Children[0]
+            if not isinstance(cmb, ComboBox):
+                return u""
+            item = cmb.SelectedItem
+            if item is None:
+                return u""
+            tag = getattr(item, "Tag", None)
+            return as_unicode(tag or u"")
+        except Exception:
+            return u""
+
+    def _fill_single_select(self, panel, entries, selected_key):
+        if panel is None:
+            return
+        panel.Children.Clear()
+        cmb = ComboBox()
+        cmb.Margin = Thickness(0, 0, 0, 2)
+        cmb.MinWidth = 190
+        cmb.MaxDropDownHeight = 220
+
+        all_item = ComboBoxItem()
+        all_item.Tag = u""
+        all_item.Content = i18n.t("filter_all")
+        cmb.Items.Add(all_item)
+
+        selected_l = as_unicode(selected_key or u"").lower()
+        for key, label in entries:
+            it = ComboBoxItem()
+            it.Tag = as_unicode(key)
+            it.Content = as_unicode(label)
+            cmb.Items.Add(it)
+
+        chosen = all_item
+        for it in cmb.Items:
+            try:
+                if as_unicode(getattr(it, 'Tag', u'')).lower() == selected_l:
+                    chosen = it
+                    break
+            except Exception:
+                continue
+        cmb.SelectedItem = chosen
+        panel.Children.Add(cmb)
+
+    def _fill_quality_flags(self, panel):
+        if panel is None:
+            return
+        panel.Children.Clear()
+        defs = [
+            ("no_imported_cad", i18n.t("qf_no_imported_cad")),
+            ("limit_types", i18n.t("qf_limit_types")),
+            ("limit_ref_planes", i18n.t("qf_limit_ref_planes")),
+            ("limit_dimensions", i18n.t("qf_limit_dimensions")),
+            ("limit_nested", i18n.t("qf_limit_nested")),
+            ("limit_params", i18n.t("qf_limit_params")),
+            ("limit_formulas", i18n.t("qf_limit_formulas")),
+            ("limit_materials", i18n.t("qf_limit_materials")),
+            ("not_huge", i18n.t("qf_not_huge")),
+        ]
+        for key, label in defs:
+            cb = CheckBox()
+            cb.Tag = key
+            cb.Content = label
+            cb.Margin = Thickness(0, 1, 0, 1)
+            cb.Foreground = COL_TEXT
+            cb.IsChecked = bool(self._quality_flags.get(key, False))
+            panel.Children.Add(cb)
+
+    def _read_quality_flags(self, panel):
+        if panel is None:
+            return
+        for key in list(self._quality_flags.keys()):
+            self._quality_flags[key] = False
+        try:
+            for child in panel.Children:
+                if isinstance(child, CheckBox):
+                    tag = as_unicode(getattr(child, 'Tag', u''))
+                    if tag in self._quality_flags:
+                        self._quality_flags[tag] = bool(child.IsChecked)
+        except Exception:
+            pass
+
+    def _meta_int(self, meta, key):
+        if not meta:
+            return 0
+        try:
+            return int(meta.get(key) or 0)
+        except Exception:
+            return 0
+
+    def _passes_quality_flags(self, fi):
+        flags = self._quality_flags
+        if not any(flags.values()):
+            return True
+        path = getattr(fi, 'path', None) or u''
+        meta = family_inspector.load_cached(path) if path else None
+
+        if flags.get('no_imported_cad') and meta and bool(meta.get('has_imported_geometry')):
+            return False
+        if flags.get('limit_types') and self._meta_int(meta, 'type_count') > 10:
+            return False
+        if flags.get('limit_ref_planes') and self._meta_int(meta, 'reference_plane_count') > 10:
+            return False
+        if flags.get('limit_dimensions') and self._meta_int(meta, 'dimension_count') > 10:
+            return False
+        if flags.get('limit_nested') and self._meta_int(meta, 'nested_family_count') > 10:
+            return False
+        if flags.get('limit_params') and self._meta_int(meta, 'param_total_count') > 10:
+            return False
+        if flags.get('limit_formulas') and self._meta_int(meta, 'param_has_formulas_count') > 10:
+            return False
+        if flags.get('limit_materials') and self._meta_int(meta, 'material_count') > 10:
+            return False
+        if flags.get('not_huge'):
+            try:
+                if float(getattr(fi, 'size_kb', 0) or 0) > 5120.0:
+                    return False
+            except Exception:
+                pass
+        return True
+
+    def _apply_quality_flag_filters(self, families):
+        if not any(self._quality_flags.values()):
+            return families
+        out = []
+        for fi in families:
+            if self._passes_quality_flags(fi):
+                out.append(fi)
+        return out
+
     def _sync_filters_from_ui(self):
-        """Read checkbox states into applied filter key sets."""
-        self._category_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "CategoryFilterList", None)))
-        self._host_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "HostFilterList", None)))
-        self._placement_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "PlacementFilterList", None)))
-        self._version_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "VersionFilterList", None)))
-        self._imported_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "ImportedFilterList", None)))
-        self._shared_nested_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "SharedNestedFilterList", None)))
-        self._shared_family_filter_keys = set(self._checked_keys_from_panel(
-            getattr(self.ui, "SharedFamilyFilterList", None)))
+        """Read filter UI into applied sets/flags (6 dropdowns + quality checkboxes)."""
+        def _one(panel_name):
+            key = self._selected_key_from_panel(getattr(self.ui, panel_name, None))
+            return set([key]) if key else set()
+
+        self._category_filter_keys = _one("CategoryFilterList")
+        self._host_filter_keys = _one("HostFilterList")
+        self._placement_filter_keys = _one("PlacementFilterList")
+        self._version_filter_keys = _one("VersionFilterList")
+        self._imported_filter_keys = _one("ImportedFilterList")   # Work Plane-Based
+        self._shared_family_filter_keys = _one("SharedFamilyFilterList")  # Shared
+        self._shared_nested_filter_keys = set()
+        self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
     def _host_label(self, key):
         mapping = {
@@ -875,23 +1020,17 @@ class FamilyBrowserDialog(object):
             or self._placement_filter_keys
             or self._version_filter_keys
             or self._imported_filter_keys
-            or self._shared_nested_filter_keys
             or self._shared_family_filter_keys
+            or any(self._quality_flags.values())
         )
 
     def _rebuild_meta_filters(self, preserve=True):
-        """Rebuild checkbox lists for the current folder scope.
-
-        Category options come from the catalog (folder names).
-        Hosting / placement always show the full known key lists so the
-        panels are usable before families are inspected; matching still
-        uses cache / FamilyInfo when present.
-        """
+        """Rebuild filter controls: 6 dropdowns + quality flag checkboxes."""
         if self.ui is None:
             return
 
         opts = family_inspector.collect_filter_options(self._folder_scope or [])
-        cat_available = [as_unicode(c) for c in (opts.get("categories") or [])]
+        cat_available = [as_unicode(c) for c in (opts.get("categories") or []) if as_unicode(c).strip()]
 
         host_keys = [
             family_inspector.HOST_CEILING,
@@ -913,66 +1052,35 @@ class FamilyBrowserDialog(object):
             if pu.lower() not in set(x.lower() for x in place_keys):
                 place_keys.append(pu)
 
-        host_available = set(h.lower() for h in host_keys)
-        place_available_l = set(p.lower() for p in place_keys)
+        ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or []) if as_unicode(v).strip()]
+        wp_available = [as_unicode(k) for k in (opts.get("work_plane_based") or [])]
+        sh_available = [as_unicode(k) for k in (opts.get("is_shared_family") or [])]
 
-        # New filter axes from cache (revit format + boolean flags)
-        ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or [])]
-        imp_available = set(k.lower() for k in (opts.get("work_plane_based") or []))
-        shared_nested_available = set()
-        shared_family_available = set(k.lower() for k in (opts.get("is_shared_family") or []))
+        def _pick(existing, available):
+            if not preserve:
+                return u""
+            if not existing:
+                return u""
+            key = as_unicode(list(existing)[0])
+            avail_l = set(as_unicode(a).lower() for a in available)
+            return key if key.lower() in avail_l else u""
 
-        # Keep only category selections that still exist in this catalog;
-        # host/placement selections stay if still in the full key lists.
-        if preserve:
-            cat_l = set(c.lower() for c in cat_available)
-            self._category_filter_keys = set(
-                k for k in self._category_filter_keys
-                if as_unicode(k).lower() in cat_l)
-            self._host_filter_keys = set(
-                k for k in self._host_filter_keys
-                if as_unicode(k).lower() in host_available)
-            self._placement_filter_keys = set(
-                k for k in self._placement_filter_keys
-                if as_unicode(k).lower() in place_available_l)
-            ver_l = set(v.lower() for v in ver_available)
-            self._version_filter_keys = set(
-                k for k in self._version_filter_keys
-                if as_unicode(k).lower() in ver_l)
-            self._imported_filter_keys = set(
-                k for k in self._imported_filter_keys
-                if as_unicode(k).lower() in imp_available)
-            self._shared_nested_filter_keys = set(
-                k for k in self._shared_nested_filter_keys
-                if as_unicode(k).lower() in shared_nested_available)
-            self._shared_family_filter_keys = set(
-                k for k in self._shared_family_filter_keys
-                if as_unicode(k).lower() in shared_family_available)
-            cat_sel = set(self._category_filter_keys)
-            host_sel = set(self._host_filter_keys)
-            place_sel = set(self._placement_filter_keys)
-        else:
-            self._category_filter_keys = set()
-            self._host_filter_keys = set()
-            self._placement_filter_keys = set()
-            self._version_filter_keys = set()
-            self._imported_filter_keys = set()
-            self._shared_nested_filter_keys = set()
-            self._shared_family_filter_keys = set()
-            cat_sel = set()
-            host_sel = set()
-            place_sel = set()
-            ver_sel = set()
-            imp_sel = set()
-            sn_sel = set()
-            sf_sel = set()
+        cat_key = _pick(self._category_filter_keys, cat_available)
+        host_key = _pick(self._host_filter_keys, host_keys)
+        place_key = _pick(self._placement_filter_keys, place_keys)
+        ver_key = _pick(self._version_filter_keys, ver_available)
+        wp_key = _pick(self._imported_filter_keys, wp_available)
+        sh_key = _pick(self._shared_family_filter_keys, sh_available)
 
-        cat_entries = [(c, c) for c in cat_available]
-        host_entries = [(h, self._host_label(h)) for h in host_keys]
-        place_entries = [(p, self._placement_label(p)) for p in place_keys]
+        self._category_filter_keys = set([cat_key]) if cat_key else set()
+        self._host_filter_keys = set([host_key]) if host_key else set()
+        self._placement_filter_keys = set([place_key]) if place_key else set()
+        self._version_filter_keys = set([ver_key]) if ver_key else set()
+        self._imported_filter_keys = set([wp_key]) if wp_key else set()
+        self._shared_family_filter_keys = set([sh_key]) if sh_key else set()
+        self._shared_nested_filter_keys = set()
 
-        ver_entries = [(v, v) for v in ver_available]
-        def _bool_filter_label(k):
+        def _bool_label(k):
             kl = as_unicode(k).strip().lower()
             if kl == u"yes":
                 return i18n.t("props_yes")
@@ -980,41 +1088,22 @@ class FamilyBrowserDialog(object):
                 return i18n.t("props_no")
             return i18n.t("props_unknown")
 
-        imp_entries = [
-            (k, _bool_filter_label(k))
-            for k in sorted(imp_available, key=lambda s: s.lower())
-        ]
-        sn_entries = [
-            (k, _bool_filter_label(k))
-            for k in sorted(shared_nested_available, key=lambda s: s.lower())
-        ]
-        sf_entries = [
-            (k, _bool_filter_label(k))
-            for k in sorted(shared_family_available, key=lambda s: s.lower())
-        ]
-
-        if preserve:
-            ver_sel = set(self._version_filter_keys)
-            imp_sel = set(self._imported_filter_keys)
-            sn_sel = set(self._shared_nested_filter_keys)
-            sf_sel = set(self._shared_family_filter_keys)
+        cat_entries = [(c, c) for c in sorted(cat_available, key=lambda s: s.lower())]
+        host_entries = [(h, self._host_label(h)) for h in host_keys]
+        place_entries = [(p, self._placement_label(p)) for p in place_keys]
+        ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
+        wp_entries = [(k, _bool_label(k)) for k in sorted(set(wp_available), key=lambda s: s.lower())]
+        sh_entries = [(k, _bool_label(k)) for k in sorted(set(sh_available), key=lambda s: s.lower())]
 
         self._filter_suppress = True
         try:
-            self._fill_check_list(
-                getattr(self.ui, "CategoryFilterList", None), cat_entries, cat_sel)
-            self._fill_check_list(
-                getattr(self.ui, "HostFilterList", None), host_entries, host_sel)
-            self._fill_check_list(
-                getattr(self.ui, "PlacementFilterList", None), place_entries, place_sel)
-            self._fill_check_list(
-                getattr(self.ui, "VersionFilterList", None), ver_entries, ver_sel)
-            self._fill_check_list(
-                getattr(self.ui, "ImportedFilterList", None), imp_entries, imp_sel)
-            self._fill_check_list(
-                getattr(self.ui, "SharedNestedFilterList", None), [], set())
-            self._fill_check_list(
-                getattr(self.ui, "SharedFamilyFilterList", None), sf_entries, sf_sel)
+            self._fill_single_select(getattr(self.ui, "CategoryFilterList", None), cat_entries, cat_key)
+            self._fill_single_select(getattr(self.ui, "HostFilterList", None), host_entries, host_key)
+            self._fill_single_select(getattr(self.ui, "PlacementFilterList", None), place_entries, place_key)
+            self._fill_single_select(getattr(self.ui, "VersionFilterList", None), ver_entries, ver_key)
+            self._fill_single_select(getattr(self.ui, "ImportedFilterList", None), wp_entries, wp_key)
+            self._fill_single_select(getattr(self.ui, "SharedFamilyFilterList", None), sh_entries, sh_key)
+            self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
         self._update_filters_button_caption()
@@ -1026,8 +1115,8 @@ class FamilyBrowserDialog(object):
             + len(self._placement_filter_keys)
             + len(self._version_filter_keys)
             + len(self._imported_filter_keys)
-            + len(self._shared_nested_filter_keys)
             + len(self._shared_family_filter_keys)
+            + sum(1 for v in self._quality_flags.values() if v)
         )
 
     def _update_filters_button_caption(self):
@@ -1064,6 +1153,8 @@ class FamilyBrowserDialog(object):
         self._imported_filter_keys = set()
         self._shared_nested_filter_keys = set()
         self._shared_family_filter_keys = set()
+        for k in list(self._quality_flags.keys()):
+            self._quality_flags[k] = False
         self._rebuild_meta_filters(preserve=False)
         self._update_filters_button_caption()
         query = u""
@@ -1093,6 +1184,8 @@ class FamilyBrowserDialog(object):
         self._imported_filter_keys = set()
         self._shared_nested_filter_keys = set()
         self._shared_family_filter_keys = set()
+        for k in list(self._quality_flags.keys()):
+            self._quality_flags[k] = False
         self._search_suppress = True
         try:
             self.ui.SearchBox.Text = u""
@@ -1125,6 +1218,7 @@ class FamilyBrowserDialog(object):
             work_plane_based=self._imported_filter_keys,
             is_shared_family=self._shared_family_filter_keys,
         )
+        families = self._apply_quality_flag_filters(families)
         self._show_families(families)
         self._update_breadcrumb_display()
         total = len(self._folder_scope or [])
