@@ -71,6 +71,7 @@ import ui_notify
 import family_utils
 import ui_utils
 import image_utils
+import family_load_options
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -83,39 +84,6 @@ def _brush(r, g, b):
     br = SolidColorBrush(c)
     br.Freeze()
     return br
-
-
-class _FamilyLoadOptions(IFamilyLoadOptions):
-    """Allow reload/overwrite when the family is already in the project."""
-
-    @staticmethod
-    def _set_out_bool(out_param, value):
-        try:
-            out_param.Value = value
-        except Exception:
-            try:
-                out_param[0] = value
-            except Exception:
-                pass
-
-    def OnFamilyFound(self, familyInUse, overwriteParameterValues):
-        self._set_out_bool(overwriteParameterValues, True)
-        return True
-
-    def OnSharedFamilyFound(
-            self, sharedFamily, familyInUse, source, overwriteParameterValues):
-        self._set_out_bool(overwriteParameterValues, True)
-        try:
-            source.Value = RDB.FamilySource(0)
-        except Exception:
-            try:
-                source[0] = RDB.FamilySource(0)
-            except Exception:
-                pass
-        return True
-
-
-_FAMILY_LOAD_OPTIONS = _FamilyLoadOptions()
 
 
 COL_CARD            = None
@@ -2282,7 +2250,7 @@ class FamilyBrowserDialog(object):
 
         try:
             fam_ref = clr.Reference[RevitFamily]()
-            if (self.doc.LoadFamily(path, _FAMILY_LOAD_OPTIONS, fam_ref)
+            if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
                     and fam_ref.Value is not None):
                 return fam_ref.Value, None
         except Exception as ex:
