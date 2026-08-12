@@ -14,6 +14,7 @@ import codecs
 import time
 
 import config
+import avro_log
 import family_scanner as scanner
 
 try:
@@ -29,14 +30,7 @@ LOG_FILE = os.path.join(config.CONFIG_DIR, "cache.log")
 
 
 def _log(msg):
-    try:
-        config._ensure_dir()
-        line = u"[{}] {}\n".format(
-            time.strftime("%Y-%m-%d %H:%M:%S"), msg)
-        with codecs.open(LOG_FILE, "a", "utf-8") as f:
-            f.write(line)
-    except Exception:
-        pass
+    avro_log.write("library_cache", msg)
 
 
 def _u(text):
