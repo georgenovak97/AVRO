@@ -75,6 +75,7 @@ import family_load_options
 import family_browser_props
 import family_browser_cards
 import family_browser_status
+import family_browser_library
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -286,6 +287,7 @@ class FamilyBrowserDialog(object):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
         self._status_controller = family_browser_status.StatusController(self.ui)
+        self._library_controller = family_browser_library.LibraryController(self)
         self._card_brushes = ui_theme.card_brushes(
             ui_theme.DARK if self._dark_theme else ui_theme.LIGHT)
         self._props_controller = family_browser_props.PropsPanelController(
@@ -759,8 +761,8 @@ class FamilyBrowserDialog(object):
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
         u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
-        u.BtnSettings.Click                += self._on_settings
-        u.BtnReload.Click                  += self._on_reload
+        u.BtnSettings.Click                += self._library_controller.on_settings
+        u.BtnReload.Click                  += self._library_controller.on_reload
         u.BtnLoadSelected.Click            += lambda s, e: self._load_selected()
         btn_apply = getattr(u, "BtnApplyFilters", None)
         if btn_apply is not None:
@@ -2222,53 +2224,6 @@ class FamilyBrowserDialog(object):
             parts.append(i18n.t("not_loaded", n=len(errors)))
         self._set_status(
             u"  |  ".join(parts) if parts else i18n.t("done"))
-
-    def _on_settings(self, sender, e):
-        dlg = FolderBrowserDialog()
-        dlg.Description = i18n.t("library_dialog_desc")
-        current = self._library_path()
-        if current and os.path.isdir(current):
-            dlg.SelectedPath = current
-        result = dlg.ShowDialog()
-        if result == DialogResult.OK:
-            config.set_library_path(dlg.SelectedPath)
-            config.clear_recent()
-            self.cfg = config.load()
-            clear_library_cache()
-            self._preview_mem = {}
-            self._preview_miss = set()
-            self._preview_gen += 1
-            self._schedule_scan()
-
-    def _on_reload(self, sender, e):
-        if not self._library_path():
-            self._set_status(i18n.t("library_path_required"))
-            return
-        config.clear_recent()
-        self.cfg = config.load()
-        clear_library_cache()
-        try:
-            family_inspector.clear_cache()
-        except Exception:
-            pass
-        self._preview_mem = {}
-        self._preview_miss = set()
-        self._host_filter_keys = set()
-        self._category_filter_keys = set()
-        self._placement_filter_keys = set()
-        self._rebuild_meta_filters(preserve=False)
-        self._update_filters_button_caption()
-        self._preview_gen += 1
-        self._card_build_gen += 1
-        self._scan = {"roots": [], "all": [], "index": {}}
-        self._folder_scope = []
-        self._folder_scope_label = u""
-        self._scope_is_recent = False
-        if self.ui is not None:
-            self._build_tree(self._scan)
-            self._show_recents_default()
-        self._set_status(i18n.t("scanning"))
-        self._schedule_scan()
 
     def _set_status(self, text):
         self._status_controller.set_status(text)
