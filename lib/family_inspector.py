@@ -41,6 +41,9 @@ HOST_ROOF = u"roof"
 HOST_FACE = u"face"
 HOST_INDEPENDENT = u"independent"
 HOST_UNKNOWN = u"unknown"
+BOOL_YES = u"yes"
+BOOL_NO = u"no"
+BOOL_UNKNOWN = u"unknown"
 
 HOST_FILTER_KEYS = (
     HOST_ALL,
@@ -511,17 +514,37 @@ def placement_of(fi_or_path):
     return guessed
 
 
+def _bool_filter_key(value):
+    if isinstance(value, basestring):
+        v = _u(value).strip().lower()
+        if v in (BOOL_YES, u"true", u"1"):
+            return BOOL_YES
+        if v in (BOOL_NO, u"false", u"0"):
+            return BOOL_NO
+        if v == BOOL_UNKNOWN:
+            return BOOL_UNKNOWN
+        return BOOL_UNKNOWN
+    if value is None:
+        return BOOL_UNKNOWN
+    try:
+        return BOOL_YES if bool(value) else BOOL_NO
+    except Exception:
+        return BOOL_UNKNOWN
+
+
 def _cached_bool_key(path, key):
-    """Return 'yes'/'no' from cached meta boolean key; None if no cache."""
+    """Return tri-state bool key from cache: yes/no/unknown."""
     if not path:
-        return None
+        return BOOL_UNKNOWN
     cached = load_cached(path)
     if not cached or not cached.get("ok"):
-        return None
+        return BOOL_UNKNOWN
+    if key not in cached:
+        return BOOL_UNKNOWN
     try:
-        return u"yes" if bool(cached.get(key)) else u"no"
+        return _bool_filter_key(cached.get(key))
     except Exception:
-        return None
+        return BOOL_UNKNOWN
 
 
 def revit_format_of(fi_or_path):
@@ -541,54 +564,50 @@ def revit_format_of(fi_or_path):
 
 def is_shared_family_of_fi(fi):
     if fi is None:
-        return HOST_UNKNOWN
+        return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    key = _cached_bool_key(path, "is_shared_family")
-    if key is None:
-        return u"no"
-    return key
+    return _cached_bool_key(path, "is_shared_family")
 
 
 def has_imported_geometry_of_fi(fi):
     if fi is None:
-        return u"no"
+        return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    key = _cached_bool_key(path, "has_imported_geometry")
-    if key is None:
-        return u"no"
-    return key
+    return _cached_bool_key(path, "has_imported_geometry")
 
 
 def has_shared_nested_of_fi(fi):
     if fi is None:
-        return u"no"
+        return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    key = _cached_bool_key(path, "has_shared_nested")
-    if key is None:
-        return u"no"
-    return key
+    return _cached_bool_key(path, "has_shared_nested")
 
 
 def always_vertical_of_fi(fi):
     if fi is None:
-        return u"no"
+        return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    key = _cached_bool_key(path, "always_vertical")
-    if key is None:
-        return u"no"
-    return key
+    return _cached_bool_key(path, "always_vertical")
 
 
 def work_plane_based_of_fi(fi):
-    """Derived from placement string in cache when present."""
+    """Return tri-state from cache; fallback to placement-derived guess."""
+    if fi is None:
+        return BOOL_UNKNOWN
+    path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
+    key = _cached_bool_key(path, "work_plane_based")
+    if key != BOOL_UNKNOWN:
+        return key
     pl = placement_of(fi)
     try:
         pl = (pl or u"").lower()
     except Exception:
         pl = u""
+    if not pl:
+        return BOOL_UNKNOWN
     if u"workplane" in pl or u"work plane" in pl or u"work_plane" in pl:
-        return u"yes"
-    return u"no"
+        return BOOL_YES
+    return BOOL_NO
 
 
 def hosting_of_fi(fi):
@@ -735,23 +754,23 @@ def collect_filter_options(families):
                 revit_formats.add(rev)
 
             try:
-                has_imported_geometry.add(u"yes" if bool(cached.get("has_imported_geometry")) else u"no")
+                has_imported_geometry.add(_bool_filter_key(cached.get("has_imported_geometry")))
             except Exception:
                 pass
             try:
-                has_shared_nested.add(u"yes" if bool(cached.get("has_shared_nested")) else u"no")
+                has_shared_nested.add(_bool_filter_key(cached.get("has_shared_nested")))
             except Exception:
                 pass
             try:
-                is_shared_family.add(u"yes" if bool(cached.get("is_shared_family")) else u"no")
+                is_shared_family.add(_bool_filter_key(cached.get("is_shared_family")))
             except Exception:
                 pass
             try:
-                work_plane_based.add(u"yes" if bool(cached.get("work_plane_based")) else u"no")
+                work_plane_based.add(_bool_filter_key(cached.get("work_plane_based")))
             except Exception:
                 pass
             try:
-                always_vertical.add(u"yes" if bool(cached.get("always_vertical")) else u"no")
+                always_vertical.add(_bool_filter_key(cached.get("always_vertical")))
             except Exception:
                 pass
             continue
