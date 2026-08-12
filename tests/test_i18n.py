@@ -1,0 +1,54 @@
+# -*- coding: utf-8 -*-
+import builtins
+import os
+import sys
+import unittest
+
+if not hasattr(builtins, "unicode"):
+    builtins.unicode = str
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+LIB = os.path.join(ROOT, "lib")
+if LIB not in sys.path:
+    sys.path.insert(0, LIB)
+
+import i18n  # noqa: E402
+
+
+class I18nTests(unittest.TestCase):
+    def tearDown(self):
+        i18n.set_language(u"en")
+
+    def test_set_language_ru_en_and_fallback(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.get_language(), u"ru")
+
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.get_language(), u"en")
+
+        i18n.set_language(u"de")
+        self.assertEqual(i18n.get_language(), u"en")
+
+    def test_translate_known_key_in_ru(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"btn_load"), u"Загрузить")
+
+    def test_translate_known_key_in_en(self):
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"btn_load"), u"Load")
+
+    def test_missing_key_returns_key_name(self):
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"__missing_key__"), u"__missing_key__")
+
+    def test_formatting_params(self):
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"loaded_n", n=3), u"Loaded: 3")
+
+    def test_lang_override_argument(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"btn_load", lang=u"en"), u"Load")
+
+
+if __name__ == "__main__":
+    unittest.main()
