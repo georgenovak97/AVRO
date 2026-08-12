@@ -2141,8 +2141,15 @@ class FamilyBrowserDialog(object):
             if not symbol.IsActive:
                 t = Transaction(self.doc, i18n.t("txn_activate"))
                 t.Start()
-                symbol.Activate()
-                t.Commit()
+                try:
+                    symbol.Activate()
+                    t.Commit()
+                except Exception:
+                    try:
+                        t.RollBack()
+                    except Exception:
+                        pass
+                    raise
             try:
                 uidoc.PromptForFamilyInstancePlacement(symbol)
             except OperationCanceledException:
