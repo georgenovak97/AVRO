@@ -77,6 +77,7 @@ import family_browser_props
 import family_browser_cards
 import family_browser_status
 import family_browser_library
+import family_browser_quality
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -1016,7 +1017,8 @@ class FamilyBrowserDialog(object):
             pass
 
     def _meta_int(self, meta, key):
-        if not meta:
+        """Legacy helper: usable meta int, else 0. Prefer family_browser_quality for filters."""
+        if not family_browser_quality.is_meta_usable(meta):
             return 0
         try:
             return int(meta.get(key) or 0)
@@ -1024,37 +1026,20 @@ class FamilyBrowserDialog(object):
             return 0
 
     def _passes_quality_flags(self, fi):
-        flags = self._quality_flags
-        if not any(flags.values()):
-            return True
+        """AND quality flags; STRICT unknown when inspect cache missing (ADR 0003)."""
         path = getattr(fi, 'path', None) or u''
-        meta = family_inspector.load_cached(path) if path else None
-
-        if flags.get('shared_only') and meta and not bool(meta.get('is_shared_family')):
-            return False
-        if flags.get('no_imported_cad') and meta and bool(meta.get('has_imported_geometry')):
-            return False
-        if flags.get('limit_types') and self._meta_int(meta, 'type_count') > int(self._quality_limits.get('limit_types', 10)):
-            return False
-        if flags.get('limit_ref_planes') and (self._meta_int(meta, 'reference_plane_count') + self._meta_int(meta, 'reference_line_count')) > int(self._quality_limits.get('limit_ref_planes', 10)):
-            return False
-        if flags.get('limit_dimensions') and self._meta_int(meta, 'dimension_count') > int(self._quality_limits.get('limit_dimensions', 10)):
-            return False
-        if flags.get('limit_nested') and self._meta_int(meta, 'nested_family_count') > int(self._quality_limits.get('limit_nested', 10)):
-            return False
-        if flags.get('limit_params') and self._meta_int(meta, 'param_total_count') > int(self._quality_limits.get('limit_params', 10)):
-            return False
-        if flags.get('limit_formulas') and self._meta_int(meta, 'param_has_formulas_count') > int(self._quality_limits.get('limit_formulas', 10)):
-            return False
-        if flags.get('limit_materials') and self._meta_int(meta, 'material_count') > int(self._quality_limits.get('limit_materials', 10)):
-            return False
-        if flags.get('not_huge'):
-            try:
-                if float(getattr(fi, 'size_kb', 0) or 0) > float(self._quality_limits.get('not_huge', 5.0)) * 1024.0:
-                    return False
-            except Exception:
-                pass
-        return True
+        meta = None
+        try:
+            if path:
+                meta = family_inspector.load_cached(path)
+        except Exception:
+            meta = None
+        return family_browser_quality.passes_quality_flags(
+            fi,
+            meta,
+            self._quality_flags,
+            limits=self._quality_limits,
+        )
 
     def _apply_quality_flag_filters(self, families):
         if not any(self._quality_flags.values()):
