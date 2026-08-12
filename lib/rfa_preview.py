@@ -11,26 +11,14 @@ import hashlib
 import struct
 
 import config
+import avro_log
 
 THUMB_CACHE_DIR = config.THUMB_CACHE_DIR
 LOG_FILE = config.LOG_FILE
 
 
 def _log(msg):
-    try:
-        import codecs
-        import time
-        line = u"{} {}\n".format(
-            time.strftime("%Y-%m-%d %H:%M:%S"), msg)
-        if isinstance(line, str):
-            line = line.decode("utf-8", "ignore")
-        parent = os.path.dirname(LOG_FILE)
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent)
-        with codecs.open(LOG_FILE, "a", "utf-8") as f:
-            f.write(line)
-    except Exception:
-        pass
+    avro_log.write("rfa_preview", msg)
 
 _PNG_SIG = "\x89PNG\r\n\x1a\n"
 _JPEG_SOI = "\xff\xd8"
