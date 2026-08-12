@@ -14,6 +14,8 @@ import time
 
 import config
 import avro_log
+import rfa_version
+import re
 
 try:
     from Autodesk.Revit.DB import (
@@ -35,6 +37,36 @@ except Exception:
 
 META_DIR = os.path.join(config.CONFIG_DIR, "family_meta")
 CACHE_VERSION = 1
+
+_RE_R_LABEL = re.compile(r"^R?(\d{2})$", re.I)
+_RE_YEAR = re.compile(r"(20\d{2})")
+
+
+def normalize_revit_label(value):
+    """Normalize any version string to short label R22/R24 when possible."""
+    s = _u(value).strip()
+    if not s:
+        return u""
+    m = _RE_R_LABEL.match(s)
+    if m:
+        try:
+            return u"R{:02d}".format(int(m.group(1)))
+        except Exception:
+            return s.upper() if s[:1].upper() == u"R" else u"R" + s
+    # Prefer rfa_version helpers when available
+    try:
+        lab = rfa_version._label_from_format_string(s)
+        if lab:
+            return lab
+    except Exception:
+        pass
+    m = _RE_YEAR.search(s)
+    if m:
+        try:
+            return rfa_version.year_to_label(m.group(1))
+        except Exception:
+            pass
+    return s
 
 # Stable filter keys (UI maps via i18n)
 HOST_ALL = u"all"
@@ -367,18 +399,20 @@ def _inspect_document(doc, rfa_path):
     except Exception:
         meta["file_size_mb"] = 0.0
 
-    # Revit version: prefer opened app version, fallback to BasicFileInfo
+    # Revit version: normalize to R22/R24 labels for stable filters
+    raw_ver = u""
     try:
-        meta["revit_format"] = _u(doc.Application.VersionNumber)
+        raw_ver = _u(doc.Application.VersionNumber)
     except Exception:
-        meta["revit_format"] = u""
-    if not meta.get("revit_format"):
+        raw_ver = u""
+    if not raw_ver:
         try:
             info = BasicFileInfo.Extract(rfa_path)
             if info is not None and info.Format:
-                meta["revit_format"] = _u(info.Format)
+                raw_ver = _u(info.Format)
         except Exception:
-            meta["revit_format"] = u""
+            raw_ver = u""
+    meta["revit_format"] = normalize_revit_label(raw_ver)
 
     # FamilyManager parameter stats (counts only; cheap vs full param listing)
     try:
@@ -595,18 +629,21 @@ def _cached_bool_key(path, key):
 
 
 def revit_format_of(fi_or_path):
-    """Return cached 'revit_format' (BasicFileInfo.Format) if available."""
+    """Stable Revit version label (R22/R24) from cache or scanner fallback."""
     if fi_or_path is None:
         return u""
     if isinstance(fi_or_path, basestring):
         path = fi_or_path
+        guessed = u""
     else:
         path = getattr(fi_or_path, "path", None) or getattr(fi_or_path, "Path", None) or u""
+        guessed = _u(getattr(fi_or_path, "revit_version", u"") or u"").strip()
     cached = load_cached(path) if path else None
     if cached and cached.get("ok"):
-        return _u(cached.get("revit_format") or u"").strip()
-    # fallback to FamilyInfo guess (may be empty)
-    return _u(getattr(fi_or_path, "revit_version", u"") or u"").strip()
+        lab = normalize_revit_label(cached.get("revit_format") or u"")
+        if lab:
+            return lab
+    return normalize_revit_label(guessed)
 
 
 def is_shared_family_of_fi(fi):
@@ -769,8 +806,9 @@ def filter_by_host(families, host_key):
 
 def collect_filter_options(families):
     """
-    Collect distinct category / hosting / placement values for the current
-    catalog scope. Hosting/placement come from inspected cache when present.
+    Collect distinct category / hosting / placement / version values for scope.
+    Version labels always normalized (R22/R24). Scanner revit_version is used
+    when inspect cache is missing so the Version filter is not empty.
     """
     categories = set()
     hostings = set()
@@ -787,6 +825,11 @@ def collect_filter_options(families):
         if cat:
             categories.add(cat)
 
+        # Version: always collect stable label (cache and/or scanner)
+        ver = revit_format_of(fi)
+        if ver:
+            revit_formats.add(ver)
+
         path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
         cached = load_cached(path) if path else None
         if cached and cached.get("ok"):
@@ -795,10 +838,6 @@ def collect_filter_options(families):
             pl = _u(cached.get("placement") or u"").strip()
             if pl:
                 placements.add(pl)
-
-            rev = _u(cached.get("revit_format") or u"").strip()
-            if rev:
-                revit_formats.add(rev)
 
             try:
                 has_imported_geometry.add(_bool_filter_key(cached.get("has_imported_geometry")))

@@ -79,6 +79,33 @@ class FamilyInspectorTriStateTests(unittest.TestCase):
         self.assertIs(meta.get('has_shared_nested'), None)
         self.assertEqual(fi._bool_filter_key(meta.get('is_shared_family')), fi.BOOL_UNKNOWN)
 
+    def test_normalize_revit_label_stable(self):
+        self.assertEqual(fi.normalize_revit_label('2024'), 'R24')
+        self.assertEqual(fi.normalize_revit_label('R22'), 'R22')
+        self.assertEqual(fi.normalize_revit_label('r19'), 'R19')
+        self.assertEqual(fi.normalize_revit_label('Autodesk Revit 2021'), 'R21')
+
+    def test_revit_format_of_cache_and_scanner_agree(self):
+        class Dummy(object):
+            def __init__(self):
+                self.path = 'a.rfa'
+                self.revit_version = 'R22'
+
+        self._set_cached(None)
+        self.assertEqual(fi.revit_format_of(Dummy()), 'R22')
+        self._set_cached({'ok': True, 'revit_format': '2024'})
+        self.assertEqual(fi.revit_format_of(Dummy()), 'R24')
+
+    def test_collect_filter_options_versions_without_cache(self):
+        class Dummy(object):
+            def __init__(self, path, ver):
+                self.path = path
+                self.revit_version = ver
+
+        self._set_cached(None)
+        opts = fi.collect_filter_options([Dummy('a.rfa', 'R22'), Dummy('b.rfa', 'R24')])
+        self.assertEqual(opts['revit_formats'], ['R22', 'R24'])
+
 
 if __name__ == '__main__':
     unittest.main()
