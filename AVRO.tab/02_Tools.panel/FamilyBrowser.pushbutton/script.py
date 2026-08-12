@@ -72,6 +72,7 @@ import family_utils
 import ui_utils
 import image_utils
 import family_load_options
+import family_browser_props
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -345,7 +346,6 @@ class FamilyBrowserDialog(object):
         self._shared_nested_filter_keys = set()
         self._shared_family_filter_keys = set()
         self._filter_suppress = False
-        self._props_path = None
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
         # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
@@ -381,6 +381,9 @@ class FamilyBrowserDialog(object):
         self._bind()
         i18n.init_from_config()
         self._apply_ui_theme(self._dark_theme, persist=False)
+        self._props_controller = family_browser_props.PropsPanelController(
+            self, self._card_brushes,
+            rebuild_filters_callback=self._rebuild_meta_filters)
         self._apply_language()
         ui_notify.unregister_language_listener(self._on_external_language_changed)
         ui_notify.unregister_theme_listener(self._on_external_theme_changed)
@@ -395,6 +398,9 @@ class FamilyBrowserDialog(object):
         self._dark_theme = dark
         ui_theme.apply_window_theme(self.win, palette)
         _sync_card_colors(palette)
+        self._card_brushes = ui_theme.card_brushes(palette)
+        if getattr(self, "_props_controller", None) is not None:
+            self._props_controller.brushes = self._card_brushes
         self._refresh_cards_theme()
         self._refresh_recent_header()
         if persist:
@@ -451,7 +457,7 @@ class FamilyBrowserDialog(object):
         props_title = getattr(self.ui, "PropsTitle", None)
         if props_title is not None:
             props_title.Text = i18n.t("props_title")
-        self._reset_props_panel()
+        self._props_controller.reset()
         self._refresh_recent_header()
         self.ui.BtnSettings.Content = i18n.t("btn_library")
         self.ui.BtnSettings.ToolTip = i18n.t("btn_library_tooltip")
@@ -865,7 +871,7 @@ class FamilyBrowserDialog(object):
             btn_reset.Click += self._on_reset_search
         self._rebuild_meta_filters(preserve=False)
         self._update_filters_button_caption()
-        self._reset_props_panel()
+        self._props_controller.reset()
 
     def _checked_keys_from_panel(self, panel):
         keys = []
@@ -1210,140 +1216,9 @@ class FamilyBrowserDialog(object):
             self._update_count_display(shown, total)
         else:
             self._update_count_display(shown)
-        self._reset_props_panel()
+        self._props_controller.reset()
         if self._filters_active() and shown == 0 and total > 0:
             self._set_status(i18n.t("host_filter_empty"))
-
-    def _props_row(self, label, value, muted=False):
-        block = StackPanel()
-        block.Margin = Thickness(0, 0, 0, 8)
-        title = TextBlock()
-        title.Text = as_unicode(label)
-        title.FontSize = 11
-        title.Foreground = COL_MUTED
-        title.Margin = Thickness(0, 0, 0, 2)
-        val = TextBlock()
-        val.Text = as_unicode(value) if value else i18n.t("props_none")
-        val.TextWrapping = TextWrapping.Wrap
-        val.FontSize = 12
-        val.Foreground = COL_MUTED if muted else COL_TEXT
-        block.Children.Add(title)
-        block.Children.Add(val)
-        return block
-
-    def _reset_props_panel(self, hint=None):
-        self._props_path = None
-        panel = getattr(self.ui, "PropsPanel", None) if self.ui else None
-        hint_tb = getattr(self.ui, "PropsHint", None) if self.ui else None
-        if panel is not None:
-            panel.Children.Clear()
-        if hint_tb is not None:
-            hint_tb.Text = hint if hint is not None else i18n.t("props_hint")
-            hint_tb.Visibility = Visibility.Visible
-
-    def _set_props_loading(self, path):
-        self._props_path = path
-        panel = self.ui.PropsPanel
-        hint_tb = self.ui.PropsHint
-        panel.Children.Clear()
-        hint_tb.Text = i18n.t("props_loading")
-        hint_tb.Visibility = Visibility.Visible
-
-    def _yes_no(self, flag):
-        return i18n.t("props_yes") if flag else i18n.t("props_no")
-
-    def _fill_props_panel(self, fi, meta):
-        panel = self.ui.PropsPanel
-        hint_tb = self.ui.PropsHint
-        panel.Children.Clear()
-        if not meta or not meta.get("ok"):
-            err = as_unicode((meta or {}).get("error") or u"error")
-            hint_tb.Text = i18n.t("props_error", err=err)
-            hint_tb.Visibility = Visibility.Visible
-            return
-        hint_tb.Visibility = Visibility.Collapsed
-
-        size_mb = (fi.size_kb / 1024.0) if fi else 0.0
-        ver = as_unicode(
-            meta.get("revit_format")
-            or getattr(fi, "revit_version", u"")
-            or u"")
-        shared = meta.get("shared_nested") or []
-        shared_text = (
-            u", ".join([as_unicode(x) for x in shared])
-            if shared else self._yes_no(False))
-        if shared:
-            shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
-
-        rows = (
-            (i18n.t("props_name"), getattr(fi, "name", u"")),
-            (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
-            (i18n.t("props_hosting"), self._host_label(meta.get("hosting"))),
-            (i18n.t("props_placement"), self._placement_label(meta.get("placement"))),
-            (i18n.t("props_version"), ver),
-            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
-            (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
-            (i18n.t("props_shared_nested"), shared_text),
-            (i18n.t("props_shared_family"), self._yes_no(meta.get("is_shared_family"))),
-            (i18n.t("props_params"), u"{} (inst {}, type {})".format(
-                meta.get("param_total_count") or 0,
-                meta.get("param_instance_count") or 0,
-                meta.get("param_type_count") or 0)),
-            (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
-        )
-        for label, value in rows:
-            panel.Children.Add(self._props_row(label, value))
-
-        types = meta.get("types") or []
-        types_title = TextBlock()
-        types_title.Text = u"{} ({})".format(
-            i18n.t("props_types"), len(types))
-        types_title.FontSize = 11
-        types_title.Foreground = COL_MUTED
-        types_title.Margin = Thickness(0, 6, 0, 4)
-        panel.Children.Add(types_title)
-        if not types:
-            panel.Children.Add(self._props_row(u"", i18n.t("props_none"), muted=True))
-        else:
-            for tname in types:
-                tb = TextBlock()
-                tb.Text = u"• " + as_unicode(tname)
-                tb.TextWrapping = TextWrapping.Wrap
-                tb.FontSize = 12
-                tb.Foreground = COL_TEXT
-                tb.Margin = Thickness(0, 0, 0, 3)
-                panel.Children.Add(tb)
-
-        # Attach hosting/placement on FamilyInfo for subsequent filters.
-        # Keep fi.category as library-folder category (do not overwrite with Revit).
-        try:
-            fi.hosting = meta.get("hosting") or family_inspector.HOST_UNKNOWN
-            fi.placement = as_unicode(meta.get("placement") or u"")
-        except Exception:
-            pass
-        # Refresh filter option lists so new category/placement appear
-        try:
-            self._rebuild_meta_filters(preserve=True)
-        except Exception:
-            pass
-
-    def _inspect_selected_family(self, fi):
-        if fi is None or not getattr(fi, "path", None):
-            self._reset_props_panel()
-            return
-        path = fi.path
-        self._set_props_loading(path)
-        # Prefer disk cache; open .rfa on main thread only when needed.
-        meta = family_inspector.load_cached(path)
-        if meta is None:
-            try:
-                app = self.doc.Application if self.doc is not None else None
-            except Exception:
-                app = None
-            meta = family_inspector.inspect(path, app=app, use_cache=True)
-        if self._props_path != path:
-            return
-        self._fill_props_panel(fi, meta)
 
     def _schedule_scan(self):
         paths = self._library_paths()
@@ -1918,7 +1793,7 @@ class FamilyBrowserDialog(object):
         self._selected_paths = set()
         self._anchor_path = None
         self.ui.BtnLoadSelected.IsEnabled = False
-        self._reset_props_panel()
+        self._props_controller.reset()
 
         n = len(families)
         self._update_count_display(n)
@@ -2155,7 +2030,7 @@ class FamilyBrowserDialog(object):
         n = len(self._selected_paths)
         self.ui.BtnLoadSelected.IsEnabled = n > 0
         if n == 0:
-            self._reset_props_panel()
+            self._props_controller.reset()
             return
         if n == 1:
             fi = self._fi_by_path.get(list(self._selected_paths)[0])
@@ -2169,11 +2044,11 @@ class FamilyBrowserDialog(object):
                     name=as_unicode(fi.name),
                     size=i18n.t("size_mb").format(size_mb),
                     ver=ver or i18n.t("ver_unknown")))
-                self._inspect_selected_family(fi)
+                self._props_controller.inspect(fi)
             else:
-                self._reset_props_panel()
+                self._props_controller.reset()
             return
-        self._reset_props_panel(i18n.t("selected_count", n=n))
+        self._props_controller.reset(i18n.t("selected_count", n=n))
         self._set_status(i18n.t("selected_count", n=n))
 
     def _on_clear_search(self, sender, e):
