@@ -272,7 +272,7 @@ class FamilyBrowserDialog(object):
             "limit_dimensions": 10,
             "limit_nested": 10,
             "limit_params": 10,
-            "limit_formulas": 10,
+            "limit_formulas": 5,
             "limit_materials": 10,
             "not_huge": 5.0,
         }
@@ -1264,7 +1264,7 @@ class FamilyBrowserDialog(object):
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
         for k in list(self._quality_limits.keys()):
-            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else 10)
+            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else (5 if k == "limit_formulas" else 10))
         self._save_filter_state_to_cfg()
         self._rebuild_meta_filters(preserve=False)
         self._update_filters_button_caption()
@@ -1299,7 +1299,7 @@ class FamilyBrowserDialog(object):
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
         for k in list(self._quality_limits.keys()):
-            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else 10)
+            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else (5 if k == "limit_formulas" else 10))
         self._save_filter_state_to_cfg()
         self._search_suppress = True
         try:
