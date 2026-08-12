@@ -70,19 +70,11 @@ import ui_theme
 import i18n
 import ribbon_i18n
 import ui_notify
+from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------
-def _as_unicode(text):
-    if text is None:
-        return u""
-    if isinstance(text, unicode):
-        return text
-    try:
-        return unicode(text)
-    except Exception:
-        return u""
 
 
 def _brush(r, g, b):
@@ -90,35 +82,6 @@ def _brush(r, g, b):
     br = SolidColorBrush(c)
     br.Freeze()
     return br
-
-
-def _revit_name(element):
-    """
-    Read Element.Name under IronPython.
-
-    ``from … import Family`` breaks ``element.Name`` (NameError: Name).
-    """
-    if element is None:
-        return u""
-    try:
-        return _as_unicode(
-            RevitElement.Name.__get__(element, type(element)))
-    except Exception:
-        pass
-    try:
-        return _as_unicode(getattr(element, "Name"))
-    except Exception:
-        return u""
-
-
-def _symbol_family(symbol):
-    """FamilySymbol.Family — same IronPython shadowing as .Name."""
-    if symbol is None:
-        return None
-    try:
-        return getattr(symbol, "Family")
-    except Exception:
-        return None
 
 
 class _FamilyLoadOptions(IFamilyLoadOptions):
@@ -157,7 +120,7 @@ _FAMILY_LOAD_OPTIONS = _FamilyLoadOptions()
 def _normalize_family_key(name):
     if not name:
         return u""
-    key = _as_unicode(name).lower().replace(u" ", u"")
+    key = as_unicode(name).lower().replace(u" ", u"")
     key = key.replace(u"__", u"_")
     return key
 
@@ -165,7 +128,7 @@ def _normalize_family_key(name):
 def _family_name_candidates(fi):
     """Possible Revit family names for a library file."""
     names = set()
-    base = _as_unicode(fi.name)
+    base = as_unicode(fi.name)
     if base:
         names.add(base)
         names.add(base.replace(u"__", u"_"))
@@ -183,7 +146,7 @@ def _family_name_candidates(fi):
             fn = getattr(bfi, attr, None)
             if callable(fn):
                 try:
-                    v = _as_unicode(fn())
+                    v = as_unicode(fn())
                     if v:
                         names.add(v)
                 except Exception:
@@ -431,7 +394,7 @@ def _make_card(fi, dialog, card_w=None, card_h=None):
         preview_img.Visibility = Visibility.Visible
 
     name_block = TextBlock()
-    name_block.Text                = _as_unicode(fi.name)
+    name_block.Text                = as_unicode(fi.name)
     name_block.Foreground          = COL_TEXT
     name_block.FontSize            = 11
     name_block.TextWrapping        = TextWrapping.Wrap
@@ -446,7 +409,7 @@ def _make_card(fi, dialog, card_w=None, card_h=None):
     size_block.HorizontalAlignment = HorizontalAlignment.Center
     size_block.Margin              = Thickness(0, 2, 0, 0)
 
-    ver_label = _as_unicode(getattr(fi, "revit_version", u"") or u"")
+    ver_label = as_unicode(getattr(fi, "revit_version", u"") or u"")
     if not ver_label:
         ver_label = rfa_version.revit_version_label(fi.path)
         fi.revit_version = ver_label
@@ -690,7 +653,7 @@ class FamilyBrowserDialog(object):
             return
         if self._scope_is_recent:
             self._folder_scope_label = i18n.t("recent")
-        query = _as_unicode(self._active_search_query).strip()
+        query = as_unicode(self._active_search_query).strip()
         if query:
             self._set_breadcrumb(
                 u"{}{}".format(self._folder_scope_label,
@@ -777,7 +740,7 @@ class FamilyBrowserDialog(object):
         tag = state.get("tree_tag")
         scope = list(state.get("scope") or [])
         label = state.get("label", u"")
-        search_query = _as_unicode(state.get("search_query", u"")).strip()
+        search_query = as_unicode(state.get("search_query", u"")).strip()
 
         if tag == "__recent__":
             self._folder_scope = list(self._recent_families())
@@ -863,12 +826,12 @@ class FamilyBrowserDialog(object):
             try:
                 self._build_project_family_index_sync()
             except Exception as ex:
-                libcache._log(u"family index build: {}".format(_as_unicode(ex)))
+                libcache._log(u"family index build: {}".format(as_unicode(ex)))
 
         try:
             win.Dispatcher.BeginInvoke(System.Action(build_on_ui))
         except Exception as ex:
-            libcache._log(u"family index schedule: {}".format(_as_unicode(ex)))
+            libcache._log(u"family index schedule: {}".format(as_unicode(ex)))
 
     def _store_project_family_index(self, index):
         self._project_family_index = index
@@ -885,7 +848,7 @@ class FamilyBrowserDialog(object):
             return self._project_family_index
         idx = {}
         for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
-            key = _normalize_family_key(_revit_name(fam))
+            key = _normalize_family_key(revit_name(fam))
             if key and key not in idx:
                 idx[key] = fam
         self._store_project_family_index(idx)
@@ -917,7 +880,7 @@ class FamilyBrowserDialog(object):
             else:
                 libcache._log(u"persist failed: {}".format(msg))
         except Exception as ex:
-            libcache._log(u"persist worker: {}".format(_as_unicode(ex)))
+            libcache._log(u"persist worker: {}".format(as_unicode(ex)))
 
     def _start_initial_load(self):
         if self._initial_load_started:
@@ -1074,7 +1037,7 @@ class FamilyBrowserDialog(object):
                     if child.IsChecked:
                         tag = getattr(child, "Tag", None)
                         if tag is not None:
-                            keys.append(_as_unicode(tag))
+                            keys.append(as_unicode(tag))
                 except Exception:
                     continue
         except Exception:
@@ -1087,7 +1050,7 @@ class FamilyBrowserDialog(object):
             return
         selected = set()
         for k in selected_keys or []:
-            selected.add(_as_unicode(k).lower())
+            selected.add(as_unicode(k).lower())
         panel.Children.Clear()
         for key, label in entries:
             cb = CheckBox()
@@ -1096,7 +1059,7 @@ class FamilyBrowserDialog(object):
             cb.Margin = Thickness(0, 1, 0, 1)
             cb.Foreground = COL_TEXT
             try:
-                cb.IsChecked = _as_unicode(key).lower() in selected
+                cb.IsChecked = as_unicode(key).lower() in selected
             except Exception:
                 cb.IsChecked = False
             panel.Children.Add(cb)
@@ -1129,13 +1092,13 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_UNKNOWN: "host_unknown",
             family_inspector.HOST_ALL: "filter_all",
         }
-        i18n_key = mapping.get(_as_unicode(key).lower(), None)
+        i18n_key = mapping.get(as_unicode(key).lower(), None)
         if i18n_key:
             return i18n.t(i18n_key)
-        return _as_unicode(key) or i18n.t("host_unknown")
+        return as_unicode(key) or i18n.t("host_unknown")
 
     def _placement_label(self, key):
-        k = _as_unicode(key or u"")
+        k = as_unicode(key or u"")
         if not k or k.lower() == family_inspector.HOST_ALL:
             return i18n.t("filter_all")
         i18n_key = u"placement_" + k
@@ -1170,7 +1133,7 @@ class FamilyBrowserDialog(object):
             return
 
         opts = family_inspector.collect_filter_options(self._folder_scope or [])
-        cat_available = [_as_unicode(c) for c in (opts.get("categories") or [])]
+        cat_available = [as_unicode(c) for c in (opts.get("categories") or [])]
 
         host_keys = [
             family_inspector.HOST_CEILING,
@@ -1182,13 +1145,13 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_UNKNOWN,
         ]
         for h in opts.get("hostings") or []:
-            hu = _as_unicode(h)
+            hu = as_unicode(h)
             if hu.lower() not in set(x.lower() for x in host_keys):
                 host_keys.append(hu)
 
         place_keys = list(family_inspector.PLACEMENT_KEYS)
         for p in opts.get("placements") or []:
-            pu = _as_unicode(p)
+            pu = as_unicode(p)
             if pu.lower() not in set(x.lower() for x in place_keys):
                 place_keys.append(pu)
 
@@ -1196,7 +1159,7 @@ class FamilyBrowserDialog(object):
         place_available_l = set(p.lower() for p in place_keys)
 
         # New filter axes from cache (revit format + boolean flags)
-        ver_available = [_as_unicode(v) for v in (opts.get("revit_formats") or [])]
+        ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or [])]
         imp_available = set(k.lower() for k in (opts.get("has_imported_geometry") or []))
         shared_nested_available = set(k.lower() for k in (opts.get("has_shared_nested") or []))
         shared_family_available = set(k.lower() for k in (opts.get("is_shared_family") or []))
@@ -1207,26 +1170,26 @@ class FamilyBrowserDialog(object):
             cat_l = set(c.lower() for c in cat_available)
             self._category_filter_keys = set(
                 k for k in self._category_filter_keys
-                if _as_unicode(k).lower() in cat_l)
+                if as_unicode(k).lower() in cat_l)
             self._host_filter_keys = set(
                 k for k in self._host_filter_keys
-                if _as_unicode(k).lower() in host_available)
+                if as_unicode(k).lower() in host_available)
             self._placement_filter_keys = set(
                 k for k in self._placement_filter_keys
-                if _as_unicode(k).lower() in place_available_l)
+                if as_unicode(k).lower() in place_available_l)
             ver_l = set(v.lower() for v in ver_available)
             self._version_filter_keys = set(
                 k for k in self._version_filter_keys
-                if _as_unicode(k).lower() in ver_l)
+                if as_unicode(k).lower() in ver_l)
             self._imported_filter_keys = set(
                 k for k in self._imported_filter_keys
-                if _as_unicode(k).lower() in imp_available)
+                if as_unicode(k).lower() in imp_available)
             self._shared_nested_filter_keys = set(
                 k for k in self._shared_nested_filter_keys
-                if _as_unicode(k).lower() in shared_nested_available)
+                if as_unicode(k).lower() in shared_nested_available)
             self._shared_family_filter_keys = set(
                 k for k in self._shared_family_filter_keys
-                if _as_unicode(k).lower() in shared_family_available)
+                if as_unicode(k).lower() in shared_family_available)
             cat_sel = set(self._category_filter_keys)
             host_sel = set(self._host_filter_keys)
             place_sel = set(self._placement_filter_keys)
@@ -1322,7 +1285,7 @@ class FamilyBrowserDialog(object):
         self._update_filters_button_caption()
         query = u""
         try:
-            query = _as_unicode(self.ui.SearchBox.Text)
+            query = as_unicode(self.ui.SearchBox.Text)
         except Exception:
             query = u""
         self._apply_search(query)
@@ -1339,7 +1302,7 @@ class FamilyBrowserDialog(object):
         self._update_filters_button_caption()
         query = u""
         try:
-            query = _as_unicode(self.ui.SearchBox.Text)
+            query = as_unicode(self.ui.SearchBox.Text)
         except Exception:
             query = u""
         self._apply_search(query)
@@ -1349,7 +1312,7 @@ class FamilyBrowserDialog(object):
         self._update_filters_button_caption()
         query = u""
         try:
-            query = _as_unicode(self.ui.SearchBox.Text)
+            query = as_unicode(self.ui.SearchBox.Text)
         except Exception:
             query = u""
         self._apply_search(query)
@@ -1383,7 +1346,7 @@ class FamilyBrowserDialog(object):
 
     def _refresh_catalog_view(self):
         """Re-apply search + meta filters to current folder scope."""
-        query = _as_unicode(self._active_search_query).strip()
+        query = as_unicode(self._active_search_query).strip()
         families = list(self._folder_scope or [])
         if query:
             families = scanner.flat_search(families, query)
@@ -1413,12 +1376,12 @@ class FamilyBrowserDialog(object):
         block = StackPanel()
         block.Margin = Thickness(0, 0, 0, 8)
         title = TextBlock()
-        title.Text = _as_unicode(label)
+        title.Text = as_unicode(label)
         title.FontSize = 11
         title.Foreground = COL_MUTED
         title.Margin = Thickness(0, 0, 0, 2)
         val = TextBlock()
-        val.Text = _as_unicode(value) if value else i18n.t("props_none")
+        val.Text = as_unicode(value) if value else i18n.t("props_none")
         val.TextWrapping = TextWrapping.Wrap
         val.FontSize = 12
         val.Foreground = COL_MUTED if muted else COL_TEXT
@@ -1452,20 +1415,20 @@ class FamilyBrowserDialog(object):
         hint_tb = self.ui.PropsHint
         panel.Children.Clear()
         if not meta or not meta.get("ok"):
-            err = _as_unicode((meta or {}).get("error") or u"error")
+            err = as_unicode((meta or {}).get("error") or u"error")
             hint_tb.Text = i18n.t("props_error", err=err)
             hint_tb.Visibility = Visibility.Visible
             return
         hint_tb.Visibility = Visibility.Collapsed
 
         size_mb = (fi.size_kb / 1024.0) if fi else 0.0
-        ver = _as_unicode(
+        ver = as_unicode(
             meta.get("revit_format")
             or getattr(fi, "revit_version", u"")
             or u"")
         shared = meta.get("shared_nested") or []
         shared_text = (
-            u", ".join([_as_unicode(x) for x in shared])
+            u", ".join([as_unicode(x) for x in shared])
             if shared else self._yes_no(False))
         if shared:
             shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
@@ -1502,7 +1465,7 @@ class FamilyBrowserDialog(object):
         else:
             for tname in types:
                 tb = TextBlock()
-                tb.Text = u"• " + _as_unicode(tname)
+                tb.Text = u"• " + as_unicode(tname)
                 tb.TextWrapping = TextWrapping.Wrap
                 tb.FontSize = 12
                 tb.Foreground = COL_TEXT
@@ -1513,7 +1476,7 @@ class FamilyBrowserDialog(object):
         # Keep fi.category as library-folder category (do not overwrite with Revit).
         try:
             fi.hosting = meta.get("hosting") or family_inspector.HOST_UNKNOWN
-            fi.placement = _as_unicode(meta.get("placement") or u"")
+            fi.placement = as_unicode(meta.get("placement") or u"")
         except Exception:
             pass
         # Refresh filter option lists so new category/placement appear
@@ -2311,7 +2274,7 @@ class FamilyBrowserDialog(object):
         path = libcache._norm_path(fi.path)
         if not path or not os.path.isfile(path):
             self._set_status(
-                i18n.t("file_not_found", name=_as_unicode(fi.name)))
+                i18n.t("file_not_found", name=as_unicode(fi.name)))
             return
         try:
             from System.Diagnostics import Process
@@ -2319,10 +2282,10 @@ class FamilyBrowserDialog(object):
                 "explorer.exe",
                 '/select,"{}"'.format(path.replace(u'"', u"")))
             self._set_status(
-                i18n.t("explorer_opened", name=_as_unicode(fi.name)))
+                i18n.t("explorer_opened", name=as_unicode(fi.name)))
         except Exception as ex:
             self._set_status(
-                i18n.t("explorer_failed", err=_as_unicode(ex)))
+                i18n.t("explorer_failed", err=as_unicode(ex)))
 
     def _on_card_right_click(self, card, fi, e):
         if e.ClickCount >= 2:
@@ -2355,13 +2318,13 @@ class FamilyBrowserDialog(object):
         if n == 1:
             fi = self._fi_by_path.get(list(self._selected_paths)[0])
             if fi:
-                ver = _as_unicode(getattr(fi, "revit_version", u"") or u"")
-                folder = _as_unicode(getattr(fi, "folder", u"") or u"")
+                ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
+                folder = as_unicode(getattr(fi, "folder", u"") or u"")
                 size_mb = fi.size_kb / 1024.0
                 self._set_status(i18n.t(
                     "status_item",
                     folder=folder,
-                    name=_as_unicode(fi.name),
+                    name=as_unicode(fi.name),
                     size=i18n.t("size_mb").format(size_mb),
                     ver=ver or i18n.t("ver_unknown")))
                 self._inspect_selected_family(fi)
@@ -2380,7 +2343,7 @@ class FamilyBrowserDialog(object):
         self._refresh_catalog_view()
 
     def _apply_search(self, query):
-        query = _as_unicode(query).strip()
+        query = as_unicode(query).strip()
         self._active_search_query = query
         self._refresh_catalog_view()
 
@@ -2449,7 +2412,7 @@ class FamilyBrowserDialog(object):
                     and fam_ref.Value is not None):
                 return fam_ref.Value, None
         except Exception as ex:
-            err_text = _as_unicode(ex)
+            err_text = as_unicode(ex)
 
         fam = self._find_family_in_project(fi)
         if fam is not None:
@@ -2457,7 +2420,7 @@ class FamilyBrowserDialog(object):
 
         if err_text:
             return None, err_text
-        ver = _as_unicode(getattr(fi, "revit_version", u"") or u"")
+        ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
 
@@ -2468,7 +2431,7 @@ class FamilyBrowserDialog(object):
         if fi is not None:
             want = _normalize_family_key(fi.name)
             for sym in symbols:
-                if _normalize_family_key(_revit_name(sym)) == want:
+                if _normalize_family_key(revit_name(sym)) == want:
                     return sym
         for sym in symbols:
             if sym.IsActive:
@@ -2500,7 +2463,7 @@ class FamilyBrowserDialog(object):
             if symbol is None:
                 t.RollBack()
                 raise Exception(
-                    i18n.t("no_symbol", name=_revit_name(fam)))
+                    i18n.t("no_symbol", name=revit_name(fam)))
             if not symbol.IsActive:
                 symbol.Activate()
             t.Commit()
@@ -2521,7 +2484,7 @@ class FamilyBrowserDialog(object):
         try:
             symbol = self._get_family_symbol(fi)
         except Exception as ex:
-            self._set_status(i18n.t("load_error", err=_as_unicode(ex)))
+            self._set_status(i18n.t("load_error", err=as_unicode(ex)))
             return
         if symbol is None:
             self._set_status(
@@ -2529,7 +2492,7 @@ class FamilyBrowserDialog(object):
             return
         search_query = u""
         if self.ui is not None:
-            search_query = _as_unicode(self.ui.SearchBox.Text).strip()
+            search_query = as_unicode(self.ui.SearchBox.Text).strip()
         self._reopen_ui_state = {
             "scope": list(self._folder_scope),
             "label": self._folder_scope_label,
@@ -2537,7 +2500,7 @@ class FamilyBrowserDialog(object):
             "search_query": search_query,
         }
         self._pending_symbol_id = symbol.Id.IntegerValue
-        self._pending_family_name = _as_unicode(fi.name)
+        self._pending_family_name = as_unicode(fi.name)
         self._pending_family_path = libcache._norm_path(fi.path)
         config.add_recent(self._pending_family_path)
         self.cfg = config.load()
@@ -2582,7 +2545,7 @@ class FamilyBrowserDialog(object):
                 Dispatcher.PushFrame(frame)
                 return
         except Exception as ex:
-            libcache._log(u"pump_ui: {}".format(_as_unicode(ex)))
+            libcache._log(u"pump_ui: {}".format(as_unicode(ex)))
         try:
             System.Threading.Thread.Sleep(200)
         except Exception:

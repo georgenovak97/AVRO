@@ -2,6 +2,8 @@
 """Apply AVRO ribbon labels and pyRevit-style tooltips from Revit UI language."""
 from __future__ import print_function
 
+from revit_utils import as_unicode
+
 _BRAILLE_PANEL = u"\u2800"
 _PYREVIT_TAB_KEY = u"AVRO"
 _PYREVIT_TOOLS_PANEL_KEY = u"Tools"
@@ -10,17 +12,6 @@ _RIBBON_AUTHOR = u"AVRO Consulting"
 # Revit internal command names (see pyRevit Bundle Name footer).
 _BUNDLE_SETTINGS = u"Settings"
 _BUNDLE_FAMILY_BROWSER = u"FamilyBrowser"  # matches FamilyBrowser.pushbutton folder
-
-
-def _as_unicode(text):
-    if text is None:
-        return u""
-    if isinstance(text, unicode):
-        return text
-    try:
-        return unicode(text)
-    except Exception:
-        return u""
 
 
 def tab_has_avro_settings_panel(tab):
@@ -32,7 +23,7 @@ def tab_has_avro_settings_panel(tab):
             src = getattr(panel, "Source", None)
             if src is None:
                 continue
-            if _as_unicode(getattr(src, "Title", None) or u"") == _BRAILLE_PANEL:
+            if as_unicode(getattr(src, "Title", None) or u"") == _BRAILLE_PANEL:
                 return True
     except Exception:
         pass
@@ -48,7 +39,7 @@ def _tab_has_bundle(tab, bundle_name):
                 pb = _get_revit_pushbutton(item)
                 if pb is None:
                     continue
-                if _as_unicode(getattr(pb, "Name", None)) == bundle_name:
+                if as_unicode(getattr(pb, "Name", None)) == bundle_name:
                     return True
     except Exception:
         pass
@@ -95,7 +86,7 @@ def _texts_for_key(key):
 
 def _pyrevit_tooltip_body(description, bundle_name, author=_RIBBON_AUTHOR):
     """Same layout as pyRevit ``_make_button_tooltip`` (description + bundle + author)."""
-    body = _as_unicode(description).strip()
+    body = as_unicode(description).strip()
     if body:
         body += u"\n\n"
     body += u"Bundle Name:\n{} (pushbutton)".format(
@@ -193,7 +184,7 @@ def _read_tooltip_text(item, pb=None):
         try:
             tip = pb.ToolTip
             if _is_text(tip) and tip:
-                return _as_unicode(tip)
+                return as_unicode(tip)
         except Exception:
             pass
     if item is None:
@@ -205,11 +196,11 @@ def _read_tooltip_text(item, pb=None):
     if tip is None:
         return u""
     if _is_text(tip):
-        return _as_unicode(tip)
+        return as_unicode(tip)
     try:
         content = getattr(tip, "Content", None)
         if content:
-            return _as_unicode(content)
+            return as_unicode(content)
     except Exception:
         pass
     return u""
@@ -245,7 +236,7 @@ def _set_adwindows_tooltip(item, title, full_tip):
         import Autodesk.Windows as AdWindows
     except Exception:
         return
-    title_u = _as_unicode(title)
+    title_u = as_unicode(title)
     for host in (item, getattr(item, "Source", None)):
         if host is None:
             continue
@@ -268,12 +259,12 @@ def _set_item_pyrevit_tooltip(item, title, description, bundle_name):
     name = bundle_name
     if not name and pb is not None:
         try:
-            name = _as_unicode(pb.Name)
+            name = as_unicode(pb.Name)
         except Exception:
             name = u""
     if not name:
-        name = _as_unicode(title).strip().replace(u" ", u"") or u"AVRO"
-    title_u = _as_unicode(title)
+        name = as_unicode(title).strip().replace(u" ", u"") or u"AVRO"
+    title_u = as_unicode(title)
     full_tip = _pyrevit_tooltip_body(description, name)
 
     if pb is not None:
@@ -333,7 +324,7 @@ def _find_tab_by_display_titles():
         for tab in ComponentManager.Ribbon.Tabs:
             if tab is None:
                 continue
-            if _as_unicode(getattr(tab, "Title", None) or u"") in titles:
+            if as_unicode(getattr(tab, "Title", None) or u"") in titles:
                 return tab
     except Exception:
         pass
@@ -360,7 +351,7 @@ def prepare_match_keys():
             src = getattr(panel, "Source", None)
             if src is None:
                 continue
-            ptitle = _as_unicode(getattr(src, "Title", None) or u"")
+            ptitle = as_unicode(getattr(src, "Title", None) or u"")
             if ptitle == _BRAILLE_PANEL:
                 continue
             if ptitle in panel_keys:
@@ -396,7 +387,7 @@ def has_family_browser_button():
         for panel in tab.Panels:
             for item in _walk_items(panel):
                 pb = _get_revit_pushbutton(item)
-                if pb is not None and _as_unicode(pb.Name) == _BUNDLE_FAMILY_BROWSER:
+                if pb is not None and as_unicode(pb.Name) == _BUNDLE_FAMILY_BROWSER:
                     return True
     except Exception:
         pass
@@ -413,12 +404,12 @@ def _apply_tools_panel_display(tab, tools_display):
             src = getattr(panel, "Source", None)
             if src is None:
                 continue
-            ptitle = _as_unicode(getattr(src, "Title", None) or u"")
+            ptitle = as_unicode(getattr(src, "Title", None) or u"")
             if ptitle == _BRAILLE_PANEL:
                 continue
             if ptitle in keys:
                 try:
-                    src.Title = _as_unicode(tools_display)
+                    src.Title = as_unicode(tools_display)
                 except Exception:
                     pass
     except Exception:
@@ -488,7 +479,7 @@ def apply(lang=None):
                 bundle_id = u""
                 if pb is not None:
                     try:
-                        bundle_id = _as_unicode(pb.Name)
+                        bundle_id = as_unicode(pb.Name)
                     except Exception:
                         bundle_id = u""
                 if (bundle_id == _BUNDLE_SETTINGS
