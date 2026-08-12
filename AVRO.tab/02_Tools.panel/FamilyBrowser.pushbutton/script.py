@@ -70,6 +70,7 @@ import ui_theme
 import i18n
 import ribbon_i18n
 import ui_notify
+import family_utils
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -115,45 +116,6 @@ class _FamilyLoadOptions(IFamilyLoadOptions):
 
 
 _FAMILY_LOAD_OPTIONS = _FamilyLoadOptions()
-
-
-def _normalize_family_key(name):
-    if not name:
-        return u""
-    key = as_unicode(name).lower().replace(u" ", u"")
-    key = key.replace(u"__", u"_")
-    return key
-
-
-def _family_name_candidates(fi):
-    """Possible Revit family names for a library file."""
-    names = set()
-    base = as_unicode(fi.name)
-    if base:
-        names.add(base)
-        names.add(base.replace(u"__", u"_"))
-        names.add(base.replace(u"_", u" "))
-    path = getattr(fi, "path", u"") or u""
-    if path:
-        stem = os.path.splitext(os.path.basename(path))[0]
-        if stem:
-            names.add(stem)
-            names.add(stem.replace(u"__", u"_"))
-    try:
-        from Autodesk.Revit.DB import BasicFileInfo
-        bfi = BasicFileInfo.Extract(path)
-        for attr in ("GetFamilyName",):
-            fn = getattr(bfi, attr, None)
-            if callable(fn):
-                try:
-                    v = as_unicode(fn())
-                    if v:
-                        names.add(v)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    return names
 
 
 COL_CARD            = None
@@ -848,7 +810,7 @@ class FamilyBrowserDialog(object):
             return self._project_family_index
         idx = {}
         for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
-            key = _normalize_family_key(revit_name(fam))
+            key = family_utils.normalize_family_key(revit_name(fam))
             if key and key not in idx:
                 idx[key] = fam
         self._store_project_family_index(idx)
@@ -2376,8 +2338,8 @@ class FamilyBrowserDialog(object):
 
     def _find_family_in_project(self, fi):
         keys = set()
-        for name in _family_name_candidates(fi):
-            keys.add(_normalize_family_key(name))
+        for name in family_utils.family_name_candidates(fi):
+            keys.add(family_utils.normalize_family_key(name))
         keys.discard(u"")
         if not keys:
             return None
@@ -2389,7 +2351,7 @@ class FamilyBrowserDialog(object):
             fam = idx.get(key)
             if fam is not None:
                 return fam
-        file_key = _normalize_family_key(fi.name)
+        file_key = family_utils.normalize_family_key(fi.name)
         if not file_key or len(file_key) < 4:
             return None
         best = None
@@ -2429,9 +2391,9 @@ class FamilyBrowserDialog(object):
         if not symbols:
             return None
         if fi is not None:
-            want = _normalize_family_key(fi.name)
+            want = family_utils.normalize_family_key(fi.name)
             for sym in symbols:
-                if _normalize_family_key(revit_name(sym)) == want:
+                if family_utils.normalize_family_key(revit_name(sym)) == want:
                     return sym
         for sym in symbols:
             if sym.IsActive:
