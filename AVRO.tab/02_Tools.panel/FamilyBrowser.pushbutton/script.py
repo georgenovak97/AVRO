@@ -203,111 +203,16 @@ def _save_sticky_session(key, preview_mem, preview_miss):
     except Exception:
         pass
 
-
 def _make_card(fi, dialog, card_w=None, card_h=None):
     """Build a WPF card for one family (grid with preview)."""
-    if card_w is None:
-        card_w = float(_CARD_W)
-    if card_h is None:
-        card_h = float(_CARD_H)
-
-    card = Border()
-    card.Background   = COL_CARD
-    card.BorderBrush  = COL_BORDER
-    card.BorderThickness = Thickness(1)
-    card.CornerRadius = System.Windows.CornerRadius(2)
-    card.Margin       = Thickness(0)
-    card.Padding      = Thickness(8)
-    card.Cursor       = System.Windows.Input.Cursors.Hand
-    card.Width        = card_w
-    card.Height       = card_h
-    card.Tag          = fi
-
-    sp = StackPanel()
-    sp.HorizontalAlignment = HorizontalAlignment.Center
-
-    preview_img = Image()
-    preview_img.Stretch              = Stretch.Uniform
-    preview_img.HorizontalAlignment  = HorizontalAlignment.Center
-    preview_img.Margin               = Thickness(0, 4, 0, 6)
-    preview_img.Visibility           = Visibility.Collapsed
-
-    if fi.preview is not None:
-        preview_img.Source     = fi.preview
-        preview_img.Visibility = Visibility.Visible
-
-    name_block = TextBlock()
-    name_block.Text                = as_unicode(fi.name)
-    name_block.Foreground          = COL_TEXT
-    name_block.FontSize            = 11
-    name_block.TextWrapping        = TextWrapping.Wrap
-    name_block.TextAlignment       = System.Windows.TextAlignment.Center
-    name_block.MaxHeight           = 36
-
-    size_block = TextBlock()
-    size_mb = fi.size_kb / 1024.0
-    size_block.Text                = i18n.t("size_mb").format(size_mb)
-    size_block.Foreground          = COL_MUTED
-    size_block.FontSize            = 10
-    size_block.HorizontalAlignment = HorizontalAlignment.Center
-    size_block.Margin              = Thickness(0, 2, 0, 0)
-
-    ver_label = as_unicode(getattr(fi, "revit_version", u"") or u"")
-    if not ver_label:
-        ver_label = rfa_version.revit_version_label(fi.path)
-        fi.revit_version = ver_label
-    version_block = TextBlock()
-    version_block.Text                = ver_label if ver_label else u"—"
-    version_block.Foreground          = COL_MUTED
-    version_block.FontSize            = 11
-    version_block.FontWeight          = System.Windows.FontWeights.SemiBold
-    version_block.HorizontalAlignment = HorizontalAlignment.Center
-    version_block.Margin              = Thickness(0, 4, 0, 0)
-
-    sp.Children.Add(preview_img)
-    sp.Children.Add(name_block)
-    sp.Children.Add(size_block)
-    sp.Children.Add(version_block)
-    card.Child = sp
-
-    _apply_card_metrics(card, preview_img, card_w, card_h)
-
-    def mouse_enter(s, e):
-        if fi.path not in dialog._selected_paths:
-            s.Background = COL_CARD_HOV
-
-    def mouse_leave(s, e):
-        if fi.path not in dialog._selected_paths:
-            s.Background = COL_CARD
-
-    def mouse_click(s, e):
-        dialog._on_card_click(s, fi, e)
-
-    def mouse_right_click(s, e):
-        dialog._on_card_right_click(s, fi, e)
-
-    card.MouseEnter           += mouse_enter
-    card.MouseLeave           += mouse_leave
-    card.MouseLeftButtonDown  += mouse_click
-    card.MouseRightButtonDown += mouse_right_click
-
-    return card, preview_img
-
+    return family_browser_cards.make_card(
+        fi, dialog, dialog._card_brushes,
+        card_w or _CARD_W, card_h or _CARD_H, _PREVIEW_W, _PREVIEW_H)
 
 def _apply_card_metrics(card, preview_img, card_w, card_h):
     """Size card + preview image to current adaptive cell."""
-    card.Width = float(card_w)
-    card.Height = float(card_h)
-    # Keep preview proportional; leave room for name/size/version.
-    preview_w = max(48.0, float(card_w) - 24.0)
-    preview_h = preview_w * (float(_PREVIEW_H) / float(_PREVIEW_W))
-    max_preview_h = max(40.0, float(card_h) - 78.0)
-    if preview_h > max_preview_h:
-        preview_h = max_preview_h
-        preview_w = preview_h * (float(_PREVIEW_W) / float(_PREVIEW_H))
-    preview_img.Width = preview_w
-    preview_img.Height = preview_h
-
+    family_browser_cards.apply_card_metrics(
+        card, preview_img, card_w, card_h, _PREVIEW_W, _PREVIEW_H)
 
 # ---------------------------------------------------------------------------
 # Dialog class
