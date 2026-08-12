@@ -252,9 +252,8 @@ class FamilyBrowserDialog(object):
         self._category_filter_keys = set()
         self._placement_filter_keys = set()
         self._version_filter_keys = set()
-        self._imported_filter_keys = set()  # mapped to Work Plane-Based axis
-        self._shared_nested_filter_keys = set()  # reserved
-        self._shared_family_filter_keys = set()  # Shared axis
+        self._work_plane_filter_keys = set()  # Work Plane-Based (XAML: ImportedFilterList)
+        self._shared_nested_filter_keys = set()  # reserved (quality block panel host)
         self._quality_flags = {
             "shared_only": False,
             "no_imported_cad": False,
@@ -851,22 +850,6 @@ class FamilyBrowserDialog(object):
                 cb.IsChecked = False
             panel.Children.Add(cb)
 
-    def _selected_key_from_panel(self, panel):
-        if panel is None:
-            return u""
-        try:
-            if panel.Children.Count < 1:
-                return u""
-            cmb = panel.Children[0]
-            if not isinstance(cmb, ComboBox):
-                return u""
-            item = cmb.SelectedItem
-            if item is None:
-                return u""
-            tag = getattr(item, "Tag", None)
-            return as_unicode(tag or u"")
-        except Exception:
-            return u""
 
     def _load_filter_state_from_cfg(self):
         state = (self.cfg or {}).get("family_browser_filters") or {}
@@ -882,12 +865,20 @@ class FamilyBrowserDialog(object):
         _setset("_host_filter_keys", "hosting")
         _setset("_placement_filter_keys", "placement")
         _setset("_version_filter_keys", "revit_format")
-        _setset("_imported_filter_keys", "work_plane_based")
-        _setset("_shared_family_filter_keys", "is_shared_family")
+        _setset("_work_plane_filter_keys", "work_plane_based")
 
         flags = state.get("quality_flags") or {}
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = bool(flags.get(k, self._quality_flags[k]))
+        # migrate legacy multi-select Shared axis -> quality shared_only
+        try:
+            legacy_shared = state.get("is_shared_family") or []
+            if legacy_shared and not self._quality_flags.get("shared_only"):
+                vals = set(as_unicode(v).strip().lower() for v in legacy_shared if as_unicode(v).strip())
+                if vals and vals.issubset(set([u"yes", u"true", u"1"])):
+                    self._quality_flags["shared_only"] = True
+        except Exception:
+            pass
 
         limits = state.get("quality_limits") or {}
         for k in list(self._quality_limits.keys()):
@@ -900,8 +891,7 @@ class FamilyBrowserDialog(object):
             "hosting": sorted(self._host_filter_keys),
             "placement": sorted(self._placement_filter_keys),
             "revit_format": sorted(self._version_filter_keys),
-            "work_plane_based": sorted(self._imported_filter_keys),
-            "is_shared_family": sorted(self._shared_family_filter_keys),
+            "work_plane_based": sorted(self._work_plane_filter_keys),
             "quality_flags": dict(self._quality_flags),
             "quality_limits": dict(self._quality_limits),
         }
@@ -921,37 +911,6 @@ class FamilyBrowserDialog(object):
         except Exception:
             return 5.0 if key == "not_huge" else 10
 
-    def _fill_single_select(self, panel, entries, selected_key):
-        if panel is None:
-            return
-        panel.Children.Clear()
-        cmb = ComboBox()
-        cmb.Margin = Thickness(0, 0, 0, 2)
-        cmb.MinWidth = 190
-        cmb.MaxDropDownHeight = 220
-
-        all_item = ComboBoxItem()
-        all_item.Tag = u""
-        all_item.Content = i18n.t("filter_all")
-        cmb.Items.Add(all_item)
-
-        selected_l = as_unicode(selected_key or u"").lower()
-        for key, label in entries:
-            it = ComboBoxItem()
-            it.Tag = as_unicode(key)
-            it.Content = as_unicode(label)
-            cmb.Items.Add(it)
-
-        chosen = all_item
-        for it in cmb.Items:
-            try:
-                if as_unicode(getattr(it, 'Tag', u'')).lower() == selected_l:
-                    chosen = it
-                    break
-            except Exception:
-                continue
-        cmb.SelectedItem = chosen
-        panel.Children.Add(cmb)
 
     def _fill_quality_flags(self, panel):
         if panel is None:
@@ -1060,8 +1019,7 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = _many("HostFilterList")
         self._placement_filter_keys = _many("PlacementFilterList")
         self._version_filter_keys = _many("VersionFilterList")
-        self._imported_filter_keys = _many("ImportedFilterList")   # Work Plane-Based
-        self._shared_family_filter_keys = set()  # moved to quality flag shared_only
+        self._work_plane_filter_keys = _many("ImportedFilterList")  # XAML name legacy; axis = Work Plane-Based
         self._shared_nested_filter_keys = set()
         self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
@@ -1101,7 +1059,7 @@ class FamilyBrowserDialog(object):
             or self._host_filter_keys
             or self._placement_filter_keys
             or self._version_filter_keys
-            or self._imported_filter_keys
+            or self._work_plane_filter_keys
             or any(self._quality_flags.values())
         )
 
@@ -1152,8 +1110,7 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = _pick_set(self._host_filter_keys, host_keys)
         self._placement_filter_keys = _pick_set(self._placement_filter_keys, place_keys)
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
-        self._imported_filter_keys = _pick_set(self._imported_filter_keys, wp_available)
-        self._shared_family_filter_keys = set()
+        self._work_plane_filter_keys = _pick_set(self._work_plane_filter_keys, wp_available)
         self._shared_nested_filter_keys = set()
 
         def _bool_label(k):
@@ -1176,7 +1133,7 @@ class FamilyBrowserDialog(object):
             self._fill_check_list(getattr(self.ui, "HostFilterList", None), host_entries, self._host_filter_keys)
             self._fill_check_list(getattr(self.ui, "PlacementFilterList", None), place_entries, self._placement_filter_keys)
             self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
-            self._fill_check_list(getattr(self.ui, "ImportedFilterList", None), wp_entries, self._imported_filter_keys)
+            self._fill_check_list(getattr(self.ui, "ImportedFilterList", None), wp_entries, self._work_plane_filter_keys)
             self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
@@ -1188,7 +1145,7 @@ class FamilyBrowserDialog(object):
             + len(self._host_filter_keys)
             + len(self._placement_filter_keys)
             + len(self._version_filter_keys)
-            + len(self._imported_filter_keys)
+            + len(self._work_plane_filter_keys)
             + sum(1 for v in self._quality_flags.values() if v)
         )
 
@@ -1224,9 +1181,8 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = set()
         self._placement_filter_keys = set()
         self._version_filter_keys = set()
-        self._imported_filter_keys = set()
+        self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()
-        self._shared_family_filter_keys = set()
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
         for k in list(self._quality_limits.keys()):
@@ -1259,9 +1215,8 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = set()
         self._placement_filter_keys = set()
         self._version_filter_keys = set()
-        self._imported_filter_keys = set()
+        self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()
-        self._shared_family_filter_keys = set()
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
         for k in list(self._quality_limits.keys()):
@@ -1296,7 +1251,7 @@ class FamilyBrowserDialog(object):
             hosting=self._host_filter_keys,
             placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
-            work_plane_based=self._imported_filter_keys,
+            work_plane_based=self._work_plane_filter_keys,
         )
         families = self._apply_quality_flag_filters(families)
         self._show_families(families)

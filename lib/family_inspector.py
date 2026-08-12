@@ -92,11 +92,12 @@ def _empty_meta(path=u""):
         "category": u"",
         "hosting": HOST_UNKNOWN,
         "placement": u"",
-        "is_shared_family": False,
-        "work_plane_based": False,
-        "always_vertical": False,
-        "has_imported_geometry": False,
-        "has_shared_nested": False,
+        # tri-state booleans: None = unknown until successful inspect
+        "is_shared_family": None,
+        "work_plane_based": None,
+        "always_vertical": None,
+        "has_imported_geometry": None,
+        "has_shared_nested": None,
         "shared_nested": [],
         "types": [],
         "type_count": 0,
@@ -256,26 +257,28 @@ def _inspect_document(doc, rfa_path):
     try:
         meta["is_shared_family"] = bool(_is_family_shared(owner))
     except Exception:
-        meta["is_shared_family"] = False
+        meta["is_shared_family"] = None
 
     try:
         pl = (placement or u"").lower()
         meta["work_plane_based"] = (u"workplane" in pl) or (u"work plane" in pl) or (u"work_plane" in pl)
     except Exception:
-        meta["work_plane_based"] = False
+        meta["work_plane_based"] = None
 
     try:
-        always = False
+        always = None
         try:
             if owner is not None:
                 p_av = owner.get_Parameter(BuiltInParameter.FAMILY_ALWAYS_VERTICAL)
                 if p_av is not None and p_av.HasValue:
                     always = int(p_av.AsInteger()) == 1
+                else:
+                    always = False
         except Exception:
-            always = False
-        meta["always_vertical"] = bool(always)
+            always = None
+        meta["always_vertical"] = always
     except Exception:
-        meta["always_vertical"] = False
+        meta["always_vertical"] = None
 
     # Types
     types = []
@@ -299,11 +302,12 @@ def _inspect_document(doc, rfa_path):
         n_imp = FilteredElementCollector(doc).OfClass(ImportInstance).GetElementCount()
         meta["has_imported_geometry"] = int(n_imp) > 0
     except Exception:
-        meta["has_imported_geometry"] = False
+        meta["has_imported_geometry"] = None
 
     # Nested families and shared-nested names
     shared = []
     nested_ids = set()
+    nested_ok = False
     try:
         for inst in FilteredElementCollector(doc).OfClass(FamilyInstance):
             try:
@@ -318,12 +322,17 @@ def _inspect_document(doc, rfa_path):
                             shared.append(name)
             except Exception:
                 continue
+        nested_ok = True
     except Exception:
-        pass
+        nested_ok = False
     shared = sorted(set(shared), key=lambda s: s.lower())
     meta["shared_nested"] = shared
-    meta["has_shared_nested"] = len(shared) > 0
-    meta["nested_family_count"] = int(len(nested_ids))
+    if nested_ok:
+        meta["has_shared_nested"] = len(shared) > 0
+        meta["nested_family_count"] = int(len(nested_ids))
+    else:
+        meta["has_shared_nested"] = None
+        meta["nested_family_count"] = None
 
     # Extra complexity counters for quality filters
     ref_planes = 0

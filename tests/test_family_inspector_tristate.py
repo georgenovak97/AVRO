@@ -70,6 +70,15 @@ class FamilyInspectorTriStateTests(unittest.TestCase):
         self.assertIn('yes', opts['work_plane_based'])
         self.assertIn('unknown', opts['always_vertical'])
 
+    def test_empty_meta_bools_are_unknown_not_false(self):
+        meta = fi._empty_meta('x.rfa')
+        self.assertIs(meta.get('is_shared_family'), None)
+        self.assertIs(meta.get('work_plane_based'), None)
+        self.assertIs(meta.get('always_vertical'), None)
+        self.assertIs(meta.get('has_imported_geometry'), None)
+        self.assertIs(meta.get('has_shared_nested'), None)
+        self.assertEqual(fi._bool_filter_key(meta.get('is_shared_family')), fi.BOOL_UNKNOWN)
+
 
 if __name__ == '__main__':
     unittest.main()
