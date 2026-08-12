@@ -70,6 +70,7 @@ import ribbon_i18n
 import ui_notify
 import family_utils
 import ui_utils
+import image_utils
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -232,51 +233,6 @@ def _save_sticky_session(key, preview_mem, preview_miss):
                 script.sticky[_STICKY_KEY] = payload
     except Exception:
         pass
-
-
-def _bitmap_from_png_bytes(image_bytes):
-    """Load PNG or JPEG bytes into WPF BitmapImage (IronPython-safe via temp file)."""
-    if not image_bytes:
-        return None
-    is_jpeg = (
-        len(image_bytes) >= 2
-        and image_bytes[0] == "\xff"
-        and image_bytes[1] == "\xd8")
-    suffix = ".jpg" if is_jpeg else ".png"
-    tmp_path = None
-    try:
-        fd, tmp_path = tempfile.mkstemp(suffix=suffix)
-        os.write(fd, image_bytes)
-        os.close(fd)
-        bmp = BitmapImage()
-        bmp.BeginInit()
-        bmp.UriSource = System.Uri(tmp_path)
-        bmp.CacheOption = BitmapCacheOption.OnLoad
-        bmp.EndInit()
-        bmp.Freeze()
-        return bmp
-    except Exception:
-        try:
-            from System import Array, Byte
-            buf = Array.CreateInstance(Byte, len(image_bytes))
-            for i, ch in enumerate(image_bytes):
-                buf[i] = ord(ch)
-            ms = MemoryStream(buf)
-            bmp = BitmapImage()
-            bmp.BeginInit()
-            bmp.StreamSource = ms
-            bmp.CacheOption = BitmapCacheOption.OnLoad
-            bmp.EndInit()
-            bmp.Freeze()
-            return bmp
-        except Exception:
-            return None
-    finally:
-        if tmp_path and os.path.isfile(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
 
 
 def _make_card(fi, dialog, card_w=None, card_h=None):
@@ -2127,7 +2083,7 @@ class FamilyBrowserDialog(object):
     def _apply_preview_png(self, path, png_bytes, gen):
         if gen != self._preview_gen:
             return
-        bmp = _bitmap_from_png_bytes(png_bytes)
+        bmp = image_utils.bitmap_from_png_bytes(png_bytes)
         if bmp is None:
             return
         self._preview_mem[path] = bmp
