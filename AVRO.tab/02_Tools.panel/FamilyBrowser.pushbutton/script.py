@@ -28,10 +28,11 @@ from System.Windows import (
 )
 from System.Windows.Controls import (
     TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
-    WrapPanel, ComboBox, ComboBoxItem, CheckBox,
+    WrapPanel, ComboBox, ComboBoxItem, CheckBox, TextBox,
 )
 from System.Windows.Media import SolidColorBrush, Color, Stretch
 from System.Windows.Input import Keyboard, ModifierKeys, Key
+from System.Windows.Controls import Orientation
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 from System.IO import MemoryStream
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
@@ -264,6 +265,17 @@ class FamilyBrowserDialog(object):
             "limit_materials": False,
             "not_huge": False,
         }
+        self._quality_limits = {
+            "limit_types": 10,
+            "limit_ref_planes": 10,
+            "limit_dimensions": 10,
+            "limit_nested": 10,
+            "limit_params": 10,
+            "limit_formulas": 10,
+            "limit_materials": 10,
+            "not_huge": 5.0,
+        }
+        self._load_filter_state_from_cfg()
         self._filter_suppress = False
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
@@ -851,6 +863,59 @@ class FamilyBrowserDialog(object):
         except Exception:
             return u""
 
+    def _load_filter_state_from_cfg(self):
+        state = (self.cfg or {}).get("family_browser_filters") or {}
+
+        def _setset(name, key):
+            vals = state.get(key) or []
+            try:
+                setattr(self, name, set([as_unicode(v) for v in vals if as_unicode(v)]))
+            except Exception:
+                setattr(self, name, set())
+
+        _setset("_category_filter_keys", "category")
+        _setset("_host_filter_keys", "hosting")
+        _setset("_placement_filter_keys", "placement")
+        _setset("_version_filter_keys", "revit_format")
+        _setset("_imported_filter_keys", "work_plane_based")
+        _setset("_shared_family_filter_keys", "is_shared_family")
+
+        flags = state.get("quality_flags") or {}
+        for k in list(self._quality_flags.keys()):
+            self._quality_flags[k] = bool(flags.get(k, self._quality_flags[k]))
+
+        limits = state.get("quality_limits") or {}
+        for k in list(self._quality_limits.keys()):
+            self._quality_limits[k] = self._coerce_quality_limit(
+                k, limits.get(k, self._quality_limits[k]))
+
+    def _save_filter_state_to_cfg(self):
+        payload = {
+            "category": sorted(self._category_filter_keys),
+            "hosting": sorted(self._host_filter_keys),
+            "placement": sorted(self._placement_filter_keys),
+            "revit_format": sorted(self._version_filter_keys),
+            "work_plane_based": sorted(self._imported_filter_keys),
+            "is_shared_family": sorted(self._shared_family_filter_keys),
+            "quality_flags": dict(self._quality_flags),
+            "quality_limits": dict(self._quality_limits),
+        }
+        self.cfg["family_browser_filters"] = payload
+        try:
+            config.set_value("family_browser_filters", payload)
+        except Exception:
+            pass
+
+    def _coerce_quality_limit(self, key, value):
+        try:
+            if key == "not_huge":
+                v = float(value)
+                return 5.0 if v <= 0 else round(v, 3)
+            v = int(value)
+            return 10 if v < 1 else v
+        except Exception:
+            return 5.0 if key == "not_huge" else 10
+
     def _fill_single_select(self, panel, entries, selected_key):
         if panel is None:
             return
@@ -888,33 +953,76 @@ class FamilyBrowserDialog(object):
             return
         panel.Children.Clear()
         defs = [
-            ("no_imported_cad", i18n.t("qf_no_imported_cad")),
-            ("limit_types", i18n.t("qf_limit_types")),
-            ("limit_ref_planes", i18n.t("qf_limit_ref_planes")),
-            ("limit_dimensions", i18n.t("qf_limit_dimensions")),
-            ("limit_nested", i18n.t("qf_limit_nested")),
-            ("limit_params", i18n.t("qf_limit_params")),
-            ("limit_formulas", i18n.t("qf_limit_formulas")),
-            ("limit_materials", i18n.t("qf_limit_materials")),
-            ("not_huge", i18n.t("qf_not_huge")),
+            ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
+            ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
+            ("limit_ref_planes", i18n.t("qf_limit_ref_planes"), "limit_ref_planes"),
+            ("limit_dimensions", i18n.t("qf_limit_dimensions"), "limit_dimensions"),
+            ("limit_nested", i18n.t("qf_limit_nested"), "limit_nested"),
+            ("limit_params", i18n.t("qf_limit_params"), "limit_params"),
+            ("limit_formulas", i18n.t("qf_limit_formulas"), "limit_formulas"),
+            ("limit_materials", i18n.t("qf_limit_materials"), "limit_materials"),
+            ("not_huge", i18n.t("qf_not_huge"), "not_huge"),
         ]
-        for key, label in defs:
+        for key, label, limit_key in defs:
+            row = StackPanel()
+            row.Orientation = Orientation.Horizontal
+            row.Margin = Thickness(0, 1, 0, 1)
+
             cb = CheckBox()
             cb.Tag = key
             cb.Content = label
-            cb.Margin = Thickness(0, 1, 0, 1)
             cb.Foreground = COL_TEXT
+            cb.VerticalAlignment = VerticalAlignment.Center
             cb.IsChecked = bool(self._quality_flags.get(key, False))
-            panel.Children.Add(cb)
+            row.Children.Add(cb)
+
+            if limit_key is not None:
+                tb = TextBox()
+                tb.Tag = u"limit:" + limit_key
+                tb.Text = as_unicode(self._quality_limits.get(limit_key, 10))
+                tb.Width = 46
+                tb.Margin = Thickness(8, 0, 0, 0)
+                tb.VerticalContentAlignment = VerticalAlignment.Center
+                row.Children.Add(tb)
+
+            panel.Children.Add(row)
 
     def _read_quality_flags(self, panel):
         if panel is None:
             return
         for key in list(self._quality_flags.keys()):
             self._quality_flags[key] = False
+
+        def _read_row(row):
+            cb = None
+            tb = None
+            try:
+                for child in row.Children:
+                    if isinstance(child, CheckBox):
+                        cb = child
+                    elif isinstance(child, TextBox):
+                        tb = child
+            except Exception:
+                return
+            if cb is None:
+                return
+            tag = as_unicode(getattr(cb, 'Tag', u''))
+            if tag in self._quality_flags:
+                self._quality_flags[tag] = bool(cb.IsChecked)
+            if tb is not None:
+                ttag = as_unicode(getattr(tb, 'Tag', u''))
+                if ttag.startswith(u"limit:"):
+                    lkey = ttag.split(u":", 1)[1]
+                    if lkey in self._quality_limits:
+                        self._quality_limits[lkey] = self._coerce_quality_limit(
+                            lkey, as_unicode(tb.Text))
+                        tb.Text = as_unicode(self._quality_limits[lkey])
+
         try:
             for child in panel.Children:
-                if isinstance(child, CheckBox):
+                if isinstance(child, StackPanel):
+                    _read_row(child)
+                elif isinstance(child, CheckBox):
                     tag = as_unicode(getattr(child, 'Tag', u''))
                     if tag in self._quality_flags:
                         self._quality_flags[tag] = bool(child.IsChecked)
@@ -938,23 +1046,23 @@ class FamilyBrowserDialog(object):
 
         if flags.get('no_imported_cad') and meta and bool(meta.get('has_imported_geometry')):
             return False
-        if flags.get('limit_types') and self._meta_int(meta, 'type_count') > 10:
+        if flags.get('limit_types') and self._meta_int(meta, 'type_count') > int(self._quality_limits.get('limit_types', 10)):
             return False
-        if flags.get('limit_ref_planes') and self._meta_int(meta, 'reference_plane_count') > 10:
+        if flags.get('limit_ref_planes') and (self._meta_int(meta, 'reference_plane_count') + self._meta_int(meta, 'reference_line_count')) > int(self._quality_limits.get('limit_ref_planes', 10)):
             return False
-        if flags.get('limit_dimensions') and self._meta_int(meta, 'dimension_count') > 10:
+        if flags.get('limit_dimensions') and self._meta_int(meta, 'dimension_count') > int(self._quality_limits.get('limit_dimensions', 10)):
             return False
-        if flags.get('limit_nested') and self._meta_int(meta, 'nested_family_count') > 10:
+        if flags.get('limit_nested') and self._meta_int(meta, 'nested_family_count') > int(self._quality_limits.get('limit_nested', 10)):
             return False
-        if flags.get('limit_params') and self._meta_int(meta, 'param_total_count') > 10:
+        if flags.get('limit_params') and self._meta_int(meta, 'param_total_count') > int(self._quality_limits.get('limit_params', 10)):
             return False
-        if flags.get('limit_formulas') and self._meta_int(meta, 'param_has_formulas_count') > 10:
+        if flags.get('limit_formulas') and self._meta_int(meta, 'param_has_formulas_count') > int(self._quality_limits.get('limit_formulas', 10)):
             return False
-        if flags.get('limit_materials') and self._meta_int(meta, 'material_count') > 10:
+        if flags.get('limit_materials') and self._meta_int(meta, 'material_count') > int(self._quality_limits.get('limit_materials', 10)):
             return False
         if flags.get('not_huge'):
             try:
-                if float(getattr(fi, 'size_kb', 0) or 0) > 5120.0:
+                if float(getattr(fi, 'size_kb', 0) or 0) > float(self._quality_limits.get('not_huge', 5.0)) * 1024.0:
                     return False
             except Exception:
                 pass
@@ -993,6 +1101,7 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_FACE: "host_face",
             family_inspector.HOST_INDEPENDENT: "host_independent",
             family_inspector.HOST_UNKNOWN: "host_unknown",
+            family_inspector.HOST_OTHER: "host_other",
             family_inspector.HOST_ALL: "filter_all",
         }
         i18n_key = mapping.get(as_unicode(key).lower(), None)
@@ -1040,6 +1149,7 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_FACE,
             family_inspector.HOST_INDEPENDENT,
             family_inspector.HOST_UNKNOWN,
+            family_inspector.HOST_OTHER,
         ]
         for h in opts.get("hostings") or []:
             hu = as_unicode(h)
@@ -1137,6 +1247,7 @@ class FamilyBrowserDialog(object):
 
     def _on_apply_filters(self, sender, e):
         self._sync_filters_from_ui()
+        self._save_filter_state_to_cfg()
         self._update_filters_button_caption()
         query = u""
         try:
@@ -1155,6 +1266,9 @@ class FamilyBrowserDialog(object):
         self._shared_family_filter_keys = set()
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
+        for k in list(self._quality_limits.keys()):
+            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else 10)
+        self._save_filter_state_to_cfg()
         self._rebuild_meta_filters(preserve=False)
         self._update_filters_button_caption()
         query = u""
@@ -1166,6 +1280,7 @@ class FamilyBrowserDialog(object):
 
     def _on_run_search(self, sender, e):
         self._sync_filters_from_ui()
+        self._save_filter_state_to_cfg()
         self._update_filters_button_caption()
         query = u""
         try:
@@ -1186,6 +1301,9 @@ class FamilyBrowserDialog(object):
         self._shared_family_filter_keys = set()
         for k in list(self._quality_flags.keys()):
             self._quality_flags[k] = False
+        for k in list(self._quality_limits.keys()):
+            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else 10)
+        self._save_filter_state_to_cfg()
         self._search_suppress = True
         try:
             self.ui.SearchBox.Text = u""

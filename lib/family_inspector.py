@@ -21,6 +21,7 @@ try:
         BuiltInParameter,
         FilteredElementCollector,
         ImportInstance,
+        FamilyInstance,
         ReferencePlane,
         Dimension,
         Material,
@@ -44,6 +45,7 @@ HOST_ROOF = u"roof"
 HOST_FACE = u"face"
 HOST_INDEPENDENT = u"independent"
 HOST_UNKNOWN = u"unknown"
+HOST_OTHER = u"other"
 BOOL_YES = u"yes"
 BOOL_NO = u"no"
 BOOL_UNKNOWN = u"unknown"
@@ -57,6 +59,7 @@ HOST_FILTER_KEYS = (
     HOST_FACE,
     HOST_INDEPENDENT,
     HOST_UNKNOWN,
+    HOST_OTHER,
 )
 
 _HOSTING_BY_INT = {
@@ -103,9 +106,11 @@ def _empty_meta(path=u""):
         "param_has_formulas": False,
         "param_has_formulas_count": 0,
         "reference_plane_count": 0,
+        "reference_line_count": 0,
         "dimension_count": 0,
         "nested_family_count": 0,
         "material_count": 0,
+        "file_size_mb": 0.0,
         "revit_format": u"",
         "inspected_at": u"",
     }
@@ -223,7 +228,7 @@ def _hosting_from_owner(owner):
     if u"curve" in pl or u"onelevel" in pl or u"twolevel" in pl:
         return HOST_INDEPENDENT, placement
     if placement:
-        return HOST_INDEPENDENT, placement
+        return HOST_OTHER, placement
     return HOST_UNKNOWN, placement
 
 
@@ -296,21 +301,21 @@ def _inspect_document(doc, rfa_path):
     except Exception:
         meta["has_imported_geometry"] = False
 
-    # Nested families with Shared
+    # Nested families and shared-nested names
     shared = []
-    nested_total = 0
+    nested_ids = set()
     try:
-        owner_id = owner.Id if owner is not None else None
-        for fam in FilteredElementCollector(doc).OfClass(RevitFamily):
+        for inst in FilteredElementCollector(doc).OfClass(FamilyInstance):
             try:
-                if owner_id is not None and fam.Id == owner_id:
-                    continue
-                nested_total += 1
-                if not _is_family_shared(fam):
-                    continue
-                name = _element_name(fam)
-                if name:
-                    shared.append(name)
+                sym = getattr(inst, "Symbol", None)
+                fam = getattr(sym, "Family", None) if sym is not None else None
+                fid = getattr(fam, "Id", None)
+                if fid is not None:
+                    nested_ids.add(fid.IntegerValue)
+                    if _is_family_shared(fam):
+                        name = _element_name(fam)
+                        if name:
+                            shared.append(name)
             except Exception:
                 continue
     except Exception:
@@ -318,15 +323,24 @@ def _inspect_document(doc, rfa_path):
     shared = sorted(set(shared), key=lambda s: s.lower())
     meta["shared_nested"] = shared
     meta["has_shared_nested"] = len(shared) > 0
-    meta["nested_family_count"] = int(nested_total)
+    meta["nested_family_count"] = int(len(nested_ids))
 
     # Extra complexity counters for quality filters
+    ref_planes = 0
+    ref_lines = 0
     try:
-        meta["reference_plane_count"] = int(
-            FilteredElementCollector(doc).OfClass(ReferencePlane).GetElementCount()
-        )
+        for rp in FilteredElementCollector(doc).OfClass(ReferencePlane):
+            try:
+                if bool(getattr(rp, "IsReferenceLine", False)):
+                    ref_lines += 1
+                else:
+                    ref_planes += 1
+            except Exception:
+                ref_planes += 1
     except Exception:
-        meta["reference_plane_count"] = 0
+        pass
+    meta["reference_plane_count"] = int(ref_planes)
+    meta["reference_line_count"] = int(ref_lines)
     try:
         meta["dimension_count"] = int(
             FilteredElementCollector(doc).OfClass(Dimension).GetElementCount()
@@ -339,14 +353,23 @@ def _inspect_document(doc, rfa_path):
         )
     except Exception:
         meta["material_count"] = 0
-
-    # Version hint from BasicFileInfo (no open needed, but cheap while here)
     try:
-        info = BasicFileInfo.Extract(rfa_path)
-        if info is not None and info.Format:
-            meta["revit_format"] = _u(info.Format)
+        meta["file_size_mb"] = round(float(os.path.getsize(rfa_path)) / (1024.0 * 1024.0), 3)
+    except Exception:
+        meta["file_size_mb"] = 0.0
+
+    # Revit version: prefer opened app version, fallback to BasicFileInfo
+    try:
+        meta["revit_format"] = _u(doc.Application.VersionNumber)
     except Exception:
         meta["revit_format"] = u""
+    if not meta.get("revit_format"):
+        try:
+            info = BasicFileInfo.Extract(rfa_path)
+            if info is not None and info.Format:
+                meta["revit_format"] = _u(info.Format)
+        except Exception:
+            meta["revit_format"] = u""
 
     # FamilyManager parameter stats (counts only; cheap vs full param listing)
     try:

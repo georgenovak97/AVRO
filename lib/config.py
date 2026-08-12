@@ -27,6 +27,7 @@ DEFAULTS = {
     "library_cache_hash": "",
     "library_cache_count": 0,
     "ui_theme": "light",
+    "family_browser_filters": {},
 }
 
 _RECENTS_MIGRATED = False
