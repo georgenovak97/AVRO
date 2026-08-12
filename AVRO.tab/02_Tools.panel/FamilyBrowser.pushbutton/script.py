@@ -74,6 +74,7 @@ import image_utils
 import family_load_options
 import family_browser_props
 import family_browser_cards
+import family_browser_status
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
@@ -284,6 +285,7 @@ class FamilyBrowserDialog(object):
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
+        self._status_controller = family_browser_status.StatusController(self.ui)
         self._card_brushes = ui_theme.card_brushes(
             ui_theme.DARK if self._dark_theme else ui_theme.LIGHT)
         self._props_controller = family_browser_props.PropsPanelController(
@@ -397,12 +399,7 @@ class FamilyBrowserDialog(object):
         self._apply_ui_theme(dark, persist=False)
 
     def _update_count_display(self, shown, total=None):
-        if self.ui is None:
-            return
-        if total is not None and total != shown:
-            self.ui.CountText.Text = i18n.t("count_search", a=shown, b=total)
-        else:
-            self.ui.CountText.Text = i18n.t("count_items", n=shown)
+        self._status_controller.update_count(shown, total)
 
     def _update_breadcrumb_display(self):
         if self.ui is None:
@@ -2274,12 +2271,10 @@ class FamilyBrowserDialog(object):
         self._schedule_scan()
 
     def _set_status(self, text):
-        if self.ui is not None:
-            self.ui.StatusText.Text = text
+        self._status_controller.set_status(text)
 
     def _set_breadcrumb(self, text):
-        if self.ui is not None:
-            self.ui.BreadcrumbText.Text = text
+        self._status_controller.set_breadcrumb(text)
 
     def show(self):
         i18n.init_from_config()
