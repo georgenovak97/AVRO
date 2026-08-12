@@ -13,6 +13,7 @@ from __future__ import print_function
 
 # Flags that require family_meta cache (inspect).
 META_REQUIRED_FLAGS = (
+    "work_plane_only",
     "shared_only",
     "no_imported_cad",
     "limit_types",
@@ -117,6 +118,12 @@ def passes_quality_flags(fi, meta, flags, limits=None):
             pass
 
     # --- flags that need inspect cache ---
+    if flags.get("work_plane_only"):
+        if not is_meta_usable(meta):
+            return False
+        if not bool(meta.get("work_plane_based")):
+            return False
+
     if flags.get("shared_only"):
         if not is_meta_usable(meta):
             return False

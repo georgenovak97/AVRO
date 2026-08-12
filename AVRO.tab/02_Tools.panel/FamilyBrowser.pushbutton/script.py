@@ -255,6 +255,7 @@ class FamilyBrowserDialog(object):
         self._work_plane_filter_keys = set()  # Work Plane-Based (XAML: ImportedFilterList)
         self._shared_nested_filter_keys = set()  # reserved (quality block panel host)
         self._quality_flags = {
+            "work_plane_only": False,
             "shared_only": False,
             "no_imported_cad": False,
             "limit_types": False,
@@ -382,7 +383,10 @@ class FamilyBrowserDialog(object):
             lbl_ver.Text = i18n.t("filter_version_label")
         lbl_imp = getattr(self.ui, "LblImportedFilter", None)
         if lbl_imp is not None:
-            lbl_imp.Text = i18n.t("filter_work_plane_label")
+            lbl_imp.Visibility = Visibility.Collapsed
+        imp_list = getattr(self.ui, "ImportedFilterList", None)
+        if imp_list is not None and getattr(imp_list, "Parent", None) is not None:
+            imp_list.Parent.Visibility = Visibility.Collapsed
         lbl_sn = getattr(self.ui, "LblSharedNestedFilter", None)
         if lbl_sn is not None:
             lbl_sn.Text = i18n.t("filter_quality_flags_label")
@@ -865,7 +869,7 @@ class FamilyBrowserDialog(object):
         _setset("_host_filter_keys", "hosting")
         _setset("_placement_filter_keys", "placement")
         _setset("_version_filter_keys", "revit_format")
-        _setset("_work_plane_filter_keys", "work_plane_based")
+        self._work_plane_filter_keys = set()
 
         flags = state.get("quality_flags") or {}
         for k in list(self._quality_flags.keys()):
@@ -877,6 +881,15 @@ class FamilyBrowserDialog(object):
                 vals = set(as_unicode(v).strip().lower() for v in legacy_shared if as_unicode(v).strip())
                 if vals and vals.issubset(set([u"yes", u"true", u"1"])):
                     self._quality_flags["shared_only"] = True
+        except Exception:
+            pass
+        # migrate legacy multi-select work plane -> quality work_plane_only
+        try:
+            legacy_wp = state.get("work_plane_based") or []
+            if legacy_wp and not self._quality_flags.get("work_plane_only"):
+                vals = set(as_unicode(v).strip().lower() for v in legacy_wp if as_unicode(v).strip())
+                if vals and vals.issubset(set([u"yes", u"true", u"1"])):
+                    self._quality_flags["work_plane_only"] = True
         except Exception:
             pass
 
@@ -891,7 +904,6 @@ class FamilyBrowserDialog(object):
             "hosting": sorted(self._host_filter_keys),
             "placement": sorted(self._placement_filter_keys),
             "revit_format": sorted(self._version_filter_keys),
-            "work_plane_based": sorted(self._work_plane_filter_keys),
             "quality_flags": dict(self._quality_flags),
             "quality_limits": dict(self._quality_limits),
         }
@@ -917,6 +929,7 @@ class FamilyBrowserDialog(object):
             return
         panel.Children.Clear()
         defs = [
+            ("work_plane_only", i18n.t("qf_work_plane_only"), None),
             ("shared_only", i18n.t("qf_shared_only"), None),
             ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
             ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
@@ -1019,7 +1032,7 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = _many("HostFilterList")
         self._placement_filter_keys = _many("PlacementFilterList")
         self._version_filter_keys = _many("VersionFilterList")
-        self._work_plane_filter_keys = _many("ImportedFilterList")  # XAML name legacy; axis = Work Plane-Based
+        self._work_plane_filter_keys = set()  # moved to quality work_plane_only
         self._shared_nested_filter_keys = set()
         self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
@@ -1059,7 +1072,6 @@ class FamilyBrowserDialog(object):
             or self._host_filter_keys
             or self._placement_filter_keys
             or self._version_filter_keys
-            or self._work_plane_filter_keys
             or any(self._quality_flags.values())
         )
 
@@ -1093,7 +1105,7 @@ class FamilyBrowserDialog(object):
                 place_keys.append(pu)
 
         ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or []) if as_unicode(v).strip()]
-        wp_available = [as_unicode(k) for k in (opts.get("work_plane_based") or [])]
+        self._work_plane_filter_keys = set()
 
         def _pick_set(existing, available):
             if not preserve:
@@ -1110,30 +1122,20 @@ class FamilyBrowserDialog(object):
         self._host_filter_keys = _pick_set(self._host_filter_keys, host_keys)
         self._placement_filter_keys = _pick_set(self._placement_filter_keys, place_keys)
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
-        self._work_plane_filter_keys = _pick_set(self._work_plane_filter_keys, wp_available)
         self._shared_nested_filter_keys = set()
-
-        def _bool_label(k):
-            kl = as_unicode(k).strip().lower()
-            if kl == u"yes":
-                return i18n.t("props_yes")
-            if kl == u"no":
-                return i18n.t("props_no")
-            return i18n.t("props_unknown")
 
         cat_entries = [(c, c) for c in sorted(cat_available, key=lambda s: s.lower())]
         host_entries = [(h, self._host_label(h)) for h in host_keys]
         place_entries = [(p, self._placement_label(p)) for p in place_keys]
         ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
-        wp_entries = [(k, _bool_label(k)) for k in sorted(set(wp_available), key=lambda s: s.lower())]
 
         self._filter_suppress = True
         try:
+            # Order: version first (matches XAML), then category/host/placement, then quality
+            self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
             self._fill_check_list(getattr(self.ui, "CategoryFilterList", None), cat_entries, self._category_filter_keys)
             self._fill_check_list(getattr(self.ui, "HostFilterList", None), host_entries, self._host_filter_keys)
             self._fill_check_list(getattr(self.ui, "PlacementFilterList", None), place_entries, self._placement_filter_keys)
-            self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
-            self._fill_check_list(getattr(self.ui, "ImportedFilterList", None), wp_entries, self._work_plane_filter_keys)
             self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
@@ -1145,7 +1147,6 @@ class FamilyBrowserDialog(object):
             + len(self._host_filter_keys)
             + len(self._placement_filter_keys)
             + len(self._version_filter_keys)
-            + len(self._work_plane_filter_keys)
             + sum(1 for v in self._quality_flags.values() if v)
         )
 
@@ -1251,7 +1252,6 @@ class FamilyBrowserDialog(object):
             hosting=self._host_filter_keys,
             placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
-            work_plane_based=self._work_plane_filter_keys,
         )
         families = self._apply_quality_flag_filters(families)
         self._show_families(families)

@@ -25,6 +25,7 @@ class Dummy(object):
 
 def _flags(**kwargs):
     base = {
+        "work_plane_only": False,
         "shared_only": False,
         "no_imported_cad": False,
         "limit_types": False,
@@ -82,6 +83,25 @@ class QualityStrictUnknownTests(unittest.TestCase):
                 Dummy(),
                 {"ok": True, "is_shared_family": False},
                 _flags(shared_only=True),
+            )
+        )
+
+    def test_work_plane_only_unknown_and_values(self):
+        self.assertFalse(
+            q.passes_quality_flags(Dummy(), None, _flags(work_plane_only=True))
+        )
+        self.assertFalse(
+            q.passes_quality_flags(
+                Dummy(),
+                {"ok": True, "work_plane_based": False},
+                _flags(work_plane_only=True),
+            )
+        )
+        self.assertTrue(
+            q.passes_quality_flags(
+                Dummy(),
+                {"ok": True, "work_plane_based": True},
+                _flags(work_plane_only=True),
             )
         )
 
