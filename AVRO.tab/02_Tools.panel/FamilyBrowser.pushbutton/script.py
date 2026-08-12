@@ -147,8 +147,8 @@ _VIRTUAL_ROW_BUFFER = 2
 _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
 _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
-_CARD_MARGIN = 10
-_CARD_OUTER_PAD = 10
+_CARD_MARGIN = 8
+_CARD_OUTER_PAD = 8
 _CARD_W = 156
 _CARD_H = 182
 _CARD_MIN_W = 132
@@ -1520,8 +1520,26 @@ class FamilyBrowserDialog(object):
         return list(self._scan.get("all", []))
 
     def _viewport_width(self):
+        """Content width inside ScrollViewer (excludes vertical scrollbar)."""
         sv = self.ui.FamilyScrollViewer
-        w = sv.ViewportWidth if sv.ViewportWidth > 0 else sv.ActualWidth
+        w = 0.0
+        try:
+            # Prefer ViewportWidth — already excludes scrollbar track.
+            if sv.ViewportWidth and sv.ViewportWidth > 1:
+                w = float(sv.ViewportWidth)
+            elif sv.ActualWidth and sv.ActualWidth > 1:
+                w = float(sv.ActualWidth)
+                # If scrollbar is visible, ActualWidth still includes it — subtract.
+                try:
+                    sb = getattr(sv, "ComputedVerticalScrollBarVisibility", None)
+                    from System.Windows import Visibility as _Vis
+                    if sb is not None and int(sb) == int(_Vis.Visible):
+                        # Standard WPF scrollbar ~17 DIP; keep small equal gutters.
+                        w = max(80.0, w - 17.0)
+                except Exception:
+                    pass
+        except Exception:
+            w = 0.0
         if w < 80 and self.win is not None:
             w = max(400.0, float(self.win.ActualWidth) - 620.0)
         if w < 80:
@@ -1529,49 +1547,63 @@ class FamilyBrowserDialog(object):
         return float(w)
 
     def _layout_metrics(self):
-        """Adaptive grid: equal outer pad + equal gutters; cards fill width."""
+        """Equal outer pad on all sides; gutters == pad (small, uniform)."""
+        import math
         w = self._viewport_width()
+        # One token for outer pad and inter-card gap — always identical.
         gap = float(_CARD_MARGIN)
-        pad = float(_CARD_OUTER_PAD)
+        pad = float(gap)
         inner_w = max(1.0, float(w) - 2.0 * pad)
         min_w = float(_CARD_MIN_W)
         max_w = float(_CARD_MAX_W)
         cols = max(1, int((inner_w + gap) / (min_w + gap)))
-        card_w = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
-        # Prefer more columns over oversized cards on wide screens.
-        while card_w > max_w + 0.5:
+        # Whole-pixel card width so left/right leftover can be split equally.
+        raw = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
+        while raw > max_w + 0.5:
             next_cols = cols + 1
-            next_w = (inner_w - gap * (next_cols - 1)) / float(next_cols)
-            if next_w < min_w:
+            next_raw = (inner_w - gap * (next_cols - 1)) / float(next_cols)
+            if next_raw < min_w:
                 break
             cols = next_cols
-            card_w = next_w
-        if card_w < min_w:
+            raw = next_raw
+        if raw < min_w:
             cols = max(1, int((inner_w + gap) / (min_w + gap)))
-            card_w = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
+            raw = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
+        card_w = float(math.floor(raw))
+        if card_w < 1:
+            card_w = 1.0
+        used = cols * card_w + max(0, cols - 1) * gap
+        leftover = max(0.0, inner_w - used)
+        # Split leftover pixels into left/right pad so both sides match.
+        pad_l = pad + math.floor(leftover / 2.0)
+        pad_r = pad + leftover - math.floor(leftover / 2.0)
+        # Use pad_l for positioning; pad_r is the residual right inset.
+        pad_pos = float(pad_l)
         card_h = card_w * (float(_CARD_H) / float(_CARD_W))
-        return cols, float(card_w), float(card_h), gap, float(w), pad
+        # Store effective right pad via returning pad_pos; height uses same pad.
+        # For height top/bottom use the base gap (not leftover split).
+        return cols, float(card_w), float(card_h), gap, float(w), pad_pos, float(pad), float(pad_r)
 
     def _layout_cols(self):
         return self._layout_metrics()[0]
 
     def _card_slot_xy(self, index):
-        cols, card_w, card_h, gap, _w, pad = self._layout_metrics()
+        cols, card_w, card_h, gap, _w, pad_l, pad_tb, _pad_r = self._layout_metrics()
         col = index % cols
         row = index // cols
-        x = pad + col * (card_w + gap)
-        y = pad + row * (card_h + gap)
+        x = pad_l + col * (card_w + gap)
+        y = pad_tb + row * (card_h + gap)
         return float(x), float(y)
 
     def _canvas_height_for(self, count):
         if count <= 0:
             return 0.0
-        cols, _cw, card_h, gap, _w, pad = self._layout_metrics()
+        cols, _cw, card_h, gap, _w, _pl, pad_tb, _pr = self._layout_metrics()
         rows = (count + cols - 1) // cols
         # equal outer pad top+bottom; gutters only between rows
         if rows <= 0:
             return 0.0
-        return float(2.0 * pad + rows * card_h + max(0, rows - 1) * gap)
+        return float(2.0 * pad_tb + rows * card_h + max(0, rows - 1) * gap)
 
     def _on_family_scroll(self, sender, e):
         if self._catalog_changing or not self._virtual_mode:
@@ -1633,7 +1665,7 @@ class FamilyBrowserDialog(object):
         if self._virtual_mode:
             n = len(self._active)
             if isinstance(panel, Canvas):
-                _cols, _cw, _ch, _gap, vw, _pad = self._layout_metrics()
+                _cols, _cw, _ch, _gap, vw, _pad_l, _pad_tb, _pad_r = self._layout_metrics()
                 panel.Width = vw
                 panel.Height = self._canvas_height_for(n)
             self._virtual_sync_viewport()
@@ -1642,7 +1674,7 @@ class FamilyBrowserDialog(object):
         for i, fi in enumerate(self._active):
             self._add_family_card(fi, index=i)
         if isinstance(panel, Canvas):
-            _cols, _cw, _ch, _gap, vw, _pad = self._layout_metrics()
+            _cols, _cw, _ch, _gap, vw, _pad_l, _pad_tb, _pad_r = self._layout_metrics()
             panel.Width = vw
             panel.Height = self._canvas_height_for(len(self._active))
         self._preview_gen += 1
@@ -1730,7 +1762,7 @@ class FamilyBrowserDialog(object):
         sv = self.ui.FamilyScrollViewer
         panel = self.ui.FamilyPanel
 
-        cols, card_w, card_h, gap, vw, pad = self._layout_metrics()
+        cols, card_w, card_h, gap, vw, pad_l, pad_tb, pad_r = self._layout_metrics()
         row_h = float(card_h + gap)
         total_rows = (n + cols - 1) // cols
         canvas_h = self._canvas_height_for(n)
@@ -1755,8 +1787,8 @@ class FamilyBrowserDialog(object):
                 self._virtual_updating = False
 
         # Account for equal outer top pad when mapping scroll Y → row index.
-        y0 = max(0.0, float(scroll_y) - float(pad))
-        y1 = max(0.0, float(scroll_y) + float(view_h) - float(pad))
+        y0 = max(0.0, float(scroll_y) - float(pad_tb))
+        y1 = max(0.0, float(scroll_y) + float(view_h) - float(pad_tb))
         first_row = max(0, int(y0 / row_h) - _VIRTUAL_ROW_BUFFER)
         last_row = min(
             total_rows,
@@ -1802,7 +1834,7 @@ class FamilyBrowserDialog(object):
         panel = self.ui.FamilyPanel
         if fi.path in self._preview_mem:
             fi.preview = self._preview_mem[fi.path]
-        _cols, card_w, card_h, _gap, _vw, _pad = self._layout_metrics()
+        _cols, card_w, card_h, _gap, _vw, _pad_l, _pad_tb, _pad_r = self._layout_metrics()
         card, preview_img = _make_card(fi, self, card_w=card_w, card_h=card_h)
         self._fi_by_path[fi.path] = fi
         self._card_views[fi.path] = preview_img
