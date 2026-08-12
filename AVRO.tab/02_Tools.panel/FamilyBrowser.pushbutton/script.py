@@ -378,12 +378,14 @@ class FamilyBrowserDialog(object):
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
-        self._bind()
-        i18n.init_from_config()
-        self._apply_ui_theme(self._dark_theme, persist=False)
+        self._card_brushes = ui_theme.card_brushes(
+            ui_theme.DARK if self._dark_theme else ui_theme.LIGHT)
         self._props_controller = family_browser_props.PropsPanelController(
             self, self._card_brushes,
             rebuild_filters_callback=self._rebuild_meta_filters)
+        self._bind()
+        i18n.init_from_config()
+        self._apply_ui_theme(self._dark_theme, persist=False)
         self._apply_language()
         ui_notify.unregister_language_listener(self._on_external_language_changed)
         ui_notify.unregister_theme_listener(self._on_external_theme_changed)
