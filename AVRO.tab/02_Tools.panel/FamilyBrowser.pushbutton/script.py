@@ -73,6 +73,7 @@ import ui_utils
 import image_utils
 import family_load_options
 import family_browser_props
+import family_browser_cards
 from revit_utils import as_unicode, revit_name, symbol_family
 
 # ---------------------------------------------------------------------------
