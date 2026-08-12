@@ -15,6 +15,7 @@ from System.Windows.Media import SolidColorBrush
 
 import family_inspector
 import i18n
+import avro_log
 from revit_utils import as_unicode
 
 try:
@@ -64,7 +65,8 @@ class PropsPanelController(object):
         if meta is None:
             try:
                 app = self.dialog.doc.Application if self.dialog.doc is not None else None
-            except Exception:
+            except Exception as ex:
+                avro_log.exception("props.inspect.app", ex)
                 app = None
             meta = family_inspector.inspect(path, app=app, use_cache=True)
         if self._props_path != path:
@@ -125,14 +127,14 @@ class PropsPanelController(object):
         try:
             fi.hosting = meta.get("hosting") or family_inspector.HOST_UNKNOWN
             fi.placement = as_unicode(meta.get("placement") or u"")
-        except Exception:
-            pass
+        except Exception as ex:
+            avro_log.exception("props.fill.attach-meta", ex)
         # Refresh filter option lists so new category/placement appear
         if self.rebuild_filters_callback is not None:
             try:
                 self.rebuild_filters_callback(preserve=True)
-            except Exception:
-                pass
+            except Exception as ex:
+                avro_log.exception("props.fill.rebuild-filters", ex)
 
     # ------------------------------------------------------------------
     # Helpers
