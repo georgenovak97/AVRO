@@ -1078,17 +1078,17 @@ class FamilyBrowserDialog(object):
         return out
 
     def _sync_filters_from_ui(self):
-        """Read filter UI into applied sets/flags (6 dropdowns + quality checkboxes)."""
-        def _one(panel_name):
-            key = self._selected_key_from_panel(getattr(self.ui, panel_name, None))
-            return set([key]) if key else set()
+        """Read filter UI into applied sets/flags (checkbox lists + quality block)."""
+        def _many(panel_name):
+            panel = getattr(self.ui, panel_name, None)
+            return set(self._checked_keys_from_panel(panel))
 
-        self._category_filter_keys = _one("CategoryFilterList")
-        self._host_filter_keys = _one("HostFilterList")
-        self._placement_filter_keys = _one("PlacementFilterList")
-        self._version_filter_keys = _one("VersionFilterList")
-        self._imported_filter_keys = _one("ImportedFilterList")   # Work Plane-Based
-        self._shared_family_filter_keys = _one("SharedFamilyFilterList")  # Shared
+        self._category_filter_keys = _many("CategoryFilterList")
+        self._host_filter_keys = _many("HostFilterList")
+        self._placement_filter_keys = _many("PlacementFilterList")
+        self._version_filter_keys = _many("VersionFilterList")
+        self._imported_filter_keys = _many("ImportedFilterList")   # Work Plane-Based
+        self._shared_family_filter_keys = _many("SharedFamilyFilterList")  # Shared
         self._shared_nested_filter_keys = set()
         self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
@@ -1134,7 +1134,7 @@ class FamilyBrowserDialog(object):
         )
 
     def _rebuild_meta_filters(self, preserve=True):
-        """Rebuild filter controls: 6 dropdowns + quality flag checkboxes."""
+        """Rebuild filter controls: checkbox lists + quality constraints."""
         if self.ui is None:
             return
 
@@ -1166,28 +1166,23 @@ class FamilyBrowserDialog(object):
         wp_available = [as_unicode(k) for k in (opts.get("work_plane_based") or [])]
         sh_available = [as_unicode(k) for k in (opts.get("is_shared_family") or [])]
 
-        def _pick(existing, available):
+        def _pick_set(existing, available):
             if not preserve:
-                return u""
-            if not existing:
-                return u""
-            key = as_unicode(list(existing)[0])
-            avail_l = set(as_unicode(a).lower() for a in available)
-            return key if key.lower() in avail_l else u""
+                return set()
+            avail_l = set(as_unicode(a).lower() for a in (available or []))
+            out = set()
+            for k in existing or []:
+                ku = as_unicode(k)
+                if ku.lower() in avail_l:
+                    out.add(ku)
+            return out
 
-        cat_key = _pick(self._category_filter_keys, cat_available)
-        host_key = _pick(self._host_filter_keys, host_keys)
-        place_key = _pick(self._placement_filter_keys, place_keys)
-        ver_key = _pick(self._version_filter_keys, ver_available)
-        wp_key = _pick(self._imported_filter_keys, wp_available)
-        sh_key = _pick(self._shared_family_filter_keys, sh_available)
-
-        self._category_filter_keys = set([cat_key]) if cat_key else set()
-        self._host_filter_keys = set([host_key]) if host_key else set()
-        self._placement_filter_keys = set([place_key]) if place_key else set()
-        self._version_filter_keys = set([ver_key]) if ver_key else set()
-        self._imported_filter_keys = set([wp_key]) if wp_key else set()
-        self._shared_family_filter_keys = set([sh_key]) if sh_key else set()
+        self._category_filter_keys = _pick_set(self._category_filter_keys, cat_available)
+        self._host_filter_keys = _pick_set(self._host_filter_keys, host_keys)
+        self._placement_filter_keys = _pick_set(self._placement_filter_keys, place_keys)
+        self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
+        self._imported_filter_keys = _pick_set(self._imported_filter_keys, wp_available)
+        self._shared_family_filter_keys = _pick_set(self._shared_family_filter_keys, sh_available)
         self._shared_nested_filter_keys = set()
 
         def _bool_label(k):
@@ -1207,12 +1202,12 @@ class FamilyBrowserDialog(object):
 
         self._filter_suppress = True
         try:
-            self._fill_single_select(getattr(self.ui, "CategoryFilterList", None), cat_entries, cat_key)
-            self._fill_single_select(getattr(self.ui, "HostFilterList", None), host_entries, host_key)
-            self._fill_single_select(getattr(self.ui, "PlacementFilterList", None), place_entries, place_key)
-            self._fill_single_select(getattr(self.ui, "VersionFilterList", None), ver_entries, ver_key)
-            self._fill_single_select(getattr(self.ui, "ImportedFilterList", None), wp_entries, wp_key)
-            self._fill_single_select(getattr(self.ui, "SharedFamilyFilterList", None), sh_entries, sh_key)
+            self._fill_check_list(getattr(self.ui, "CategoryFilterList", None), cat_entries, self._category_filter_keys)
+            self._fill_check_list(getattr(self.ui, "HostFilterList", None), host_entries, self._host_filter_keys)
+            self._fill_check_list(getattr(self.ui, "PlacementFilterList", None), place_entries, self._placement_filter_keys)
+            self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
+            self._fill_check_list(getattr(self.ui, "ImportedFilterList", None), wp_entries, self._imported_filter_keys)
+            self._fill_check_list(getattr(self.ui, "SharedFamilyFilterList", None), sh_entries, self._shared_family_filter_keys)
             self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
