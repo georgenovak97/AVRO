@@ -13,6 +13,7 @@ import codecs
 import time
 
 import config
+import avro_log
 
 try:
     from Autodesk.Revit.DB import (
@@ -149,7 +150,7 @@ def save_cached(rfa_path, meta):
         with codecs.open(_cache_path(rfa_path), "w", "utf-8") as f:
             f.write(text)
     except Exception as ex:
-        config._log(u"family_meta save failed: {}".format(_u(ex)))
+        avro_log.exception("family_meta.save", ex)
 
 
 def clear_cache():
@@ -164,7 +165,7 @@ def clear_cache():
                 except Exception:
                     pass
     except Exception as ex:
-        config._log(u"family_meta clear failed: {}".format(_u(ex)))
+        avro_log.exception("family_meta.clear", ex)
 
 
 def _element_name(element):
@@ -429,13 +430,13 @@ def inspect(rfa_path, app=None, use_cache=True):
     except Exception as ex:
         meta = _empty_meta(path)
         meta["error"] = _u(ex)
-        config._log(u"family_inspect failed {}: {}".format(path, meta["error"]))
+        avro_log.write("family_inspect.fail", u"{}: {}".format(path, meta["error"]))
     finally:
         if doc is not None:
             try:
                 doc.Close(False)
-            except Exception:
-                pass
+            except Exception as ex:
+                avro_log.exception("family_inspect.close", ex)
 
     if meta.get("ok"):
         save_cached(path, meta)
