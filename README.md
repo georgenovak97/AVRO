@@ -2,24 +2,13 @@
 
 #### Tools
 
-- **Search** — quickly find and run Revit commands
-  ![Search](search.jpg)
-  - Left `CTL` + `Space` opens Search
-  - Search Revit commands by name
-  - Fast command launch directly from the keyboard
-  - Most used commands list
-  - Recent commands list
-  - Right click in search results — remove from recent commands list
-  - Command ranking based on usage history
-  - Supports Revit command catalogs by version and UI language
-  - Slash commands
-  - Dark/light theme
-	
 - **Family Browser** — browse and load Revit families from your local library
   ![Family Browser](familybrowser.jpg)
 	- Browse folders with `.rfa` files and thumbnail previews
 	- Folder tree with multiple levels
 	- Search by name
+	- Filter by category, hosting, placement, Revit version, imported geometry, shared nested, shared family
+	- Inspect family properties: types, parameters, formulas
 	- Left double-click or "Load" button — load family into project
 	- Right double-click — open family location in Windows Explorer
 	- Place in model with return to the browser window
@@ -28,8 +17,8 @@
 
 ---
 #### Installation
-  ![Instsall](install.jpg)
-1. Add `https://github.com/georgenovak97/AVRO.git` via **pyRevit → Extentions → Git URL → Add and install**.
+  ![Install](install.jpg)
+1. Add `https://github.com/georgenovak97/AVRO.git` via **pyRevit → Extensions → Git URL → Add and install**.
 2. In the Revit ribbon: tab **"Additional"** → panel **"Tools"** → **"Family Browser"**.
 
 ---

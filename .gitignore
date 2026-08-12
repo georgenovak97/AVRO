@@ -1,3 +1,20 @@
 # Keep the tmp folder in git, but ignore its runtime contents.
 tmp/*
 !tmp/.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# C# build artifacts (legacy)
+AVRO.Core/bin/
+AVRO.Core/obj/
+*.suo
+*.user
+
+# IDE
+.vs/
+.vscode/
+.idea/
