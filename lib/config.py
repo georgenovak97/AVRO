@@ -16,7 +16,6 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 RECENT_FILE = os.path.join(CONFIG_DIR, "recent_families.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "cache.log")
 THUMB_CACHE_DIR = os.path.join(CONFIG_DIR, "thumbs")
-SEARCH_STATE_DIR = os.path.join(CONFIG_DIR, "search")
 
 APP_NAME = u"Диспетчер семейств"
 _IO_LOCK = threading.RLock()

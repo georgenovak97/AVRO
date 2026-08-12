@@ -23,13 +23,13 @@ clr.AddReference("System.Windows.Forms")
 
 import System
 from System.Windows import (
-    Thickness, HorizontalAlignment, Visibility,
+    Thickness, HorizontalAlignment, VerticalAlignment, Visibility,
     MessageBox, MessageBoxButton, MessageBoxImage,
-    TextWrapping, FrameworkElement,
+    TextWrapping, FrameworkElement, FontWeights,
 )
 from System.Windows.Controls import (
     TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
-    WrapPanel,
+    WrapPanel, ComboBox, ComboBoxItem, CheckBox,
 )
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper, Stretch
 from System.Windows.Input import Keyboard, ModifierKeys, Key
@@ -62,6 +62,7 @@ if _EXT_LIB not in sys.path:
 
 import config
 import family_scanner as scanner
+import family_inspector
 import rfa_preview
 import rfa_version
 import library_cache as libcache
@@ -227,7 +228,17 @@ def _load_xaml():
 
 
 _UI_CONTROL_NAMES = [
-    "SearchBox", "SearchHint", "BtnClearSearch", "LblFolder",
+    "SearchBox", "SearchHint", "LblFolder",
+    "FiltersTitle", "FiltersCount", "BtnResetFilters", "BtnApplyFilters",
+    "LblCategoryFilter", "CategoryFilterList",
+    "LblHostFilter", "HostFilterList",
+    "LblPlacementFilter", "PlacementFilterList",
+    "LblVersionFilter", "VersionFilterList",
+    "LblImportedFilter", "ImportedFilterList",
+    "LblSharedNestedFilter", "SharedNestedFilterList",
+    "LblSharedFamilyFilter", "SharedFamilyFilterList",
+    "BtnRunSearch", "BtnResetSearch",
+    "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload",
     "BtnLoadSelected", "FamilyPanel", "FamilyScrollViewer",
     "BreadcrumbText", "CountText", "StatusText",
@@ -283,6 +294,8 @@ _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
 _CARD_MARGIN = 10
 _CARD_W = 156
 _CARD_H = 182
+_CARD_MIN_W = 132
+_CARD_MAX_W = 220
 _PREVIEW_W = 96
 _PREVIEW_H = 67
 _STICKY_KEY = "AVRO_session"
@@ -385,26 +398,29 @@ def _bitmap_from_png_bytes(image_bytes):
                 pass
 
 
-def _make_card(fi, dialog):
+def _make_card(fi, dialog, card_w=None, card_h=None):
     """Build a WPF card for one family (grid with preview)."""
+    if card_w is None:
+        card_w = float(_CARD_W)
+    if card_h is None:
+        card_h = float(_CARD_H)
+
     card = Border()
     card.Background   = COL_CARD
     card.BorderBrush  = COL_BORDER
     card.BorderThickness = Thickness(1)
     card.CornerRadius = System.Windows.CornerRadius(2)
-    card.Margin       = Thickness(5)
+    card.Margin       = Thickness(0)
     card.Padding      = Thickness(8)
     card.Cursor       = System.Windows.Input.Cursors.Hand
-    card.Width        = _CARD_W
-    card.Height       = _CARD_H
+    card.Width        = card_w
+    card.Height       = card_h
     card.Tag          = fi
 
     sp = StackPanel()
     sp.HorizontalAlignment = HorizontalAlignment.Center
 
     preview_img = Image()
-    preview_img.Width                = _PREVIEW_W
-    preview_img.Height               = _PREVIEW_H
     preview_img.Stretch              = Stretch.Uniform
     preview_img.HorizontalAlignment  = HorizontalAlignment.Center
     preview_img.Margin               = Thickness(0, 4, 0, 6)
@@ -448,6 +464,8 @@ def _make_card(fi, dialog):
     sp.Children.Add(version_block)
     card.Child = sp
 
+    _apply_card_metrics(card, preview_img, card_w, card_h)
+
     def mouse_enter(s, e):
         if fi.path not in dialog._selected_paths:
             s.Background = COL_CARD_HOV
@@ -468,6 +486,21 @@ def _make_card(fi, dialog):
     card.MouseRightButtonDown += mouse_right_click
 
     return card, preview_img
+
+
+def _apply_card_metrics(card, preview_img, card_w, card_h):
+    """Size card + preview image to current adaptive cell."""
+    card.Width = float(card_w)
+    card.Height = float(card_h)
+    # Keep preview proportional; leave room for name/size/version.
+    preview_w = max(48.0, float(card_w) - 24.0)
+    preview_h = preview_w * (float(_PREVIEW_H) / float(_PREVIEW_W))
+    max_preview_h = max(40.0, float(card_h) - 78.0)
+    if preview_h > max_preview_h:
+        preview_h = max_preview_h
+        preview_w = preview_h * (float(_PREVIEW_W) / float(_PREVIEW_H))
+    preview_img.Width = preview_w
+    preview_img.Height = preview_h
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +532,15 @@ class FamilyBrowserDialog(object):
         self._active_search_query = u""
         self._search_suppress = False
         self._search_timer = None
+        self._host_filter_keys = set()
+        self._category_filter_keys = set()
+        self._placement_filter_keys = set()
+        self._version_filter_keys = set()
+        self._imported_filter_keys = set()
+        self._shared_nested_filter_keys = set()
+        self._shared_family_filter_keys = set()
+        self._filter_suppress = False
+        self._props_path = None
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
         # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
@@ -526,6 +568,7 @@ class FamilyBrowserDialog(object):
     def _init_window(self):
         self._search_timer = None
         self._grid_relayout_timer = None
+        self._grid_relayout_gen = 0
         self._last_escape_press_at = 0.0
         self._window_gen += 1
         self.win = _load_xaml()
@@ -548,6 +591,7 @@ class FamilyBrowserDialog(object):
         ui_theme.apply_window_theme(self.win, palette)
         _sync_card_colors(palette)
         self._refresh_cards_theme()
+        self._refresh_recent_header()
         if persist:
             config.set_value("ui_theme", "dark" if dark else "light")
 
@@ -561,7 +605,49 @@ class FamilyBrowserDialog(object):
         hint = getattr(self.ui, "SearchHint", None)
         if hint is not None:
             hint.Text = i18n.t("search_placeholder")
-        self.ui.BtnClearSearch.ToolTip = i18n.t("clear_search_tooltip")
+        filters_title = getattr(self.ui, "FiltersTitle", None)
+        if filters_title is not None:
+            filters_title.Text = i18n.t("filters_title")
+        self._update_filters_button_caption()
+        btn_reset_f = getattr(self.ui, "BtnResetFilters", None)
+        if btn_reset_f is not None:
+            btn_reset_f.Content = i18n.t("btn_reset_filters")
+        btn_apply = getattr(self.ui, "BtnApplyFilters", None)
+        if btn_apply is not None:
+            btn_apply.Content = i18n.t("btn_apply_filters")
+        btn_run = getattr(self.ui, "BtnRunSearch", None)
+        if btn_run is not None:
+            btn_run.Content = i18n.t("btn_run_search")
+        btn_reset = getattr(self.ui, "BtnResetSearch", None)
+        if btn_reset is not None:
+            btn_reset.Content = i18n.t("btn_reset_search")
+        lbl_cat = getattr(self.ui, "LblCategoryFilter", None)
+        if lbl_cat is not None:
+            lbl_cat.Text = i18n.t("filter_category_label")
+        lbl_host = getattr(self.ui, "LblHostFilter", None)
+        if lbl_host is not None:
+            lbl_host.Text = i18n.t("filter_host_label")
+        lbl_pl = getattr(self.ui, "LblPlacementFilter", None)
+        if lbl_pl is not None:
+            lbl_pl.Text = i18n.t("filter_placement_label")
+        lbl_ver = getattr(self.ui, "LblVersionFilter", None)
+        if lbl_ver is not None:
+            lbl_ver.Text = i18n.t("filter_version_label")
+        lbl_imp = getattr(self.ui, "LblImportedFilter", None)
+        if lbl_imp is not None:
+            lbl_imp.Text = i18n.t("filter_imported_label")
+        lbl_sn = getattr(self.ui, "LblSharedNestedFilter", None)
+        if lbl_sn is not None:
+            lbl_sn.Text = i18n.t("filter_shared_nested_label")
+        lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
+        if lbl_sf is not None:
+            lbl_sf.Text = i18n.t("filter_shared_family_label")
+        self._rebuild_meta_filters(preserve=True)
+        props_title = getattr(self.ui, "PropsTitle", None)
+        if props_title is not None:
+            props_title.Text = i18n.t("props_title")
+        self._reset_props_panel()
+        self._refresh_recent_header()
         self.ui.BtnSettings.Content = i18n.t("btn_library")
         self.ui.BtnSettings.ToolTip = i18n.t("btn_library_tooltip")
         self.ui.BtnReload.Content = i18n.t("btn_reload")
@@ -710,11 +796,10 @@ class FamilyBrowserDialog(object):
                 self.ui.SearchBox.Text = search_query
             finally:
                 self._search_suppress = False
-            self._apply_search(search_query)
         else:
             self._reset_search_field()
-            self._update_breadcrumb_display()
-            self._show_families(list(self._folder_scope))
+        self._rebuild_meta_filters(preserve=True)
+        self._refresh_catalog_view()
 
         if tag == "__recent__":
             self._select_recents_tree_item()
@@ -954,14 +1039,506 @@ class FamilyBrowserDialog(object):
     def _bind(self):
         u = self.ui
         self.win.PreviewKeyDown            += self._on_window_preview_keydown
-        u.SearchBox.TextChanged            += self._on_search
-        u.BtnClearSearch.Click             += self._on_clear_search
+        u.SearchBox.KeyDown                += self._on_search_box_keydown
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
         u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._on_settings
         u.BtnReload.Click                  += self._on_reload
         u.BtnLoadSelected.Click            += lambda s, e: self._load_selected()
+        btn_apply = getattr(u, "BtnApplyFilters", None)
+        if btn_apply is not None:
+            btn_apply.Click += self._on_apply_filters
+        btn_reset_f = getattr(u, "BtnResetFilters", None)
+        if btn_reset_f is not None:
+            btn_reset_f.Click += self._on_reset_filters
+        btn_run = getattr(u, "BtnRunSearch", None)
+        if btn_run is not None:
+            btn_run.Click += self._on_run_search
+        btn_reset = getattr(u, "BtnResetSearch", None)
+        if btn_reset is not None:
+            btn_reset.Click += self._on_reset_search
+        self._rebuild_meta_filters(preserve=False)
+        self._update_filters_button_caption()
+        self._reset_props_panel()
+
+    def _checked_keys_from_panel(self, panel):
+        keys = []
+        if panel is None:
+            return keys
+        try:
+            for child in panel.Children:
+                try:
+                    if not isinstance(child, CheckBox):
+                        continue
+                    if child.IsChecked:
+                        tag = getattr(child, "Tag", None)
+                        if tag is not None:
+                            keys.append(_as_unicode(tag))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return keys
+
+    def _fill_check_list(self, panel, entries, selected_keys):
+        """entries: list of (key, label). selected_keys: set/list of keys."""
+        if panel is None:
+            return
+        selected = set()
+        for k in selected_keys or []:
+            selected.add(_as_unicode(k).lower())
+        panel.Children.Clear()
+        for key, label in entries:
+            cb = CheckBox()
+            cb.Content = label
+            cb.Tag = key
+            cb.Margin = Thickness(0, 1, 0, 1)
+            cb.Foreground = COL_TEXT
+            try:
+                cb.IsChecked = _as_unicode(key).lower() in selected
+            except Exception:
+                cb.IsChecked = False
+            panel.Children.Add(cb)
+
+    def _sync_filters_from_ui(self):
+        """Read checkbox states into applied filter key sets."""
+        self._category_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "CategoryFilterList", None)))
+        self._host_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "HostFilterList", None)))
+        self._placement_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "PlacementFilterList", None)))
+        self._version_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "VersionFilterList", None)))
+        self._imported_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "ImportedFilterList", None)))
+        self._shared_nested_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "SharedNestedFilterList", None)))
+        self._shared_family_filter_keys = set(self._checked_keys_from_panel(
+            getattr(self.ui, "SharedFamilyFilterList", None)))
+
+    def _host_label(self, key):
+        mapping = {
+            family_inspector.HOST_CEILING: "host_ceiling",
+            family_inspector.HOST_WALL: "host_wall",
+            family_inspector.HOST_FLOOR: "host_floor",
+            family_inspector.HOST_ROOF: "host_roof",
+            family_inspector.HOST_FACE: "host_face",
+            family_inspector.HOST_INDEPENDENT: "host_independent",
+            family_inspector.HOST_UNKNOWN: "host_unknown",
+            family_inspector.HOST_ALL: "filter_all",
+        }
+        i18n_key = mapping.get(_as_unicode(key).lower(), None)
+        if i18n_key:
+            return i18n.t(i18n_key)
+        return _as_unicode(key) or i18n.t("host_unknown")
+
+    def _placement_label(self, key):
+        k = _as_unicode(key or u"")
+        if not k or k.lower() == family_inspector.HOST_ALL:
+            return i18n.t("filter_all")
+        i18n_key = u"placement_" + k
+        try:
+            text = i18n.t(i18n_key)
+            if text and text != i18n_key:
+                return text
+        except Exception:
+            pass
+        return k
+
+    def _filters_active(self):
+        return bool(
+            self._category_filter_keys
+            or self._host_filter_keys
+            or self._placement_filter_keys
+            or self._version_filter_keys
+            or self._imported_filter_keys
+            or self._shared_nested_filter_keys
+            or self._shared_family_filter_keys
+        )
+
+    def _rebuild_meta_filters(self, preserve=True):
+        """Rebuild checkbox lists for the current folder scope.
+
+        Category options come from the catalog (folder names).
+        Hosting / placement always show the full known key lists so the
+        panels are usable before families are inspected; matching still
+        uses cache / FamilyInfo when present.
+        """
+        if self.ui is None:
+            return
+
+        opts = family_inspector.collect_filter_options(self._folder_scope or [])
+        cat_available = [_as_unicode(c) for c in (opts.get("categories") or [])]
+
+        host_keys = [
+            family_inspector.HOST_CEILING,
+            family_inspector.HOST_WALL,
+            family_inspector.HOST_FLOOR,
+            family_inspector.HOST_ROOF,
+            family_inspector.HOST_FACE,
+            family_inspector.HOST_INDEPENDENT,
+            family_inspector.HOST_UNKNOWN,
+        ]
+        for h in opts.get("hostings") or []:
+            hu = _as_unicode(h)
+            if hu.lower() not in set(x.lower() for x in host_keys):
+                host_keys.append(hu)
+
+        place_keys = list(family_inspector.PLACEMENT_KEYS)
+        for p in opts.get("placements") or []:
+            pu = _as_unicode(p)
+            if pu.lower() not in set(x.lower() for x in place_keys):
+                place_keys.append(pu)
+
+        host_available = set(h.lower() for h in host_keys)
+        place_available_l = set(p.lower() for p in place_keys)
+
+        # New filter axes from cache (revit format + boolean flags)
+        ver_available = [_as_unicode(v) for v in (opts.get("revit_formats") or [])]
+        imp_available = set(k.lower() for k in (opts.get("has_imported_geometry") or []))
+        shared_nested_available = set(k.lower() for k in (opts.get("has_shared_nested") or []))
+        shared_family_available = set(k.lower() for k in (opts.get("is_shared_family") or []))
+
+        # Keep only category selections that still exist in this catalog;
+        # host/placement selections stay if still in the full key lists.
+        if preserve:
+            cat_l = set(c.lower() for c in cat_available)
+            self._category_filter_keys = set(
+                k for k in self._category_filter_keys
+                if _as_unicode(k).lower() in cat_l)
+            self._host_filter_keys = set(
+                k for k in self._host_filter_keys
+                if _as_unicode(k).lower() in host_available)
+            self._placement_filter_keys = set(
+                k for k in self._placement_filter_keys
+                if _as_unicode(k).lower() in place_available_l)
+            ver_l = set(v.lower() for v in ver_available)
+            self._version_filter_keys = set(
+                k for k in self._version_filter_keys
+                if _as_unicode(k).lower() in ver_l)
+            self._imported_filter_keys = set(
+                k for k in self._imported_filter_keys
+                if _as_unicode(k).lower() in imp_available)
+            self._shared_nested_filter_keys = set(
+                k for k in self._shared_nested_filter_keys
+                if _as_unicode(k).lower() in shared_nested_available)
+            self._shared_family_filter_keys = set(
+                k for k in self._shared_family_filter_keys
+                if _as_unicode(k).lower() in shared_family_available)
+            cat_sel = set(self._category_filter_keys)
+            host_sel = set(self._host_filter_keys)
+            place_sel = set(self._placement_filter_keys)
+        else:
+            self._category_filter_keys = set()
+            self._host_filter_keys = set()
+            self._placement_filter_keys = set()
+            self._version_filter_keys = set()
+            self._imported_filter_keys = set()
+            self._shared_nested_filter_keys = set()
+            self._shared_family_filter_keys = set()
+            cat_sel = set()
+            host_sel = set()
+            place_sel = set()
+            ver_sel = set()
+            imp_sel = set()
+            sn_sel = set()
+            sf_sel = set()
+
+        cat_entries = [(c, c) for c in cat_available]
+        host_entries = [(h, self._host_label(h)) for h in host_keys]
+        place_entries = [(p, self._placement_label(p)) for p in place_keys]
+
+        ver_entries = [(v, v) for v in ver_available]
+        imp_entries = [
+            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            for k in sorted(imp_available, key=lambda s: s.lower())
+        ]
+        sn_entries = [
+            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            for k in sorted(shared_nested_available, key=lambda s: s.lower())
+        ]
+        sf_entries = [
+            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            for k in sorted(shared_family_available, key=lambda s: s.lower())
+        ]
+
+        if preserve:
+            ver_sel = set(self._version_filter_keys)
+            imp_sel = set(self._imported_filter_keys)
+            sn_sel = set(self._shared_nested_filter_keys)
+            sf_sel = set(self._shared_family_filter_keys)
+
+        self._filter_suppress = True
+        try:
+            self._fill_check_list(
+                getattr(self.ui, "CategoryFilterList", None), cat_entries, cat_sel)
+            self._fill_check_list(
+                getattr(self.ui, "HostFilterList", None), host_entries, host_sel)
+            self._fill_check_list(
+                getattr(self.ui, "PlacementFilterList", None), place_entries, place_sel)
+            self._fill_check_list(
+                getattr(self.ui, "VersionFilterList", None), ver_entries, ver_sel)
+            self._fill_check_list(
+                getattr(self.ui, "ImportedFilterList", None), imp_entries, imp_sel)
+            self._fill_check_list(
+                getattr(self.ui, "SharedNestedFilterList", None), sn_entries, sn_sel)
+            self._fill_check_list(
+                getattr(self.ui, "SharedFamilyFilterList", None), sf_entries, sf_sel)
+        finally:
+            self._filter_suppress = False
+        self._update_filters_button_caption()
+
+    def _active_filter_count(self):
+        return (
+            len(self._category_filter_keys)
+            + len(self._host_filter_keys)
+            + len(self._placement_filter_keys)
+            + len(self._version_filter_keys)
+            + len(self._imported_filter_keys)
+            + len(self._shared_nested_filter_keys)
+            + len(self._shared_family_filter_keys)
+        )
+
+    def _update_filters_button_caption(self):
+        """Show applied filter count next to the Filtering title."""
+        tb = getattr(self.ui, "FiltersCount", None) if self.ui else None
+        if tb is None:
+            return
+        n = self._active_filter_count()
+        if n > 0:
+            tb.Text = u"({})".format(n)
+            tb.Visibility = Visibility.Visible
+        else:
+            tb.Text = u""
+            tb.Visibility = Visibility.Collapsed
+
+    def _close_filters_popup(self):
+        return
+
+    def _on_apply_filters(self, sender, e):
+        self._sync_filters_from_ui()
+        self._update_filters_button_caption()
+        query = u""
+        try:
+            query = _as_unicode(self.ui.SearchBox.Text)
+        except Exception:
+            query = u""
+        self._apply_search(query)
+
+    def _on_reset_filters(self, sender, e):
+        self._category_filter_keys = set()
+        self._host_filter_keys = set()
+        self._placement_filter_keys = set()
+        self._version_filter_keys = set()
+        self._imported_filter_keys = set()
+        self._shared_nested_filter_keys = set()
+        self._shared_family_filter_keys = set()
+        self._rebuild_meta_filters(preserve=False)
+        self._update_filters_button_caption()
+        query = u""
+        try:
+            query = _as_unicode(self.ui.SearchBox.Text)
+        except Exception:
+            query = u""
+        self._apply_search(query)
+
+    def _on_run_search(self, sender, e):
+        self._sync_filters_from_ui()
+        self._update_filters_button_caption()
+        query = u""
+        try:
+            query = _as_unicode(self.ui.SearchBox.Text)
+        except Exception:
+            query = u""
+        self._apply_search(query)
+
+    def _on_reset_search(self, sender, e):
+        self._stop_search_timer()
+        self._active_search_query = u""
+        self._category_filter_keys = set()
+        self._host_filter_keys = set()
+        self._placement_filter_keys = set()
+        self._version_filter_keys = set()
+        self._imported_filter_keys = set()
+        self._shared_nested_filter_keys = set()
+        self._shared_family_filter_keys = set()
+        self._search_suppress = True
+        try:
+            self.ui.SearchBox.Text = u""
+        finally:
+            self._search_suppress = False
+        self._rebuild_meta_filters(preserve=False)
+        self._update_filters_button_caption()
+        self._refresh_catalog_view()
+
+    def _on_search_box_keydown(self, sender, e):
+        try:
+            if e.Key == Key.Enter:
+                e.Handled = True
+                self._on_run_search(sender, e)
+        except Exception:
+            pass
+
+    def _refresh_catalog_view(self):
+        """Re-apply search + meta filters to current folder scope."""
+        query = _as_unicode(self._active_search_query).strip()
+        families = list(self._folder_scope or [])
+        if query:
+            families = scanner.flat_search(families, query)
+        families = family_inspector.filter_families(
+            families,
+            category=self._category_filter_keys,
+            hosting=self._host_filter_keys,
+            placement=self._placement_filter_keys,
+            revit_format=self._version_filter_keys,
+            has_imported_geometry=self._imported_filter_keys,
+            has_shared_nested=self._shared_nested_filter_keys,
+            is_shared_family=self._shared_family_filter_keys,
+        )
+        self._show_families(families)
+        self._update_breadcrumb_display()
+        total = len(self._folder_scope or [])
+        shown = len(families)
+        if (query or self._filters_active()) and total != shown:
+            self._update_count_display(shown, total)
+        else:
+            self._update_count_display(shown)
+        self._reset_props_panel()
+        if self._filters_active() and shown == 0 and total > 0:
+            self._set_status(i18n.t("host_filter_empty"))
+
+    def _props_row(self, label, value, muted=False):
+        block = StackPanel()
+        block.Margin = Thickness(0, 0, 0, 8)
+        title = TextBlock()
+        title.Text = _as_unicode(label)
+        title.FontSize = 11
+        title.Foreground = COL_MUTED
+        title.Margin = Thickness(0, 0, 0, 2)
+        val = TextBlock()
+        val.Text = _as_unicode(value) if value else i18n.t("props_none")
+        val.TextWrapping = TextWrapping.Wrap
+        val.FontSize = 12
+        val.Foreground = COL_MUTED if muted else COL_TEXT
+        block.Children.Add(title)
+        block.Children.Add(val)
+        return block
+
+    def _reset_props_panel(self, hint=None):
+        self._props_path = None
+        panel = getattr(self.ui, "PropsPanel", None) if self.ui else None
+        hint_tb = getattr(self.ui, "PropsHint", None) if self.ui else None
+        if panel is not None:
+            panel.Children.Clear()
+        if hint_tb is not None:
+            hint_tb.Text = hint if hint is not None else i18n.t("props_hint")
+            hint_tb.Visibility = Visibility.Visible
+
+    def _set_props_loading(self, path):
+        self._props_path = path
+        panel = self.ui.PropsPanel
+        hint_tb = self.ui.PropsHint
+        panel.Children.Clear()
+        hint_tb.Text = i18n.t("props_loading")
+        hint_tb.Visibility = Visibility.Visible
+
+    def _yes_no(self, flag):
+        return i18n.t("props_yes") if flag else i18n.t("props_no")
+
+    def _fill_props_panel(self, fi, meta):
+        panel = self.ui.PropsPanel
+        hint_tb = self.ui.PropsHint
+        panel.Children.Clear()
+        if not meta or not meta.get("ok"):
+            err = _as_unicode((meta or {}).get("error") or u"error")
+            hint_tb.Text = i18n.t("props_error", err=err)
+            hint_tb.Visibility = Visibility.Visible
+            return
+        hint_tb.Visibility = Visibility.Collapsed
+
+        size_mb = (fi.size_kb / 1024.0) if fi else 0.0
+        ver = _as_unicode(
+            meta.get("revit_format")
+            or getattr(fi, "revit_version", u"")
+            or u"")
+        shared = meta.get("shared_nested") or []
+        shared_text = (
+            u", ".join([_as_unicode(x) for x in shared])
+            if shared else self._yes_no(False))
+        if shared:
+            shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
+
+        rows = (
+            (i18n.t("props_name"), getattr(fi, "name", u"")),
+            (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
+            (i18n.t("props_hosting"), self._host_label(meta.get("hosting"))),
+            (i18n.t("props_placement"), self._placement_label(meta.get("placement"))),
+            (i18n.t("props_version"), ver),
+            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
+            (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
+            (i18n.t("props_shared_nested"), shared_text),
+            (i18n.t("props_shared_family"), self._yes_no(meta.get("is_shared_family"))),
+            (i18n.t("props_params"), u"{} (inst {}, type {})".format(
+                meta.get("param_total_count") or 0,
+                meta.get("param_instance_count") or 0,
+                meta.get("param_type_count") or 0)),
+            (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
+        )
+        for label, value in rows:
+            panel.Children.Add(self._props_row(label, value))
+
+        types = meta.get("types") or []
+        types_title = TextBlock()
+        types_title.Text = u"{} ({})".format(
+            i18n.t("props_types"), len(types))
+        types_title.FontSize = 11
+        types_title.Foreground = COL_MUTED
+        types_title.Margin = Thickness(0, 6, 0, 4)
+        panel.Children.Add(types_title)
+        if not types:
+            panel.Children.Add(self._props_row(u"", i18n.t("props_none"), muted=True))
+        else:
+            for tname in types:
+                tb = TextBlock()
+                tb.Text = u"• " + _as_unicode(tname)
+                tb.TextWrapping = TextWrapping.Wrap
+                tb.FontSize = 12
+                tb.Foreground = COL_TEXT
+                tb.Margin = Thickness(0, 0, 0, 3)
+                panel.Children.Add(tb)
+
+        # Attach hosting/placement on FamilyInfo for subsequent filters.
+        # Keep fi.category as library-folder category (do not overwrite with Revit).
+        try:
+            fi.hosting = meta.get("hosting") or family_inspector.HOST_UNKNOWN
+            fi.placement = _as_unicode(meta.get("placement") or u"")
+        except Exception:
+            pass
+        # Refresh filter option lists so new category/placement appear
+        try:
+            self._rebuild_meta_filters(preserve=True)
+        except Exception:
+            pass
+
+    def _inspect_selected_family(self, fi):
+        if fi is None or not getattr(fi, "path", None):
+            self._reset_props_panel()
+            return
+        path = fi.path
+        self._set_props_loading(path)
+        # Prefer disk cache; open .rfa on main thread only when needed.
+        meta = family_inspector.load_cached(path)
+        if meta is None:
+            try:
+                app = self.doc.Application if self.doc is not None else None
+            except Exception:
+                app = None
+            meta = family_inspector.inspect(path, app=app, use_cache=True)
+        if self._props_path != path:
+            return
+        self._fill_props_panel(fi, meta)
 
     def _schedule_scan(self):
         paths = self._library_paths()
@@ -1039,13 +1616,24 @@ class FamilyBrowserDialog(object):
         self._build_tree(self._scan)
         self._show_recents_default()
 
+    def _refresh_recent_header(self):
+        tree = getattr(self.ui, "CategoryTree", None) if self.ui else None
+        if tree is None:
+            return
+        for item in tree.Items:
+            if getattr(item, "Tag", None) == "__recent__":
+                item.Header = i18n.t("recent")
+                item.FontWeight = FontWeights.SemiBold
+                break
+
     def _build_tree(self, scan):
         tree = self.ui.CategoryTree
         tree.Items.Clear()
 
         recent_item = TreeViewItem()
         recent_item.Header = i18n.t("recent")
-        recent_item.Tag    = "__recent__"
+        recent_item.Tag = "__recent__"
+        recent_item.FontWeight = FontWeights.SemiBold
         tree.Items.Add(recent_item)
 
         for root in scan.get("roots", []):
@@ -1163,8 +1751,8 @@ class FamilyBrowserDialog(object):
         self._folder_scope_label = breadcrumb
         self._active_search_query = u""
         self._reset_search_field()
-        self._update_breadcrumb_display()
-        self._show_families(families)
+        self._rebuild_meta_filters(preserve=True)
+        self._refresh_catalog_view()
 
     def _on_cat_selected(self, sender, e):
         if self._suppress_tree_events:
@@ -1204,30 +1792,54 @@ class FamilyBrowserDialog(object):
     def _all_families(self):
         return list(self._scan.get("all", []))
 
-    def _layout_cols(self):
+    def _viewport_width(self):
         sv = self.ui.FamilyScrollViewer
         w = sv.ViewportWidth if sv.ViewportWidth > 0 else sv.ActualWidth
         if w < 80 and self.win is not None:
-            w = max(400.0, float(self.win.ActualWidth) - 380.0)
+            w = max(400.0, float(self.win.ActualWidth) - 620.0)
         if w < 80:
             w = 800.0
-        slot = float(_CARD_W + _CARD_MARGIN)
-        return max(1, int(w / slot))
+        return float(w)
+
+    def _layout_metrics(self):
+        """Adaptive grid: stretch cards so columns fill the viewport width."""
+        w = self._viewport_width()
+        gap = float(_CARD_MARGIN)
+        min_w = float(_CARD_MIN_W)
+        max_w = float(_CARD_MAX_W)
+        cols = max(1, int((w + gap) / (min_w + gap)))
+        card_w = (w - gap * (cols - 1)) / float(cols) if cols > 1 else w
+        # Prefer more columns over oversized cards on wide screens.
+        while card_w > max_w + 0.5:
+            next_cols = cols + 1
+            next_w = (w - gap * (next_cols - 1)) / float(next_cols)
+            if next_w < min_w:
+                break
+            cols = next_cols
+            card_w = next_w
+        if card_w < min_w:
+            cols = max(1, int((w + gap) / (min_w + gap)))
+            card_w = (w - gap * (cols - 1)) / float(cols) if cols > 1 else w
+        card_h = card_w * (float(_CARD_H) / float(_CARD_W))
+        return cols, float(card_w), float(card_h), gap, w
+
+    def _layout_cols(self):
+        return self._layout_metrics()[0]
 
     def _card_slot_xy(self, index):
-        cols = self._layout_cols()
+        cols, card_w, card_h, gap, _w = self._layout_metrics()
         col = index % cols
         row = index // cols
-        x = col * (_CARD_W + _CARD_MARGIN)
-        y = row * (_CARD_H + _CARD_MARGIN)
+        x = col * (card_w + gap)
+        y = row * (card_h + gap)
         return float(x), float(y)
 
     def _canvas_height_for(self, count):
         if count <= 0:
             return 0.0
-        cols = self._layout_cols()
+        cols, _cw, card_h, gap, _w = self._layout_metrics()
         rows = (count + cols - 1) // cols
-        return float(rows * (_CARD_H + _CARD_MARGIN))
+        return float(rows * (card_h + gap))
 
     def _on_family_scroll(self, sender, e):
         if self._catalog_changing or not self._virtual_mode:
@@ -1261,6 +1873,8 @@ class FamilyBrowserDialog(object):
         self._stop_grid_relayout_timer()
         if self._catalog_changing or not self._active or self.ui is None:
             return
+        if not hasattr(self, "_grid_relayout_gen"):
+            self._grid_relayout_gen = 0
         self._grid_relayout_gen += 1
         gen = self._grid_relayout_gen
 
@@ -1287,15 +1901,18 @@ class FamilyBrowserDialog(object):
         if self._virtual_mode:
             n = len(self._active)
             if isinstance(panel, Canvas):
-                cols = self._layout_cols()
+                cols, _cw, card_h, gap, vw = self._layout_metrics()
                 rows = (n + cols - 1) // cols if n else 0
-                panel.Height = float(rows * (_CARD_H + _CARD_MARGIN))
+                panel.Width = vw
+                panel.Height = float(rows * (card_h + gap))
             self._virtual_sync_viewport()
             return
 
         for i, fi in enumerate(self._active):
             self._add_family_card(fi, index=i)
         if isinstance(panel, Canvas):
+            _cols, _cw, _ch, _gap, vw = self._layout_metrics()
+            panel.Width = vw
             panel.Height = self._canvas_height_for(len(self._active))
         self._preview_gen += 1
         self._schedule_previews(self._active, disk_only=False)
@@ -1324,21 +1941,17 @@ class FamilyBrowserDialog(object):
             self.ui.FamilyPanel.Children.Remove(card)
 
     def _prepare_family_surface(self, virtual):
-        """Canvas + absolute layout for large catalogs; WrapPanel for small."""
+        """Always use Canvas so the adaptive grid can fill the viewport."""
         sv = self.ui.FamilyScrollViewer
-        if virtual:
-            if not isinstance(sv.Content, Canvas):
-                panel = Canvas()
-                sv.Content = panel
-            else:
-                panel = sv.Content
+        if not isinstance(sv.Content, Canvas):
+            panel = Canvas()
+            sv.Content = panel
         else:
-            if not isinstance(sv.Content, WrapPanel):
-                panel = WrapPanel()
-                panel.Margin = Thickness(0)
-                sv.Content = panel
-            else:
-                panel = sv.Content
+            panel = sv.Content
+        # Avoid vertical centering gap when canvas is shorter than viewport.
+        panel.VerticalAlignment = VerticalAlignment.Top
+        panel.HorizontalAlignment = HorizontalAlignment.Left
+        panel.Margin = Thickness(0)
         self.ui.FamilyPanel = panel
         return panel
 
@@ -1386,12 +1999,13 @@ class FamilyBrowserDialog(object):
         sv = self.ui.FamilyScrollViewer
         panel = self.ui.FamilyPanel
 
-        cols = self._layout_cols()
-        row_h = float(_CARD_H + _CARD_MARGIN)
+        cols, card_w, card_h, gap, vw = self._layout_metrics()
+        row_h = float(card_h + gap)
         total_rows = (n + cols - 1) // cols
         canvas_h = total_rows * row_h
         self._virtual_updating = True
         try:
+            panel.Width = vw
             panel.Height = canvas_h
         finally:
             self._virtual_updating = False
@@ -1433,6 +2047,12 @@ class FamilyBrowserDialog(object):
             fi = families[i]
             if fi.path in self._card_by_path:
                 card = self._card_by_path[fi.path]
+                preview_img = self._card_views.get(fi.path)
+                if preview_img is not None:
+                    _apply_card_metrics(card, preview_img, card_w, card_h)
+                else:
+                    card.Width = card_w
+                    card.Height = card_h
                 x, y = self._card_slot_xy(i)
                 Canvas.SetLeft(card, x)
                 Canvas.SetTop(card, y)
@@ -1448,7 +2068,8 @@ class FamilyBrowserDialog(object):
         panel = self.ui.FamilyPanel
         if fi.path in self._preview_mem:
             fi.preview = self._preview_mem[fi.path]
-        card, preview_img = _make_card(fi, self)
+        _cols, card_w, card_h, _gap, _vw = self._layout_metrics()
+        card, preview_img = _make_card(fi, self, card_w=card_w, card_h=card_h)
         self._fi_by_path[fi.path] = fi
         self._card_views[fi.path] = preview_img
         self._card_by_path[fi.path] = card
@@ -1475,6 +2096,10 @@ class FamilyBrowserDialog(object):
         panel.Children.Clear()
         if isinstance(panel, Canvas):
             panel.Height = 0
+            try:
+                panel.Width = self._viewport_width()
+            except Exception:
+                pass
         try:
             self.ui.FamilyScrollViewer.ScrollToVerticalOffset(0)
         except Exception:
@@ -1488,6 +2113,7 @@ class FamilyBrowserDialog(object):
         self._selected_paths = set()
         self._anchor_path = None
         self.ui.BtnLoadSelected.IsEnabled = False
+        self._reset_props_panel()
 
         n = len(families)
         self._update_count_display(n)
@@ -1508,6 +2134,7 @@ class FamilyBrowserDialog(object):
             for i, fi in enumerate(families):
                 self._add_family_card(fi, index=i)
             if isinstance(panel, Canvas):
+                panel.Width = self._viewport_width()
                 panel.Height = self._canvas_height_for(n)
             self._force_scroll_top()
             self._schedule_previews(
@@ -1533,6 +2160,7 @@ class FamilyBrowserDialog(object):
         self._card_batch_index = end
         panel = self.ui.FamilyPanel
         if isinstance(panel, Canvas):
+            panel.Width = self._viewport_width()
             panel.Height = self._canvas_height_for(total)
         if end < total:
             self._set_status(
@@ -1722,6 +2350,7 @@ class FamilyBrowserDialog(object):
         n = len(self._selected_paths)
         self.ui.BtnLoadSelected.IsEnabled = n > 0
         if n == 0:
+            self._reset_props_panel()
             return
         if n == 1:
             fi = self._fi_by_path.get(list(self._selected_paths)[0])
@@ -1735,7 +2364,11 @@ class FamilyBrowserDialog(object):
                     name=_as_unicode(fi.name),
                     size=i18n.t("size_mb").format(size_mb),
                     ver=ver or i18n.t("ver_unknown")))
+                self._inspect_selected_family(fi)
+            else:
+                self._reset_props_panel()
             return
+        self._reset_props_panel(i18n.t("selected_count", n=n))
         self._set_status(i18n.t("selected_count", n=n))
 
     def _on_clear_search(self, sender, e):
@@ -1744,24 +2377,12 @@ class FamilyBrowserDialog(object):
         self._stop_search_timer()
         self._reset_search_field()
         self._active_search_query = u""
-        self._show_families(self._folder_scope)
-        self._update_breadcrumb_display()
+        self._refresh_catalog_view()
 
     def _apply_search(self, query):
         query = _as_unicode(query).strip()
         self._active_search_query = query
-        if not query:
-            self._show_families(self._folder_scope)
-            self._update_breadcrumb_display()
-            return
-        if not self._folder_scope:
-            self._show_families([])
-            return
-        results = scanner.flat_search(self._folder_scope, query)
-        self._show_families(results)
-        self._update_breadcrumb_display()
-        self._update_count_display(
-            len(results), len(self._folder_scope))
+        self._refresh_catalog_view()
 
     def _on_search_debounced(self, sender, e):
         self._stop_search_timer()
@@ -2041,8 +2662,17 @@ class FamilyBrowserDialog(object):
         config.clear_recent()
         self.cfg = config.load()
         clear_library_cache()
+        try:
+            family_inspector.clear_cache()
+        except Exception:
+            pass
         self._preview_mem = {}
         self._preview_miss = set()
+        self._host_filter_keys = set()
+        self._category_filter_keys = set()
+        self._placement_filter_keys = set()
+        self._rebuild_meta_filters(preserve=False)
+        self._update_filters_button_caption()
         self._preview_gen += 1
         self._card_build_gen += 1
         self._scan = {"roots": [], "all": [], "index": {}}

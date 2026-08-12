@@ -235,13 +235,15 @@ def _deserialize_family(rec):
     fi.path = path
     default_name = os.path.splitext(os.path.basename(path))[0]
     fi.name = _repair_mojibake(rec.get("name", default_name))
-    fi.category = _repair_mojibake(rec.get("category", "Generic Models"))
     fi.size_kb = rec.get("size_kb", 0)
     fi.modified = _repair_mojibake(rec.get("modified", ""))
     fi.folder = _repair_mojibake(
         rec.get("folder", os.path.basename(os.path.dirname(path))))
     fi.library_root = _norm_path(rec.get("library_root")) if rec.get("library_root") else u""
     fi.rel_path = _repair_mojibake(rec.get("rel_path", fi.folder))
+    # Recompute from path so old caches (e.g. "Furniture" from desktop/table) recover
+    fi.category = scanner.category_from_path(path, fi.library_root) or _repair_mojibake(
+        rec.get("category", "Generic Models"))
     fi.revit_version = _repair_mojibake(rec.get("revit_version", u""))
     fi.preview = None
     return fi

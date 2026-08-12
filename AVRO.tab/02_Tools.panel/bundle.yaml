@@ -1,5 +1,4 @@
 # Single title on all Revit locales — pyRevit matches panel by this string on Reload.
 title: Tools
 layout:
-  - Search
   - FamilyBrowser

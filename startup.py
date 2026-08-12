@@ -36,10 +36,4 @@ def _startup_reload_fixup():
     reload_fixup.schedule_post_load_ribbon_i18n()
 
 
-def _startup_search():
-    import search_integration
-    search_integration.ensure_search_started()
-
-
 _run_startup_step("reload_fixup", _startup_reload_fixup)
-_run_startup_step("search", _startup_search)

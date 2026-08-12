@@ -142,12 +142,14 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ═══ MAIN (Revit Open dialog layout) ═══ -->
+        <!-- ═══ MAIN (tree | catalog | properties) ═══ -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="354" MinWidth="280"/>
+                <ColumnDefinition Width="300" MinWidth="220"/>
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="300" MinWidth="240"/>
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: Places / library tree -->
@@ -190,46 +192,49 @@
                     </Grid>
                 </Border>
 
-                <!-- Search + разделитель на всю ширину панели -->
-                <Grid Grid.Row="1">
-                    <Border Height="1" VerticalAlignment="Bottom"
-                            Background="{DynamicResource BorderLight}"
-                            HorizontalAlignment="Stretch"/>
-                    <Border VerticalAlignment="Top"
-                            Padding="8,6,8,6" HorizontalAlignment="Stretch"
-                            BorderThickness="0">
-                        <Grid VerticalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="28"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid Grid.Column="0">
-                                <TextBox x:Name="SearchBox" Padding="6,4,34,4"
-                                         VerticalContentAlignment="Center"/>
-                                <TextBlock x:Name="SearchHint" Text="Поиск семейств…"
-                                           IsHitTestVisible="False"
-                                           VerticalAlignment="Center" Margin="8,0,34,0"
-                                           Foreground="{DynamicResource TextMuted}" FontSize="11">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
-                            <Button x:Name="BtnClearSearch" Grid.Column="1"
-                                    Content="&#x00D7;"
-                                    Style="{StaticResource ClearSearchButton}"
-                                    VerticalAlignment="Center"
-                                    ToolTip="Очистить поиск"/>
+                <!-- Search | Search | Reset -->
+                <Border Grid.Row="1" Background="{DynamicResource BgToolbar}"
+                        BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1"
+                        Padding="8,6">
+                    <Grid VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Grid.Column="0" Margin="0,0,8,0">
+                            <TextBox x:Name="SearchBox" Padding="6,4"
+                                     Height="26"
+                                     VerticalContentAlignment="Center"/>
+                            <TextBlock x:Name="SearchHint" Text="Поиск семейств…"
+                                       IsHitTestVisible="False"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"
+                                       Foreground="{DynamicResource TextMuted}" FontSize="11">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Grid>
-                    </Border>
-                </Grid>
+
+                        <Button x:Name="BtnRunSearch" Grid.Column="1"
+                                Content="Поиск"
+                                Style="{StaticResource RevitButton}"
+                                MinWidth="72" Height="26" Padding="10,2"
+                                Margin="0,0,6,0"/>
+                        <Button x:Name="BtnResetSearch" Grid.Column="2"
+                                Content="Сброс"
+                                Style="{StaticResource RevitButton}"
+                                MinWidth="72" Height="26" Padding="10,2"/>
+                    </Grid>
+                </Border>
 
                 <!-- Family grid with previews -->
                 <ScrollViewer x:Name="FamilyScrollViewer" Grid.Row="2"
@@ -237,9 +242,201 @@
                               HorizontalScrollBarVisibility="Disabled"
                               Background="{DynamicResource BgPanel}"
                               Margin="8,0,8,0">
-                    <Canvas x:Name="FamilyPanel" Margin="0"/>
+                    <Canvas x:Name="FamilyPanel" Margin="0"
+                            VerticalAlignment="Top"
+                            HorizontalAlignment="Left"/>
                 </ScrollViewer>
             </Grid>
+
+            <GridSplitter Grid.Column="3" Width="4" Background="{DynamicResource BorderLight}"
+                          HorizontalAlignment="Stretch"/>
+
+            <!-- RIGHT: two panes — Filtering / Properties -->
+            <Border Grid.Column="4" Background="{DynamicResource BgSidebar}"
+                    BorderBrush="{DynamicResource BorderMain}" BorderThickness="1,0,0,0">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" MinHeight="160"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="*" MinHeight="140"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Window 1: Filtering -->
+                    <Border Grid.Row="0"
+                            Background="{DynamicResource BgPanel}"
+                            BorderBrush="{DynamicResource BorderMain}"
+                            BorderThickness="1">
+                        <DockPanel LastChildFill="True">
+                            <Border DockPanel.Dock="Top"
+                                    Background="{DynamicResource BgToolbar}"
+                                    BorderBrush="{DynamicResource BorderLight}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="8,6">
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock x:Name="FiltersTitle"
+                                               DockPanel.Dock="Left"
+                                               Text="Фильтрация"
+                                               FontWeight="SemiBold" FontSize="13"
+                                               Foreground="{DynamicResource TextMain}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="FiltersCount"
+                                               DockPanel.Dock="Left"
+                                               Text=""
+                                               FontWeight="SemiBold" FontSize="13"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </Border>
+                            <Border DockPanel.Dock="Bottom"
+                                    Background="{DynamicResource BgToolbar}"
+                                    BorderBrush="{DynamicResource BorderLight}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="8,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnApplyFilters"
+                                            Grid.Column="0"
+                                            Content="Применить"
+                                            Style="{StaticResource RevitButtonPrimary}"
+                                            Height="28"
+                                            HorizontalAlignment="Stretch"/>
+                                    <Button x:Name="BtnResetFilters"
+                                            Grid.Column="2"
+                                            Content="Сброс"
+                                            Style="{StaticResource RevitButton}"
+                                            Height="28"
+                                            HorizontalAlignment="Stretch"/>
+                                </Grid>
+                            </Border>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="8,8,8,4">
+                                <StackPanel>
+                                    <TextBlock x:Name="LblCategoryFilter"
+                                               Text="Категория:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,10"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="CategoryFilterList" Margin="4"/>
+                                    </Border>
+                                    <TextBlock x:Name="LblHostFilter"
+                                               Text="Основа:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,10"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="HostFilterList" Margin="4"/>
+                                    </Border>
+                                    <TextBlock x:Name="LblPlacementFilter"
+                                               Text="Размещение:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="PlacementFilterList" Margin="4"/>
+                                    </Border>
+
+                                    <TextBlock x:Name="LblVersionFilter"
+                                               Text="Формат Revit:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,10"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="VersionFilterList" Margin="4"/>
+                                    </Border>
+
+                                    <TextBlock x:Name="LblImportedFilter"
+                                               Text="Импорт. геометрия:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,10"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="ImportedFilterList" Margin="4"/>
+                                    </Border>
+
+                                    <TextBlock x:Name="LblSharedNestedFilter"
+                                               Text="Shared nested:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,10"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="SharedNestedFilterList" Margin="4"/>
+                                    </Border>
+
+                                    <TextBlock x:Name="LblSharedFamilyFilter"
+                                               Text="Shared family:"
+                                               Margin="0,0,0,4"
+                                               Foreground="{DynamicResource TextMuted}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1" Margin="0,0,0,0"
+                                            MinHeight="40"
+                                            Background="{DynamicResource BgInput}">
+                                        <StackPanel x:Name="SharedFamilyFilterList" Margin="4"/>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                    <GridSplitter Grid.Row="1"
+                                  Height="6"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
+                                  Background="{DynamicResource BorderLight}"
+                                  ShowsPreview="True"
+                                  ResizeDirection="Rows"/>
+
+                    <!-- Window 2: Properties -->
+                    <Border Grid.Row="2"
+                            Background="{DynamicResource BgPanel}"
+                            BorderBrush="{DynamicResource BorderMain}"
+                            BorderThickness="1">
+                        <DockPanel LastChildFill="True">
+                            <Border DockPanel.Dock="Top"
+                                    Background="{DynamicResource BgToolbar}"
+                                    BorderBrush="{DynamicResource BorderLight}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="8,6">
+                                <TextBlock x:Name="PropsTitle"
+                                           Text="Свойства"
+                                           FontWeight="SemiBold" FontSize="13"
+                                           Foreground="{DynamicResource TextMain}"/>
+                            </Border>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="8">
+                                <StackPanel>
+                                    <TextBlock x:Name="PropsHint"
+                                               Text="Выберите семейство"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               Margin="0,0,0,8"/>
+                                    <StackPanel x:Name="PropsPanel"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ═══ BOTTOM BAR ═══ -->

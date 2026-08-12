@@ -55,7 +55,7 @@ class FamilyInfo(object):
                 self.rel_path = self.folder
         else:
             self.rel_path = self.folder
-        self.category = _guess_category(path)
+        self.category = category_from_path(path, self.library_root)
         self.preview  = None  # populated lazily
         stat          = os.stat(path)
         self.size_kb  = int(stat.st_size / 1024)
@@ -69,7 +69,7 @@ class FamilyInfo(object):
 
 
 # ---------------------------------------------------------------------------
-# Category guessing from path / filename heuristics
+# Category from library folder (primary) + keyword fallback
 # ---------------------------------------------------------------------------
 _CAT_KEYWORDS = [
     ("Furniture",           ["furniture", "chair", "table", "desk", "bed", "sofa",
@@ -97,20 +97,44 @@ _CAT_KEYWORDS = [
 ]
 
 
-def _guess_category(rfa_path):
-    """Guess Revit category from path segments and filename."""
-    tokens = re.split(r"[\\/_ \-]", rfa_path.lower())
+def category_from_path(rfa_path, library_root=None):
+    """
+    Category for browser filters = last folder under the library root
+    (same rule as AVRO.Core). Falls back to keyword guess, then parent name.
+    """
+    try:
+        dir_path = os.path.dirname(os.path.abspath(rfa_path or u""))
+        root = (library_root or u"").strip()
+        if root:
+            root = os.path.abspath(root)
+            rel = os.path.relpath(dir_path, root)
+            if rel and rel != os.curdir and not rel.startswith(u".."):
+                parts = rel.replace(u"\\", u"/").split(u"/")
+                parts = [p for p in parts if p]
+                if parts:
+                    return parts[-1]
+        parent = os.path.basename(dir_path)
+        if parent:
+            return parent
+    except Exception:
+        pass
+    return _guess_category_keywords(rfa_path)
+
+
+def _guess_category_keywords(rfa_path):
+    """Keyword fallback: match whole path tokens only (no substring)."""
+    tokens = set(re.split(r"[\\/_ \-]+", (rfa_path or u"").lower()))
+    tokens.discard(u"")
     for cat, keywords in _CAT_KEYWORDS:
         for kw in keywords:
-            if any(kw in t for t in tokens):
+            if kw in tokens:
                 return cat
-    # check parent folders
-    parts = rfa_path.lower().replace("\\", "/").split("/")
-    for cat, keywords in _CAT_KEYWORDS:
-        for kw in keywords:
-            if any(kw in p for p in parts):
-                return cat
-    return "Generic Models"
+    return u"Generic Models"
+
+
+def _guess_category(rfa_path, library_root=None):
+    """Backward-compatible alias."""
+    return category_from_path(rfa_path, library_root)
 
 
 # ---------------------------------------------------------------------------
