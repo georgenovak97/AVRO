@@ -969,16 +969,24 @@ class FamilyBrowserDialog(object):
         place_entries = [(p, self._placement_label(p)) for p in place_keys]
 
         ver_entries = [(v, v) for v in ver_available]
+        def _bool_filter_label(k):
+            kl = as_unicode(k).strip().lower()
+            if kl == u"yes":
+                return i18n.t("props_yes")
+            if kl == u"no":
+                return i18n.t("props_no")
+            return i18n.t("props_unknown")
+
         imp_entries = [
-            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            (k, _bool_filter_label(k))
             for k in sorted(imp_available, key=lambda s: s.lower())
         ]
         sn_entries = [
-            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            (k, _bool_filter_label(k))
             for k in sorted(shared_nested_available, key=lambda s: s.lower())
         ]
         sf_entries = [
-            (k, i18n.t("props_yes") if k.lower() == "yes" else i18n.t("props_no"))
+            (k, _bool_filter_label(k))
             for k in sorted(shared_family_available, key=lambda s: s.lower())
         ]
 

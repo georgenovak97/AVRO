@@ -17,6 +17,11 @@ import family_inspector
 import i18n
 from revit_utils import as_unicode
 
+try:
+    basestring
+except NameError:  # python3 test environment
+    basestring = (str, bytes)
+
 
 class PropsPanelController(object):
     """Manage the properties panel of the Family Browser dialog."""
@@ -83,12 +88,17 @@ class PropsPanelController(object):
             meta.get("revit_format")
             or getattr(fi, "revit_version", u"")
             or u"")
-        shared = meta.get("shared_nested") or []
-        shared_text = (
-            u", ".join([as_unicode(x) for x in shared])
-            if shared else self._yes_no(False))
-        if shared:
-            shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
+        shared = meta.get("shared_nested")
+        if shared is None:
+            shared_text = self._yes_no(None)
+            shared = []
+        else:
+            shared = shared or []
+            shared_text = (
+                u", ".join([as_unicode(x) for x in shared])
+                if shared else self._yes_no(False))
+            if shared:
+                shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
 
         rows = (
             (i18n.t("props_name"), getattr(fi, "name", u"")),
@@ -128,7 +138,17 @@ class PropsPanelController(object):
     # Helpers
     # ------------------------------------------------------------------
     def _yes_no(self, flag):
-        return i18n.t("props_yes") if flag else i18n.t("props_no")
+        # tri-state: yes / no / unknown
+        if isinstance(flag, basestring):
+            key = as_unicode(flag).strip().lower()
+            if key in (u"yes", u"true", u"1"):
+                return i18n.t("props_yes")
+            if key in (u"no", u"false", u"0"):
+                return i18n.t("props_no")
+            return i18n.t("props_unknown")
+        if flag is None:
+            return i18n.t("props_unknown")
+        return i18n.t("props_yes") if bool(flag) else i18n.t("props_no")
 
     def _row(self, label, value, muted=False):
         tb_label = TextBlock()
