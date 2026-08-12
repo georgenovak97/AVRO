@@ -4,12 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.1] - 2026-08-12
 
 ### Changed
-- Removed unused C# `AVRO.Core` project; extension is now Python-only.
-- Fixed `extension.json` repository URL.
-- Fixed README typo and updated feature list.
+- Bumped settings dialog version label to 1.2.1 for verification.
 
 ## [1.2.0] - 2026-08-12
 
@@ -20,3 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 - Search tool and hotkey integration.
+
+## [Unreleased]
+
+### Changed
+- Removed unused C# `AVRO.Core` project; extension is now Python-only.
+- Fixed `extension.json` repository URL.
+- Fixed README typo and updated feature list.
