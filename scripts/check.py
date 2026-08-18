@@ -3,8 +3,9 @@
 
 Runs:
 1) static Family Browser structure guard
-2) unit tests
-3) git diff whitespace sanity
+2) ruff (E/F/W, IronPython-safe config in pyproject.toml)
+3) unit tests
+4) git diff whitespace sanity
 """
 import os
 import subprocess
@@ -26,9 +27,17 @@ def run(cmd):
     return p.returncode
 
 
+def ruff_cmd():
+    local = os.path.expanduser("~/.local/bin/ruff")
+    if os.path.isfile(local):
+        return [local, "check", "."]
+    return ["ruff", "check", "."]
+
+
 def main():
     steps = [
         [sys.executable, "scripts/verify_family_browser.py"],
+        ruff_cmd(),
         [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"],
         ["git", "diff", "--check"],
     ]

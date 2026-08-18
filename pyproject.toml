@@ -1,0 +1,25 @@
+[project]
+name = "avro-pyrevit"
+version = "1.2.1-dev"
+description = "AVRO pyRevit extension (Family Browser). Lint/tests only on CPython; runtime is IronPython 2.7 in Revit."
+requires-python = ">=3.8"
+
+[tool.ruff]
+target-version = "py37"
+line-length = 120
+extend-exclude = ["tmp", ".git"]
+# IronPython 2.7 builtins so F821 stays quiet on Revit-side modules.
+builtins = ["unicode", "long", "basestring", "xrange", "clr"]
+
+[tool.ruff.lint]
+# Conservative: do not enable UP (pyupgrade) — it would emit f-strings / py3-only syntax.
+select = ["E", "F", "W"]
+ignore = [
+    "E501", # WPF / Revit scripts are long
+    "E402", # sys.path bootstrap before lib imports
+    "F821", # Autodesk / System / unicode on CPython
+    "F401", # unused imports in ribbon scripts; dead-import cleanup is a separate chore
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F401"]
