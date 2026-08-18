@@ -8,11 +8,8 @@ __pycache__/
 *$py.class
 *.so
 
-# C# build artifacts (legacy)
-AVRO.Core/bin/
-AVRO.Core/obj/
-*.suo
-*.user
+# Tooling caches
+.ruff_cache/
 
 # IDE
 .vs/
