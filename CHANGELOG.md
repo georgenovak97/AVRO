@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `docs/PLAN.md` — reviewed work plan grouped into batches, with the items that
   require a Revit machine separated from those verifiable without Revit.
+- `AGENTS.md` — supported Revit years, IronPython 2.7 constraints, transaction
+  rules and the local check gate.
+- `pyproject.toml` — ruff configuration (E/F/W, pyupgrade disabled so the
+  IronPython tree is not rewritten into py3-only syntax), now run by
+  `scripts/check.py`.
+- `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
 - README: corrected the ribbon tab name to **AVRO**, narrowed the supported
@@ -18,10 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - README typo and outdated feature list.
+- `README.md` and `extension.json` were the only CRLF files in an otherwise LF
+  repository, which made `git diff --check` fail on every edit to them.
 
 ### Removed
 - Unused C# `AVRO.Core` project; the extension is now Python-only
-  (see `docs/adr/0001-python-only.md`).
+  (see `docs/adr/0001-python-only.md`). Its stale `.gitignore` rules too.
 
 ## [1.2.1-dev] - 2026-08-12
 
