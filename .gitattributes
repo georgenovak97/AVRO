@@ -1,0 +1,9 @@
+# Normalize text files to LF in the repository.
+# README.md and extension.json were committed as CRLF, which made
+# `git diff --check` (used by scripts/check.py) fail on every edit.
+* text=auto
+
+# Binary assets — never touch.
+*.png binary
+*.jpg binary
+*.rfa binary
