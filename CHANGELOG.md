@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Restored family-card hover highlighting and made left-click select the card
+  before starting placement.
 - Properties no longer show the numeric type count in the Types heading.
 - Removed family-card hover highlighting to keep the catalog visually stable
   while moving the pointer across cards.
