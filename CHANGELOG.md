@@ -52,9 +52,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview and bitmap byte conversion no longer uses per-byte Python loops.
 - The Settings dialog version is populated from the runtime version constant,
   which is checked against package metadata and the changelog.
-- Placing a family from an older Revit version retries the project load once
-  after the one-time format update, so the first double-click can continue to
-  placement without a second attempt.
+- Placing a family from an older Revit version retries once in a fresh
+  transaction after the one-time format update, so the first double-click can
+  continue to placement without a second attempt.
 
 ### Fixed
 - README typo and outdated feature list.

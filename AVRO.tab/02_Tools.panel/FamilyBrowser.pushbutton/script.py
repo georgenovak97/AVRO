@@ -2216,20 +2216,17 @@ class FamilyBrowserDialog(object):
             return None, i18n.t("file_not_found_short")
 
         err_text = None
-        for attempt in (1, 2):
-            try:
-                fam_ref = clr.Reference[RevitFamily]()
-                if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
-                        and fam_ref.Value is not None):
-                    return fam_ref.Value, None
-            except Exception as ex:
-                err_text = as_unicode(ex)
+        try:
+            fam_ref = clr.Reference[RevitFamily]()
+            if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
+                    and fam_ref.Value is not None):
+                return fam_ref.Value, None
+        except Exception as ex:
+            err_text = as_unicode(ex)
 
-            fam = self._find_family_in_project(fi)
-            if fam is not None:
-                return fam, None
-            if attempt == 1:
-                continue
+        fam = self._find_family_in_project(fi)
+        if fam is not None:
+            return fam, None
 
         if err_text:
             return None, err_text
@@ -2265,27 +2262,32 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        t = Transaction(self.doc, i18n.t("txn_load"))
-        t.Start()
-        try:
-            fam, err = self._load_family_element(fi)
-            if fam is None:
-                raise Exception(err or u"LoadFamily failed")
-            symbol = self._get_placeable_symbol(fam, fi)
-            if symbol is None:
-                raise Exception(
-                    i18n.t("no_symbol", name=revit_name(fam)))
-            if not symbol.IsActive:
-                symbol.Activate()
-            t.Commit()
-        except Exception:
+        last_error = None
+        for attempt in (1, 2):
+            t = Transaction(self.doc, i18n.t("txn_load"))
+            t.Start()
             try:
-                t.RollBack()
-            except Exception:
-                pass
-            raise
-        self._invalidate_project_family_index()
-        return symbol
+                fam, err = self._load_family_element(fi)
+                if fam is None:
+                    raise Exception(err or u"LoadFamily failed")
+                symbol = self._get_placeable_symbol(fam, fi)
+                if symbol is None:
+                    raise Exception(
+                        i18n.t("no_symbol", name=revit_name(fam)))
+                if not symbol.IsActive:
+                    symbol.Activate()
+                t.Commit()
+                self._invalidate_project_family_index()
+                return symbol
+            except Exception as ex:
+                last_error = ex
+                try:
+                    t.RollBack()
+                except Exception:
+                    pass
+                if attempt == 2:
+                    raise
+        raise last_error
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
