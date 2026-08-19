@@ -55,12 +55,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Family Browser now closes before loading and placing a family, so modal
   upgrade dialogs are handled outside the WPF click handler and the browser
   reopens automatically after placement.
-- Older-family placement now polls Revit for up to 15 seconds and retries the
-  load only at intervals while the upgrade operation finishes.
 - Properties inspection is deferred until after double-click detection, so a
   slow first read cannot turn a fast placement double-click into two selections.
-- Properties metadata is now pre-inspected progressively after library scan,
-  with a bottom-left progress bar showing the work in progress.
+- Properties metadata is pre-inspected after scanning only for families saved
+  in the active Revit version; older families avoid upgrade dialogs during scan.
+- Older-family placement polls Revit for up to 15 seconds and retries the load
+  only at intervals while the upgrade operation finishes.
 - Older-family placement now allows a short Revit format-processing interval
   before its clean retry.
 

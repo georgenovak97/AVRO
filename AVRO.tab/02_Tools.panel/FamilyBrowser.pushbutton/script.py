@@ -121,8 +121,7 @@ _UI_CONTROL_NAMES = [
     "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload",
     "BtnLoadSelected", "FamilyPanel", "FamilyScrollViewer",
-    "BreadcrumbText", "CountText", "StatusText", "ProgressLabel",
-    "ScanProgressBar",
+    "BreadcrumbText", "CountText", "StatusText",
 ]
 
 
@@ -1322,8 +1321,6 @@ class FamilyBrowserDialog(object):
                     System.Action(
                         lambda c=n: self._set_status(
                             i18n.t("scanning_progress", n=c))))
-                win.Dispatcher.BeginInvoke(
-                    System.Action(lambda: self._show_scan_progress()))
 
             scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
@@ -1375,48 +1372,24 @@ class FamilyBrowserDialog(object):
         self._show_recents_default()
         self._start_pre_inspect()
 
-    def _show_scan_progress(self, done=None, total=None):
-        if self.ui is None:
-            return
-        bar = getattr(self.ui, "ScanProgressBar", None)
-        label = getattr(self.ui, "ProgressLabel", None)
-        if bar is None:
-            return
-        bar.Visibility = Visibility.Visible
-        if total:
-            bar.IsIndeterminate = False
-            bar.Maximum = total
-            bar.Value = min(done or 0, total)
-            if label is not None:
-                label.Text = i18n.t("pre_inspect_progress", done=done or 0, total=total)
-        else:
-            bar.IsIndeterminate = True
-            if label is not None:
-                label.Text = i18n.t("scanning")
-
-    def _hide_scan_progress(self):
-        if self.ui is None:
-            return
-        bar = getattr(self.ui, "ScanProgressBar", None)
-        label = getattr(self.ui, "ProgressLabel", None)
-        if bar is not None:
-            bar.IsIndeterminate = False
-            bar.Visibility = Visibility.Collapsed
-        if label is not None:
-            label.Text = u""
-
     def _start_pre_inspect(self):
         if self.ui is None or self.win is None:
             return
         self._pre_inspect_gen += 1
         gen = self._pre_inspect_gen
-        self._pre_inspect_queue = list(self._scan.get("all", []) or [])
+        try:
+            current = as_unicode(self.doc.Application.VersionNumber)
+            current_label = u"R" + current[-2:]
+        except Exception:
+            current_label = u""
+        self._pre_inspect_queue = [
+            fi for fi in (self._scan.get("all", []) or [])
+            if as_unicode(getattr(fi, "revit_version", u"") or u"")
+            == current_label]
         self._pre_inspect_index = 0
         total = len(self._pre_inspect_queue)
         if total == 0:
-            self._hide_scan_progress()
             return
-        self._show_scan_progress(0, total)
         self.win.Dispatcher.BeginInvoke(
             System.Action(lambda: self._pre_inspect_step(gen)))
 
@@ -1426,7 +1399,6 @@ class FamilyBrowserDialog(object):
             return
         total = len(self._pre_inspect_queue)
         if self._pre_inspect_index >= total:
-            self._hide_scan_progress()
             return
 
         fi = self._pre_inspect_queue[self._pre_inspect_index]
@@ -1439,7 +1411,6 @@ class FamilyBrowserDialog(object):
         except Exception as ex:
             libcache._log(u"pre-inspect: {}".format(as_unicode(ex)))
 
-        self._show_scan_progress(self._pre_inspect_index, total)
         self.win.Dispatcher.BeginInvoke(
             System.Action(lambda: self._pre_inspect_step(gen)))
 
