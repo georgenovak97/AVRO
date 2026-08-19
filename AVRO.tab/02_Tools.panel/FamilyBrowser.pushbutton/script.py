@@ -35,8 +35,6 @@ from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
-    OpenOptions,
-    ModelPathUtils,
     Transaction,
     ElementId,
 )
@@ -2218,59 +2216,26 @@ class FamilyBrowserDialog(object):
             return None, i18n.t("file_not_found_short")
 
         err_text = None
+        for attempt in (1, 2):
+            try:
+                fam_ref = clr.Reference[RevitFamily]()
+                if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
+                        and fam_ref.Value is not None):
+                    return fam_ref.Value, None
+            except Exception as ex:
+                err_text = as_unicode(ex)
 
-        try:
-            fam_ref = clr.Reference[RevitFamily]()
-            if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
-                    and fam_ref.Value is not None):
-                return fam_ref.Value, None
-        except Exception as ex:
-            err_text = as_unicode(ex)
-
-        fam = self._find_family_in_project(fi)
-        if fam is not None:
-            return fam, None
+            fam = self._find_family_in_project(fi)
+            if fam is not None:
+                return fam, None
+            if attempt == 1:
+                continue
 
         if err_text:
             return None, err_text
         ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
-
-    def _family_needs_upgrade(self, fi):
-        """Return True when the family format is older than the active Revit."""
-        family_version = as_unicode(getattr(fi, "revit_version", u"") or u"")
-        if not family_version:
-            return False
-        try:
-            app_version = as_unicode(self.doc.Application.VersionNumber)
-            family_year = int(u"20" + family_version[1:])
-            return family_year < int(app_version)
-        except Exception:
-            return False
-
-    def _ensure_family_upgraded(self, fi):
-        """Open/close an older family before LoadFamily starts its transaction."""
-        if not self._family_needs_upgrade(fi):
-            return
-        path = os.path.normpath(fi.path)
-        upgrade_doc = None
-        try:
-            opts = OpenOptions()
-            try:
-                opts.Audit = False
-            except Exception:
-                pass
-            model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(path)
-            upgrade_doc = self.doc.Application.OpenDocumentFile(model_path, opts)
-        except Exception as ex:
-            libcache._log(u"family upgrade: {}".format(as_unicode(ex)))
-        finally:
-            if upgrade_doc is not None:
-                try:
-                    upgrade_doc.Close(False)
-                except Exception as ex:
-                    libcache._log(u"family upgrade close: {}".format(as_unicode(ex)))
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -2300,7 +2265,6 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        self._ensure_family_upgraded(fi)
         t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
         try:
@@ -2406,10 +2370,6 @@ class FamilyBrowserDialog(object):
             pass
 
     def _load_families(self, paths):
-        for path in paths:
-            fi = self._fi_by_path.get(path)
-            if fi is not None:
-                self._ensure_family_upgraded(fi)
         t = None
         loaded = []
         loaded_paths = []
