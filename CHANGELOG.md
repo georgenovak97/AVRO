@@ -52,8 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview and bitmap byte conversion no longer uses per-byte Python loops.
 - The Settings dialog version is populated from the runtime version constant,
   which is checked against package metadata and the changelog.
-- Placement pre-opens and closes older families before one supported
-  Document.LoadFamily call, keeping the upgrade outside the project transaction.
+- Placement gives Revit an idle dispatcher frame after a failed older-family
+  load before retrying the supported Document.LoadFamily call.
 
 ### Fixed
 - README typo and outdated feature list.

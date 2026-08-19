@@ -35,8 +35,6 @@ from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
-    OpenOptions,
-    ModelPathUtils,
     Transaction,
     ElementId,
 )
@@ -2205,27 +2203,6 @@ class FamilyBrowserDialog(object):
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
 
-    def _pre_cache_family_format(self, fi):
-        """Open/close an older family before project LoadFamily."""
-        source_doc = None
-        try:
-            opts = OpenOptions()
-            try:
-                opts.Audit = False
-            except Exception:
-                pass
-            model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(
-                os.path.normpath(fi.path))
-            source_doc = self.doc.Application.OpenDocumentFile(model_path, opts)
-        except Exception as ex:
-            libcache._log(u"family pre-cache: {}".format(as_unicode(ex)))
-        finally:
-            if source_doc is not None:
-                try:
-                    source_doc.Close(False)
-                except Exception as ex:
-                    libcache._log(u"family pre-cache close: {}".format(as_unicode(ex)))
-
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
         if not symbols:
@@ -2254,27 +2231,33 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        self._pre_cache_family_format(fi)
-        t = Transaction(self.doc, i18n.t("txn_load"))
-        t.Start()
-        try:
-            fam, err = self._load_family_element(fi)
-            if fam is None:
-                raise Exception(err or u"LoadFamily failed")
-            symbol = self._get_placeable_symbol(fam, fi)
-            if symbol is None:
-                raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
-            if not symbol.IsActive:
-                symbol.Activate()
-            t.Commit()
-            self._invalidate_project_family_index()
-            return symbol
-        except Exception:
+        last_error = None
+        for attempt in (1, 2):
+            t = Transaction(self.doc, i18n.t("txn_load"))
+            t.Start()
             try:
-                t.RollBack()
-            except Exception:
-                pass
-            raise
+                fam, err = self._load_family_element(fi)
+                if fam is None:
+                    raise Exception(err or u"LoadFamily failed")
+                symbol = self._get_placeable_symbol(fam, fi)
+                if symbol is None:
+                    raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
+                if not symbol.IsActive:
+                    symbol.Activate()
+                t.Commit()
+                self._invalidate_project_family_index()
+                return symbol
+            except Exception as ex:
+                last_error = ex
+                try:
+                    t.RollBack()
+                except Exception:
+                    pass
+                if attempt == 1:
+                    self._pump_ui_before_reopen()
+                else:
+                    raise
+        raise last_error
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
