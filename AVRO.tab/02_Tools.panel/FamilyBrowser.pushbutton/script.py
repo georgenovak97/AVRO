@@ -958,7 +958,6 @@ class FamilyBrowserDialog(object):
             return
         panel.Children.Clear()
         defs = [
-            ("shared_only", i18n.t("qf_shared_only"), None),
             ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
             ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
             ("limit_ref_planes", i18n.t("qf_limit_ref_planes"), "limit_ref_planes"),
@@ -967,6 +966,7 @@ class FamilyBrowserDialog(object):
             ("limit_params", i18n.t("qf_limit_params"), "limit_params"),
             ("limit_formulas", i18n.t("qf_limit_formulas"), "limit_formulas"),
             ("limit_materials", i18n.t("qf_limit_materials"), "limit_materials"),
+            ("shared_only", i18n.t("qf_shared_only"), None),
             ("not_huge", i18n.t("qf_not_huge"), "not_huge"),
         ]
         for key, label, limit_key in defs:

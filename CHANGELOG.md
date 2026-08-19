@@ -37,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   margins.
 - Returning to Family Browser after placement preserves the window geometry
   and the same preview grid for that geometry.
+- Constraints are shown in the requested order, starting with imported CAD
+  and ending with shared families and file size.
 
 ### Fixed
 - README typo and outdated feature list.
