@@ -133,7 +133,9 @@ class PropsPanelController(object):
             panel.Children.Add(self._row(label, value))
 
         self._render_separator(panel)
-        self._render_list(panel, i18n.t("props_types"), meta.get("types") or [])
+        self._render_list(
+            panel, i18n.t("props_types"), meta.get("types") or [],
+            empty_text=i18n.t("props_no"))
         self._render_list(
             panel, i18n.t("props_shared_nested"), shared,
             empty_text=i18n.t("props_no"))
