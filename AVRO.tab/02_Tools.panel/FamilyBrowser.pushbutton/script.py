@@ -2211,6 +2211,15 @@ class FamilyBrowserDialog(object):
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
             return None, i18n.t("file_not_found_short")
+        family_release = _release_number(
+            getattr(fi, "revit_version", u""))
+        host_release = _release_number(_current_revit_label())
+        if (family_release is not None and host_release is not None
+                and family_release > host_release):
+            return None, i18n.t(
+                "newer_version",
+                ver=as_unicode(getattr(fi, "revit_version", u"")),
+                cur=_current_revit_label())
 
         try:
             fam_ref = clr.Reference[RevitFamily]()
@@ -2292,6 +2301,17 @@ class FamilyBrowserDialog(object):
         return self._get_family_symbol_single(fi)
 
     def _place_family(self, fi):
+        family_release = _release_number(
+            getattr(fi, "revit_version", u""))
+        host_label = _current_revit_label()
+        host_release = _release_number(host_label)
+        if (family_release is not None and host_release is not None
+                and family_release > host_release):
+            self._set_status(i18n.t(
+                "newer_version",
+                ver=as_unicode(getattr(fi, "revit_version", u"")),
+                cur=host_label))
+            return
         uidoc = revit.uidoc
         if uidoc is None or uidoc.ActiveView is None:
             self._set_status(i18n.t("no_active_view"))

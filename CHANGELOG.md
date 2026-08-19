@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Family placement now blocks families saved in a newer Revit release before
+  opening Revit's incompatible-version dialog.
 - README: corrected the ribbon tab name to **AVRO**, narrowed the supported
   range to Revit 2020–2025, and reworded the filter list to match the current
   split between filter axes and constraints.
