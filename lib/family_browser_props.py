@@ -235,8 +235,12 @@ class PropsPanelController(object):
         title_block.Margin = Thickness(0, 6, 0, 4)
         panel.Children.Add(title_block)
         if not items:
-            panel.Children.Add(self._row(
-                u"", empty_text or i18n.t("props_none"), muted=True))
+            empty_block = TextBlock()
+            empty_block.Text = as_unicode(empty_text or i18n.t("props_none"))
+            empty_block.FontSize = 11
+            empty_block.Foreground = self.brushes["text"]
+            empty_block.Margin = Thickness(0, 2, 0, 0)
+            panel.Children.Add(empty_block)
         else:
             for name in items:
                 tb = TextBlock()

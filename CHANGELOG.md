@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Empty nested-family states now show a normal “No” label without a blank row.
 - Empty nested-family lists now display “No” instead of a dash.
 - Shortened the Properties formulas label to “Formulas” in both languages.
 - Corrected Russian Properties labels for nested shared families, shared
