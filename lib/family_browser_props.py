@@ -123,11 +123,11 @@ class PropsPanelController(object):
             has_shared = bool(shared)
 
         rows = (
-            (i18n.t("props_name"), getattr(fi, "name", u"")),
-            (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
             (i18n.t("props_version"), ver),
-            (i18n.t("props_modified"), getattr(fi, "modified", u"")),
+            (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
+            (i18n.t("props_name"), getattr(fi, "name", u"")),
             (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
+            (i18n.t("props_modified"), getattr(fi, "modified", u"")),
         )
         for label, value in rows:
             panel.Children.Add(self._row(label, value))
