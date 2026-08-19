@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Properties now show placement, work-plane status, nested-family counts,
+  dimensions, materials and modification date in the requested order.
+- The empty Properties panel now instructs users to right-click a family to
+  load its properties.
 - Version compatibility checks now use dialog methods, avoiding IronPython
   global-name resolution failures during placement.
 - Fixed the Family Browser startup path after a library rescan and added the

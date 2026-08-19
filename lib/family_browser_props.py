@@ -131,22 +131,33 @@ class PropsPanelController(object):
         rows = (
             (i18n.t("props_name"), getattr(fi, "name", u"")),
             (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
-            (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
             (i18n.t("props_version"), ver),
-            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
-            (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
-            (i18n.t("props_shared_nested"), shared_text),
+            (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
+            (i18n.t("props_placement"), meta.get("placement") or u""),
+            (i18n.t("props_work_plane_based"), self._yes_no(meta.get("work_plane_based"))),
             (i18n.t("props_shared_family"), self._yes_no(meta.get("is_shared_family"))),
-            (i18n.t("props_params"), u"{} (inst {}, type {})".format(
-                meta.get("param_total_count") or 0,
-                meta.get("param_instance_count") or 0,
-                meta.get("param_type_count") or 0)),
-            (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
+            (i18n.t("props_shared_nested"), shared_text),
+            (i18n.t("props_nested_count"), self._count(meta, "nested_family_count")),
+            (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
         )
         for label, value in rows:
             panel.Children.Add(self._row(label, value))
 
         self._render_types(panel, meta.get("types") or [])
+
+        rows = (
+            (i18n.t("props_params"), u"{} (inst {}, type {})".format(
+                meta.get("param_total_count") or 0,
+                meta.get("param_instance_count") or 0,
+                meta.get("param_type_count") or 0)),
+            (i18n.t("props_dimensions"), self._count(meta, "dimension_count")),
+            (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
+            (i18n.t("props_materials"), self._count(meta, "material_count")),
+            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
+            (i18n.t("props_modified"), getattr(fi, "modified", u"")),
+        )
+        for label, value in rows:
+            panel.Children.Add(self._row(label, value))
 
         # Attach hosting/placement on FamilyInfo for subsequent filters.
         try:
@@ -164,6 +175,10 @@ class PropsPanelController(object):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _count(self, meta, key):
+        value = meta.get(key)
+        return i18n.t("props_unknown") if value is None else as_unicode(value)
+
     def _yes_no(self, flag):
         # tri-state: yes / no / unknown
         if isinstance(flag, basestring):
