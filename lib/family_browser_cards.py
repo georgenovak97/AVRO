@@ -147,7 +147,7 @@ def make_card(fi, dialog, brushes, card_w=None, card_h=None, preview_w=None, pre
     card.MouseLeave += mouse_leave
     card.MouseLeftButtonDown += mouse_click
     card.MouseRightButtonDown += mouse_right_click
-    card.MouseMiddleButtonDown += mouse_middle_click
+    card.PreviewMouseMiddleButtonDown += mouse_middle_click
 
     return card, preview_img
 
