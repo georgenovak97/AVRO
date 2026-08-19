@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Reworked Properties into grouped sections with separators, bullet lists for
+  family types and nested families, and separate shared-family indicators.
 - Left-click selection is rendered before the Family Browser closes for
   placement.
 - Restored family-card hover highlighting and made left-click select the card

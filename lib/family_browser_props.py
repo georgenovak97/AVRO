@@ -10,7 +10,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
 from System.Windows import Thickness, Visibility, TextWrapping, FontStyles
-from System.Windows.Controls import TextBlock, StackPanel
+from System.Windows.Controls import Border, TextBlock, StackPanel
 
 import family_inspector
 import i18n
@@ -117,34 +117,41 @@ class PropsPanelController(object):
             or getattr(fi, "revit_version", u"")
             or u"")
         shared = meta.get("shared_nested")
-        if shared is None:
-            shared_text = self._yes_no(None)
-            shared = []
-        else:
-            shared = shared or []
-            shared_text = (
-                u", ".join([as_unicode(x) for x in shared])
-                if shared else self._yes_no(False))
-            if shared:
-                shared_text = u"{} ({})".format(self._yes_no(True), shared_text)
+        shared = [] if shared is None else (shared or [])
+        has_shared = meta.get("has_shared_nested")
+        if has_shared is None and meta.get("shared_nested") is not None:
+            has_shared = bool(shared)
 
         rows = (
             (i18n.t("props_name"), getattr(fi, "name", u"")),
             (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
             (i18n.t("props_version"), ver),
+            (i18n.t("props_modified"), getattr(fi, "modified", u"")),
+            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
+        )
+        for label, value in rows:
+            panel.Children.Add(self._row(label, value))
+
+        self._render_separator(panel)
+        self._render_list(panel, i18n.t("props_types"), meta.get("types") or [])
+        self._render_list(panel, i18n.t("props_shared_nested"), shared)
+        panel.Children.Add(self._row(
+            i18n.t("props_shared_family"),
+            self._yes_no(meta.get("is_shared_family"))))
+        panel.Children.Add(self._row(
+            i18n.t("props_has_nested"), self._yes_no(has_shared)))
+
+        self._render_separator(panel)
+        rows = (
             (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
             (i18n.t("props_placement"), meta.get("placement") or u""),
             (i18n.t("props_work_plane_based"), self._yes_no(meta.get("work_plane_based"))),
-            (i18n.t("props_shared_family"), self._yes_no(meta.get("is_shared_family"))),
-            (i18n.t("props_shared_nested"), shared_text),
-            (i18n.t("props_nested_count"), self._count(meta, "nested_family_count")),
             (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
         )
         for label, value in rows:
             panel.Children.Add(self._row(label, value))
 
-        self._render_types(panel, meta.get("types") or [])
-
+        self._render_separator(panel)
         rows = (
             (i18n.t("props_params"), u"{} (inst {}, type {})".format(
                 meta.get("param_total_count") or 0,
@@ -153,8 +160,6 @@ class PropsPanelController(object):
             (i18n.t("props_dimensions"), self._count(meta, "dimension_count")),
             (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
             (i18n.t("props_materials"), self._count(meta, "material_count")),
-            (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
-            (i18n.t("props_modified"), getattr(fi, "modified", u"")),
         )
         for label, value in rows:
             panel.Children.Add(self._row(label, value))
@@ -212,19 +217,27 @@ class PropsPanelController(object):
         sp.Children.Add(tb_value)
         return sp
 
-    def _render_types(self, panel, types):
-        types_title = TextBlock()
-        types_title.Text = i18n.t("props_types")
-        types_title.FontSize = 11
-        types_title.Foreground = self.brushes["muted"]
-        types_title.Margin = Thickness(0, 6, 0, 4)
-        panel.Children.Add(types_title)
-        if not types:
+    def _render_separator(self, panel):
+        separator = Border()
+        separator.Height = 1
+        separator.Background = self.brushes["border"]
+        separator.Opacity = 0.3
+        separator.Margin = Thickness(0, 7, 0, 7)
+        panel.Children.Add(separator)
+
+    def _render_list(self, panel, title, items):
+        title_block = TextBlock()
+        title_block.Text = as_unicode(title)
+        title_block.FontSize = 11
+        title_block.Foreground = self.brushes["muted"]
+        title_block.Margin = Thickness(0, 6, 0, 4)
+        panel.Children.Add(title_block)
+        if not items:
             panel.Children.Add(self._row(u"", i18n.t("props_none"), muted=True))
         else:
-            for tname in types:
+            for name in items:
                 tb = TextBlock()
-                tb.Text = u"• " + as_unicode(tname)
+                tb.Text = u"• " + as_unicode(name)
                 tb.TextWrapping = TextWrapping.Wrap
                 tb.FontSize = 12
                 tb.Foreground = self.brushes["text"]
