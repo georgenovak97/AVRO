@@ -2068,6 +2068,10 @@ class FamilyBrowserDialog(object):
         self._props_controller.inspect(fi)
         e.Handled = True
 
+    def _on_card_middle_click(self, card, fi, e):
+        self._reveal_in_explorer(fi)
+        e.Handled = True
+
     def _on_card_click(self, card, fi, e):
         self._place_family(fi)
 

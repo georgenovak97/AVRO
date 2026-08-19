@@ -140,10 +140,14 @@ def make_card(fi, dialog, brushes, card_w=None, card_h=None, preview_w=None, pre
     def mouse_right_click(s, e):
         dialog._on_card_right_click(s, fi, e)
 
+    def mouse_middle_click(s, e):
+        dialog._on_card_middle_click(s, fi, e)
+
     card.MouseEnter += mouse_enter
     card.MouseLeave += mouse_leave
     card.MouseLeftButtonDown += mouse_click
     card.MouseRightButtonDown += mouse_right_click
+    card.MouseMiddleButtonDown += mouse_middle_click
 
     return card, preview_img
 
