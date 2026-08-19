@@ -47,6 +47,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The right Filtering / Properties pane is now narrower while keeping the
   constraint explanation readable on one line per rule.
 - The catalog tree is now the same width as the Filtering / Properties pane.
+- Family placement and batch loading now use Revit-version-compatible API
+  access and keep recent-family writes outside model transactions.
+- Preview and bitmap byte conversion no longer uses per-byte Python loops.
+- The Settings dialog version is populated from the runtime version constant,
+  which is checked against package metadata and the changelog.
 
 ### Fixed
 - README typo and outdated feature list.

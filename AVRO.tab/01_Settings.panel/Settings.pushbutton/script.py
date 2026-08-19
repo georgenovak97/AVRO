@@ -104,6 +104,7 @@ def _show_settings_dialog():
         win, ui_theme.DARK if cur_theme == "dark" else ui_theme.LIGHT)
 
     controls = {
+        "version": _find_named(win, "VersionText"),
         "btn_theme_light": _find_named(win, "BtnThemeLight"),
         "btn_theme_dark": _find_named(win, "BtnThemeDark"),
         "btn_ok": _find_named(win, "BtnOk"),
@@ -120,6 +121,8 @@ def _show_settings_dialog():
     selection = {"theme": cur_theme}
 
     def _apply_text_and_selection():
+        if controls.get("version") is not None:
+            controls["version"].Text = config.VERSION
         _apply_dialog_text(controls)
         _refresh_selection(controls, selection["theme"])
 
