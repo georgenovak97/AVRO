@@ -60,13 +60,16 @@ _STRINGS = {
         u"qf_limit_materials": u"без кучи материалов",
         u"qf_not_huge": u"не огромное",
         u"constraints_help_text": (
-            u"Пояснения: без импортированных CAD файлов — без DWG/DXF/SAT; "
-            u"без кучи типов — не более 10 типов; без кучи опорных — не более "
-            u"10 опорных плоскостей и линий; без кучи размеров — не более 10; "
-            u"без кучи вложенных семейств — не более 10; без кучи параметров — "
-            u"не более 10; без кучи формул — не более 5 параметров с формулами; "
-            u"без кучи материалов — не более 10; только общие семейства — "
-            u"Shared включён; не огромное — файл не более 5 МБ."),
+            u"- без импортированных CAD файлов: без DWG/DXF/SAT\n"
+            u"- без кучи типов: не более 10 типов\n"
+            u"- без кучи опорных: не более 10 опорных плоскостей и линий\n"
+            u"- без кучи размеров: не более 10 размеров\n"
+            u"- без кучи вложенных семейств: не более 10 вложенных семейств\n"
+            u"- без кучи параметров: не более 10 параметров\n"
+            u"- без кучи формул: не более 5 параметров с формулами\n"
+            u"- без кучи материалов: не более 10 материалов\n"
+            u"- только общие семейства: Shared включён\n"
+            u"- не огромное: размер файла не более 5 МБ"),
         u"qf_help_no_imported_cad": u"Исключает семейства с импортированной DWG/DXF/SAT геометрией.",
         u"qf_help_limit_types": u"Не более 10 типов семейства.",
         u"qf_help_limit_ref_planes": u"Не более 10 опорных плоскостей и линий.",
@@ -263,14 +266,16 @@ _STRINGS = {
         u"qf_limit_materials": u"without too many materials",
         u"qf_not_huge": u"not huge",
         u"constraints_help_text": (
-            u"Explanation: without imported CAD files — no DWG/DXF/SAT; "
-            u"without too many types — at most 10 types; without too many "
-            u"reference planes — at most 10 planes and lines; without too many "
-            u"dimensions — at most 10; without too many nested families — at "
-            u"most 10; without too many parameters — at most 10; without too "
-            u"many formulas — at most 5 formula parameters; without too many "
-            u"materials — at most 10; shared families only — Shared is enabled; "
-            u"not huge — file size is at most 5 MB."),
+            u"- without imported CAD files: no DWG/DXF/SAT\n"
+            u"- without too many types: at most 10 types\n"
+            u"- without too many reference planes: at most 10 planes and lines\n"
+            u"- without too many dimensions: at most 10 dimensions\n"
+            u"- without too many nested families: at most 10 nested families\n"
+            u"- without too many parameters: at most 10 parameters\n"
+            u"- without too many formulas: at most 5 formula parameters\n"
+            u"- without too many materials: at most 10 materials\n"
+            u"- shared families only: Shared is enabled\n"
+            u"- not huge: file size is at most 5 MB"),
         u"qf_help_no_imported_cad": u"Excludes families with imported DWG/DXF/SAT geometry.",
         u"qf_help_limit_types": u"At most 10 family types.",
         u"qf_help_limit_ref_planes": u"At most 10 reference planes and lines.",
