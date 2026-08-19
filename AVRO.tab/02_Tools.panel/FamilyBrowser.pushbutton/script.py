@@ -2278,24 +2278,22 @@ class FamilyBrowserDialog(object):
         try:
             fam, err = self._load_family_element(fi)
             if fam is None:
-                t.RollBack()
                 raise Exception(err or u"LoadFamily failed")
             symbol = self._get_placeable_symbol(fam, fi)
             if symbol is None:
-                t.RollBack()
                 raise Exception(
                     i18n.t("no_symbol", name=revit_name(fam)))
             if not symbol.IsActive:
                 symbol.Activate()
             t.Commit()
-            self._invalidate_project_family_index()
-            return symbol
         except Exception:
             try:
                 t.RollBack()
             except Exception:
                 pass
             raise
+        self._invalidate_project_family_index()
+        return symbol
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
@@ -2382,6 +2380,7 @@ class FamilyBrowserDialog(object):
     def _load_families(self, paths):
         t = None
         loaded = []
+        loaded_paths = []
         skipped = []
         errors = []
         label = (paths[0] if len(paths) == 1
@@ -2398,7 +2397,7 @@ class FamilyBrowserDialog(object):
                     fam, err = self._load_family_element(fi)
                     if fam is not None:
                         loaded.append(fi.name)
-                        config.add_recent(fi.path)
+                        loaded_paths.append(fi.path)
                     elif err:
                         errors.append(u"{}: {}".format(fi.name, err))
                     else:
@@ -2407,6 +2406,8 @@ class FamilyBrowserDialog(object):
                     errors.append(u"{}: {}".format(fi.name, as_unicode(ex)))
             if loaded:
                 t.Commit()
+                for path in loaded_paths:
+                    config.add_recent(path)
                 self.cfg = config.load()
             else:
                 t.RollBack()
