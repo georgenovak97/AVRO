@@ -4,6 +4,7 @@ Family Browser — pyRevit extension (AVRO)
 Entry point script.
 """
 import os
+import re
 import sys
 import threading
 import time
@@ -106,6 +107,32 @@ def _sync_card_colors(palette):
 
 
 _sync_card_colors(ui_theme.LIGHT)
+
+
+def _release_number(value):
+    """Return a two-digit Revit release number from R23 or 2023 text."""
+    text = as_unicode(value or u"")
+    match = re.search(r"20(\d{2})", text)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\bR?(\d{2})\b", text, re.I)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _current_revit_label():
+    """Return the running Revit release label, for example ``R22``."""
+    try:
+        app = revit.doc.Application
+        number = _release_number(getattr(app, "VersionNumber", u""))
+        if number is None:
+            number = _release_number(getattr(app, "VersionName", u""))
+        if number is not None:
+            return u"R{:02d}".format(number)
+    except Exception:
+        pass
+    return u""
 
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
@@ -754,9 +781,27 @@ class FamilyBrowserDialog(object):
         # Never restore preview_miss (old disk-only sessions blocked all thumbnails).
         self._preview_miss = set()
 
-        total = len(self._scan.get("all", []))
         self._build_tree(self._scan)
         self._show_recents_default()
+        self._restore_window_focus()
+
+    def _restore_window_focus(self):
+        if self.win is None:
+            return
+        try:
+            if self.win.WindowState == System.Windows.WindowState.Minimized:
+                self.win.WindowState = System.Windows.WindowState.Normal
+        except Exception:
+            pass
+        try:
+            self.win.Show()
+        except Exception:
+            pass
+        try:
+            self.win.Activate()
+            self.win.Focus()
+        except Exception:
+            pass
         self._set_status(i18n.t("from_cache", n=total))
 
     def _try_restore_cache(self):
@@ -1332,6 +1377,7 @@ class FamilyBrowserDialog(object):
                 MessageBoxImage.Warning)
         self._build_tree(self._scan)
         self._show_recents_default()
+        self._restore_window_focus()
 
     def _refresh_recent_header(self):
         tree = getattr(self.ui, "CategoryTree", None) if self.ui else None

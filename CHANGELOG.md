@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Fixed the Family Browser startup path after a library rescan and added the
+  missing host-version helper used by incompatible-family placement checks.
 - Family placement now blocks families saved in a newer Revit release before
   opening Revit's incompatible-version dialog.
 - README: corrected the ribbon tab name to **AVRO**, narrowed the supported
