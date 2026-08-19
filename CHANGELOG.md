@@ -55,6 +55,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Family Browser now closes before loading and placing a family, so modal
   upgrade dialogs are handled outside the WPF click handler and the browser
   reopens automatically after placement.
+- Older-family placement now allows a short Revit format-processing interval
+  before its clean retry.
 
 ### Fixed
 - README typo and outdated feature list.

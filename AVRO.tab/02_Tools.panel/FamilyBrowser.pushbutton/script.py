@@ -2254,6 +2254,7 @@ class FamilyBrowserDialog(object):
                 except Exception:
                     pass
                 if attempt == 1:
+                    time.sleep(2)
                     self._pump_ui_before_reopen()
                 else:
                     raise
