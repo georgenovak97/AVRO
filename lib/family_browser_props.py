@@ -134,7 +134,9 @@ class PropsPanelController(object):
 
         self._render_separator(panel)
         self._render_list(panel, i18n.t("props_types"), meta.get("types") or [])
-        self._render_list(panel, i18n.t("props_shared_nested"), shared)
+        self._render_list(
+            panel, i18n.t("props_shared_nested"), shared,
+            empty_text=i18n.t("props_no"))
         panel.Children.Add(self._row(
             i18n.t("props_shared_family"),
             self._yes_no(meta.get("is_shared_family"))))
@@ -225,7 +227,7 @@ class PropsPanelController(object):
         separator.Margin = Thickness(0, 7, 0, 7)
         panel.Children.Add(separator)
 
-    def _render_list(self, panel, title, items):
+    def _render_list(self, panel, title, items, empty_text=None):
         title_block = TextBlock()
         title_block.Text = as_unicode(title)
         title_block.FontSize = 11
@@ -233,7 +235,8 @@ class PropsPanelController(object):
         title_block.Margin = Thickness(0, 6, 0, 4)
         panel.Children.Add(title_block)
         if not items:
-            panel.Children.Add(self._row(u"", i18n.t("props_none"), muted=True))
+            panel.Children.Add(self._row(
+                u"", empty_text or i18n.t("props_none"), muted=True))
         else:
             for name in items:
                 tb = TextBlock()
