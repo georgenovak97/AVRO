@@ -149,15 +149,47 @@ def key_hash(key_tuple):
     return hashlib.md5(raw).hexdigest()
 
 
+def _collect_dir_mtimes(root_path, max_depth=2):
+    """Collect (norm_path, mtime) strings for root and up to max_depth subdirectories."""
+    mtimes = []
+    root_np = _norm_path(root_path)
+    try:
+        root_mtime = int(os.path.getmtime(root_np))
+        mtimes.append(u"{}:{}".format(root_np, root_mtime))
+    except Exception:
+        mtimes.append(root_np)
+        return mtimes
+
+    if not os.path.isdir(root_np):
+        return mtimes
+
+    try:
+        root_abs = os.path.abspath(root_np)
+        for base, dirs, _files in os.walk(root_abs):
+            dirs.sort(key=lambda s: s.lower())
+            rel = os.path.relpath(base, root_abs)
+            if rel == ".":
+                depth = 0
+            else:
+                depth = rel.count(os.sep) + 1
+            if depth >= max_depth:
+                del dirs[:]
+            if depth > 0:
+                norm_base = _norm_path(base)
+                try:
+                    mtimes.append(u"{}:{}".format(norm_base, int(os.path.getmtime(base))))
+                except Exception:
+                    mtimes.append(norm_base)
+    except Exception:
+        pass
+    return mtimes
+
+
 def library_fingerprint(key_tuple):
-    """Changes when library folder mtime changes (cheap stale hint)."""
+    """Changes when library folder or subfolder mtime changes (cheap stale hint)."""
     parts = []
     for p in key_tuple or []:
-        np = _norm_path(p)
-        try:
-            parts.append(u"{}:{}".format(np, int(os.path.getmtime(np))))
-        except Exception:
-            parts.append(np)
+        parts.extend(_collect_dir_mtimes(p, max_depth=2))
     if not parts:
         return u""
     return hashlib.md5(u"|".join(parts).encode("utf-8")).hexdigest()
