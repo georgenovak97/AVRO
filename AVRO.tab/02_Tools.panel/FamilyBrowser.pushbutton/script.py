@@ -239,6 +239,8 @@ class FamilyBrowserDialog(object):
         self._active_search_query = u""
         self._search_suppress = False
         self._search_timer = None
+        self._deferred_inspect_fi = None
+        self._deferred_inspect_gen = 0
         self._host_filter_keys = set()
         self._category_filter_keys = set()
         self._version_filter_keys = set()
@@ -2122,8 +2124,11 @@ class FamilyBrowserDialog(object):
 
     def _update_selection_status(self):
         n = len(self._selected_paths)
+        self._deferred_inspect_gen += 1
+        inspect_gen = self._deferred_inspect_gen
         self.ui.BtnLoadSelected.IsEnabled = n > 0
         if n == 0:
+            self._deferred_inspect_fi = None
             self._props_controller.reset()
             return
         if n == 1:
@@ -2138,12 +2143,29 @@ class FamilyBrowserDialog(object):
                     name=as_unicode(fi.name),
                     size=i18n.t("size_mb").format(size_mb),
                     ver=ver or i18n.t("ver_unknown")))
-                self._props_controller.inspect(fi)
+                self._deferred_inspect_fi = fi
+                self.win.Dispatcher.BeginInvoke(
+                    System.Action(
+                        lambda g=inspect_gen: self._run_deferred_inspect(g)))
             else:
+                self._deferred_inspect_fi = None
                 self._props_controller.reset()
             return
+        self._deferred_inspect_fi = None
         self._props_controller.reset(i18n.t("selected_count", n=n))
         self._set_status(i18n.t("selected_count", n=n))
+
+    def _run_deferred_inspect(self, inspect_gen):
+        if inspect_gen != self._deferred_inspect_gen:
+            return
+        fi = self._deferred_inspect_fi
+        if (fi is None or self.ui is None or self.win is None
+                or self._pending_placement_fi is not None):
+            return
+        if fi.path not in self._selected_paths:
+            return
+        self._deferred_inspect_fi = None
+        self._props_controller.inspect(fi)
 
     def _on_clear_search(self, sender, e):
         if not self.ui.SearchBox.Text.strip():

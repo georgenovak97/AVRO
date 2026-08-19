@@ -57,6 +57,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   reopens automatically after placement.
 - Older-family placement now polls Revit for up to 15 seconds and retries the
   load only at intervals while the upgrade operation finishes.
+- Properties inspection is deferred until after double-click detection, so a
+  slow first read cannot turn a fast placement double-click into two selections.
 - Older-family placement now allows a short Revit format-processing interval
   before its clean retry.
 
