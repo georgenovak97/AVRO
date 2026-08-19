@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Removed family-card hover highlighting to keep the catalog visually stable
+  while moving the pointer across cards.
 - Properties now show placement, work-plane status, nested-family counts,
   dimensions, materials and modification date in the requested order.
 - The empty Properties panel now instructs users to right-click a family to
