@@ -52,8 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview and bitmap byte conversion no longer uses per-byte Python loops.
 - The Settings dialog version is populated from the runtime version constant,
   which is checked against package metadata and the changelog.
-- Placement refreshes the project family index after loading, so a family
-  loaded during an upgrade dialog is found immediately on the first attempt.
+- Placement loads older families from an upgraded source document when the
+  Revit version differs, avoiding the second disk-based upgrade path.
 
 ### Fixed
 - README typo and outdated feature list.

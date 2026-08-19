@@ -35,6 +35,8 @@ from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
+    OpenOptions,
+    ModelPathUtils,
     Transaction,
     ElementId,
 )
@@ -2207,7 +2209,7 @@ class FamilyBrowserDialog(object):
                 best = fam
         return best
 
-    def _load_family_element(self, fi):
+    def _load_family_element(self, fi, source_doc=None):
         """Return (Family, error_message). error_message is None on success."""
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
@@ -2215,10 +2217,16 @@ class FamilyBrowserDialog(object):
 
         err_text = None
         try:
-            fam_ref = clr.Reference[RevitFamily]()
-            if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
-                    and fam_ref.Value is not None):
-                return fam_ref.Value, None
+            if source_doc is not None:
+                fam = self.doc.LoadFamily(
+                    source_doc, family_load_options.FAMILY_LOAD_OPTIONS)
+                if fam is not None:
+                    return fam, None
+            else:
+                fam_ref = clr.Reference[RevitFamily]()
+                if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
+                        and fam_ref.Value is not None):
+                    return fam_ref.Value, None
         except Exception as ex:
             err_text = as_unicode(ex)
 
@@ -2231,6 +2239,28 @@ class FamilyBrowserDialog(object):
         ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
+
+    def _open_upgrade_source(self, fi):
+        """Open an older family as a source document for LoadFamily(Document)."""
+        version = as_unicode(getattr(fi, "revit_version", u"") or u"")
+        if not version:
+            return None
+        try:
+            family_year = int(u"20" + version[1:])
+            app_version = int(as_unicode(self.doc.Application.VersionNumber))
+            if family_year >= app_version:
+                return None
+            opts = OpenOptions()
+            try:
+                opts.Audit = False
+            except Exception:
+                pass
+            model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(
+                os.path.normpath(fi.path))
+            return self.doc.Application.OpenDocumentFile(model_path, opts)
+        except Exception as ex:
+            libcache._log(u"family source open: {}".format(as_unicode(ex)))
+            return None
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -2260,10 +2290,11 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
+        source_doc = self._open_upgrade_source(fi)
         t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
         try:
-            fam, err = self._load_family_element(fi)
+            fam, err = self._load_family_element(fi, source_doc=source_doc)
             if fam is None:
                 raise Exception(err or u"LoadFamily failed")
             symbol = self._get_placeable_symbol(fam, fi)
@@ -2281,6 +2312,12 @@ class FamilyBrowserDialog(object):
             except Exception:
                 pass
             raise
+        finally:
+            if source_doc is not None:
+                try:
+                    source_doc.Close(False)
+                except Exception as ex:
+                    libcache._log(u"family source close: {}".format(as_unicode(ex)))
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
