@@ -542,15 +542,38 @@ def inspect(rfa_path, app=None, use_cache=True):
     return meta
 
 
-def hosting_of(rfa_path):
+_UNSET = object()
+
+
+def build_meta_by_path(families_or_paths):
+    """Return dict mapping path -> cached meta dict (or None)."""
+    meta_by_path = {}
+    if not families_or_paths:
+        return meta_by_path
+    for item in families_or_paths:
+        if isinstance(item, basestring):
+            p = item
+        elif isinstance(item, dict):
+            p = item.get("path") or u""
+        else:
+            p = getattr(item, "path", None) or getattr(item, "Path", None) or u""
+        if p and p not in meta_by_path:
+            meta_by_path[p] = load_cached(p)
+    return meta_by_path
+
+
+def hosting_of(rfa_path, cached_meta=_UNSET):
     """Cached hosting key or HOST_UNKNOWN."""
-    cached = load_cached(rfa_path)
+    if cached_meta is _UNSET:
+        cached = load_cached(rfa_path) if rfa_path else None
+    else:
+        cached = cached_meta
     if cached and cached.get("ok"):
         return cached.get("hosting") or HOST_UNKNOWN
     return HOST_UNKNOWN
 
 
-def category_of(fi_or_path):
+def category_of(fi_or_path, cached_meta=_UNSET):
     """Revit category for filter axis (from cached inspector metadata)."""
     if fi_or_path is None:
         return u""
@@ -562,7 +585,10 @@ def category_of(fi_or_path):
     else:
         path = fi_or_path
 
-    cached = load_cached(path) if path else None
+    if cached_meta is _UNSET:
+        cached = load_cached(path) if path else None
+    else:
+        cached = cached_meta
     if cached and cached.get("ok"):
         cat = _u(cached.get("category") or u"").strip()
         if cat:
@@ -571,7 +597,7 @@ def category_of(fi_or_path):
     return u""
 
 
-def placement_of(fi_or_path):
+def placement_of(fi_or_path, cached_meta=_UNSET):
     """Placement type string from FamilyInfo / cache."""
     if fi_or_path is None:
         return u""
@@ -587,7 +613,10 @@ def placement_of(fi_or_path):
             fi_or_path, "Path", None) or u""
     else:
         path = fi_or_path
-    cached = load_cached(path) if path else None
+    if cached_meta is _UNSET:
+        cached = load_cached(path) if path else None
+    else:
+        cached = cached_meta
     if cached and cached.get("ok"):
         pl = _u(cached.get("placement") or u"").strip()
         if pl:
@@ -613,11 +642,14 @@ def _bool_filter_key(value):
         return BOOL_UNKNOWN
 
 
-def _cached_bool_key(path, key):
+def _cached_bool_key(path, key, cached_meta=_UNSET):
     """Return tri-state bool key from cache: yes/no/unknown."""
-    if not path:
-        return BOOL_UNKNOWN
-    cached = load_cached(path)
+    if cached_meta is _UNSET:
+        if not path:
+            return BOOL_UNKNOWN
+        cached = load_cached(path)
+    else:
+        cached = cached_meta
     if not cached or not cached.get("ok"):
         return BOOL_UNKNOWN
     if key not in cached:
@@ -628,7 +660,7 @@ def _cached_bool_key(path, key):
         return BOOL_UNKNOWN
 
 
-def revit_format_of(fi_or_path):
+def revit_format_of(fi_or_path, cached_meta=_UNSET):
     """Stable Revit version label (R22/R24) from cache or scanner fallback."""
     if fi_or_path is None:
         return u""
@@ -638,7 +670,10 @@ def revit_format_of(fi_or_path):
     else:
         path = getattr(fi_or_path, "path", None) or getattr(fi_or_path, "Path", None) or u""
         guessed = _u(getattr(fi_or_path, "revit_version", u"") or u"").strip()
-    cached = load_cached(path) if path else None
+    if cached_meta is _UNSET:
+        cached = load_cached(path) if path else None
+    else:
+        cached = cached_meta
     if cached and cached.get("ok"):
         lab = normalize_revit_label(cached.get("revit_format") or u"")
         if lab:
@@ -646,43 +681,43 @@ def revit_format_of(fi_or_path):
     return normalize_revit_label(guessed)
 
 
-def is_shared_family_of_fi(fi):
+def is_shared_family_of_fi(fi, cached_meta=_UNSET):
     if fi is None:
         return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    return _cached_bool_key(path, "is_shared_family")
+    return _cached_bool_key(path, "is_shared_family", cached_meta=cached_meta)
 
 
-def has_imported_geometry_of_fi(fi):
+def has_imported_geometry_of_fi(fi, cached_meta=_UNSET):
     if fi is None:
         return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    return _cached_bool_key(path, "has_imported_geometry")
+    return _cached_bool_key(path, "has_imported_geometry", cached_meta=cached_meta)
 
 
-def has_shared_nested_of_fi(fi):
+def has_shared_nested_of_fi(fi, cached_meta=_UNSET):
     if fi is None:
         return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    return _cached_bool_key(path, "has_shared_nested")
+    return _cached_bool_key(path, "has_shared_nested", cached_meta=cached_meta)
 
 
-def always_vertical_of_fi(fi):
+def always_vertical_of_fi(fi, cached_meta=_UNSET):
     if fi is None:
         return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    return _cached_bool_key(path, "always_vertical")
+    return _cached_bool_key(path, "always_vertical", cached_meta=cached_meta)
 
 
-def work_plane_based_of_fi(fi):
+def work_plane_based_of_fi(fi, cached_meta=_UNSET):
     """Return tri-state from cache; fallback to placement-derived guess."""
     if fi is None:
         return BOOL_UNKNOWN
     path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-    key = _cached_bool_key(path, "work_plane_based")
+    key = _cached_bool_key(path, "work_plane_based", cached_meta=cached_meta)
     if key != BOOL_UNKNOWN:
         return key
-    pl = placement_of(fi)
+    pl = placement_of(fi, cached_meta=cached_meta)
     try:
         pl = (pl or u"").lower()
     except Exception:
@@ -694,13 +729,14 @@ def work_plane_based_of_fi(fi):
     return BOOL_NO
 
 
-def hosting_of_fi(fi):
+def hosting_of_fi(fi, cached_meta=_UNSET):
     if fi is None:
         return HOST_UNKNOWN
     host = getattr(fi, "hosting", None) or getattr(fi, "Hosting", None)
     if host:
         return _u(host)
-    return hosting_of(getattr(fi, "path", None) or getattr(fi, "Path", u""))
+    path = getattr(fi, "path", None) or getattr(fi, "Path", u"")
+    return hosting_of(path, cached_meta=cached_meta)
 
 
 def filter_families(
@@ -712,6 +748,7 @@ def filter_families(
     is_shared_family=None,
     work_plane_based=None,
     always_vertical=None,
+    meta_by_path=None,
 ):
     """
     Filter by category / hosting / placement.
@@ -750,33 +787,35 @@ def filter_families(
     cat_lower = set(k.lower() for k in cat_keys)
     out = []
     for fi in families or []:
+        path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
+        meta = meta_by_path.get(path) if (meta_by_path is not None and path) else _UNSET
         if use_cat:
-            if category_of(fi).lower() not in cat_lower:
+            if category_of(fi, cached_meta=meta).lower() not in cat_lower:
                 continue
         if use_host:
-            if hosting_of_fi(fi).lower() not in host_keys:
+            if hosting_of_fi(fi, cached_meta=meta).lower() not in host_keys:
                 continue
         if use_place:
-            if placement_of(fi).lower() not in place_keys:
+            if placement_of(fi, cached_meta=meta).lower() not in place_keys:
                 continue
 
         if use_ver:
-            if revit_format_of(fi).lower() not in ver_keys:
+            if revit_format_of(fi, cached_meta=meta).lower() not in ver_keys:
                 continue
         if use_imp:
-            if has_imported_geometry_of_fi(fi).lower() not in imp_keys:
+            if has_imported_geometry_of_fi(fi, cached_meta=meta).lower() not in imp_keys:
                 continue
         if use_sn:
-            if has_shared_nested_of_fi(fi).lower() not in shared_nested_keys:
+            if has_shared_nested_of_fi(fi, cached_meta=meta).lower() not in shared_nested_keys:
                 continue
         if use_sf:
-            if is_shared_family_of_fi(fi).lower() not in shared_family_keys:
+            if is_shared_family_of_fi(fi, cached_meta=meta).lower() not in shared_family_keys:
                 continue
         if use_wp:
-            if work_plane_based_of_fi(fi).lower() not in wp_keys:
+            if work_plane_based_of_fi(fi, cached_meta=meta).lower() not in wp_keys:
                 continue
         if use_av:
-            if always_vertical_of_fi(fi).lower() not in av_keys:
+            if always_vertical_of_fi(fi, cached_meta=meta).lower() not in av_keys:
                 continue
         out.append(fi)
     return out
@@ -804,7 +843,7 @@ def filter_by_host(families, host_key):
     return filter_families(families, hosting=host_key)
 
 
-def collect_filter_options(families):
+def collect_filter_options(families, meta_by_path=None):
     """
     Collect distinct category / hosting / placement / version values for scope.
     Version labels always normalized (R22/R24). Scanner revit_version is used
@@ -821,17 +860,21 @@ def collect_filter_options(families):
     work_plane_based = set()
     always_vertical = set()
     for fi in families or []:
-        cat = category_of(fi)
+        path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
+        if meta_by_path is not None:
+            cached = meta_by_path.get(path) if path else None
+        else:
+            cached = load_cached(path) if path else None
+
+        cat = category_of(fi, cached_meta=cached)
         if cat:
             categories.add(cat)
 
         # Version: always collect stable label (cache and/or scanner)
-        ver = revit_format_of(fi)
+        ver = revit_format_of(fi, cached_meta=cached)
         if ver:
             revit_formats.add(ver)
 
-        path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
-        cached = load_cached(path) if path else None
         if cached and cached.get("ok"):
             host = _u(cached.get("hosting") or HOST_UNKNOWN).strip() or HOST_UNKNOWN
             hostings.add(host)
@@ -861,10 +904,10 @@ def collect_filter_options(families):
                 pass
             continue
 
-        host = hosting_of_fi(fi)
+        host = hosting_of_fi(fi, cached_meta=cached)
         if host and host != HOST_UNKNOWN:
             hostings.add(host)
-        pl = placement_of(fi)
+        pl = placement_of(fi, cached_meta=cached)
         if pl:
             placements.add(pl)
 

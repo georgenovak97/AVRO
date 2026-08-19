@@ -1014,14 +1014,17 @@ class FamilyBrowserDialog(object):
             limits=self._quality_limits,
         )
 
-    def _apply_quality_flag_filters(self, families):
+    def _apply_quality_flag_filters(self, families, meta_by_path=None):
         if not any(self._quality_flags.values()):
             return families
-        out = []
-        for fi in families:
-            if self._passes_quality_flags(fi):
-                out.append(fi)
-        return out
+        if meta_by_path is None:
+            meta_by_path = family_inspector.build_meta_by_path(families)
+        return family_browser_quality.filter_families(
+            families,
+            meta_by_path,
+            self._quality_flags,
+            limits=self._quality_limits,
+        )
 
     def _sync_filters_from_ui(self):
         """Read filter UI into applied sets/flags (checkbox lists + quality block)."""
@@ -1081,7 +1084,9 @@ class FamilyBrowserDialog(object):
         if self.ui is None:
             return
 
-        opts = family_inspector.collect_filter_options(self._folder_scope or [])
+        scope = self._folder_scope or []
+        meta_by_path = family_inspector.build_meta_by_path(scope)
+        opts = family_inspector.collect_filter_options(scope, meta_by_path=meta_by_path)
         cat_available = [as_unicode(c) for c in (opts.get("categories") or []) if as_unicode(c).strip()]
 
         host_keys = [
@@ -1247,14 +1252,16 @@ class FamilyBrowserDialog(object):
         families = list(self._folder_scope or [])
         if query:
             families = scanner.flat_search(families, query)
+        meta_by_path = family_inspector.build_meta_by_path(families)
         families = family_inspector.filter_families(
             families,
             category=self._category_filter_keys,
             hosting=self._host_filter_keys,
             placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
+            meta_by_path=meta_by_path,
         )
-        families = self._apply_quality_flag_filters(families)
+        families = self._apply_quality_flag_filters(families, meta_by_path=meta_by_path)
         self._show_families(families)
         self._update_breadcrumb_display()
         total = len(self._folder_scope or [])
