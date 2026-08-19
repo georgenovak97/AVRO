@@ -162,7 +162,8 @@ class PropsPanelController(object):
                 meta.get("param_instance_count") or 0,
                 meta.get("param_type_count") or 0)),
             (i18n.t("props_dimensions"), self._count(meta, "dimension_count")),
-            (i18n.t("props_params_formulas"), self._yes_no(meta.get("param_has_formulas"))),
+            (i18n.t("props_params_formulas"),
+             self._count(meta, "param_has_formulas_count")),
             (i18n.t("props_materials"), self._count(meta, "material_count")),
         )
         for label, value in rows:
