@@ -108,32 +108,6 @@ def _sync_card_colors(palette):
 
 _sync_card_colors(ui_theme.LIGHT)
 
-
-def _release_number(value):
-    """Return a two-digit Revit release number from R23 or 2023 text."""
-    text = as_unicode(value or u"")
-    match = re.search(r"20(\d{2})", text)
-    if match:
-        return int(match.group(1))
-    match = re.search(r"\bR?(\d{2})\b", text, re.I)
-    if match:
-        return int(match.group(1))
-    return None
-
-
-def _current_revit_label():
-    """Return the running Revit release label, for example ``R22``."""
-    try:
-        app = revit.doc.Application
-        number = _release_number(getattr(app, "VersionNumber", u""))
-        if number is None:
-            number = _release_number(getattr(app, "VersionName", u""))
-        if number is not None:
-            return u"R{:02d}".format(number)
-    except Exception:
-        pass
-    return u""
-
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
     "BtnRunSearch", "BtnResetSearch",
@@ -233,6 +207,32 @@ def _apply_card_metrics(card, preview_img, card_w, card_h):
 # Dialog class
 # ---------------------------------------------------------------------------
 class FamilyBrowserDialog(object):
+
+    def _release_number(self, value):
+        """Return a two-digit Revit release number from R23 or 2023 text."""
+        text = as_unicode(value or u"")
+        match = re.search(r"20(\d{2})", text)
+        if match:
+            return int(match.group(1))
+        match = re.search(r"\bR?(\d{2})\b", text, re.I)
+        if match:
+            return int(match.group(1))
+        return None
+
+    def _current_revit_label(self):
+        """Return the running Revit release label, for example ``R22``."""
+        try:
+            app = self.doc.Application
+            number = self._release_number(
+                getattr(app, "VersionNumber", u""))
+            if number is None:
+                number = self._release_number(
+                    getattr(app, "VersionName", u""))
+            if number is not None:
+                return u"R{:02d}".format(number)
+        except Exception:
+            pass
+        return u""
 
     def __init__(self):
         self.win = None
@@ -2257,15 +2257,15 @@ class FamilyBrowserDialog(object):
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
             return None, i18n.t("file_not_found_short")
-        family_release = _release_number(
+        family_release = self._release_number(
             getattr(fi, "revit_version", u""))
-        host_release = _release_number(_current_revit_label())
+        host_release = self._release_number(self._current_revit_label())
         if (family_release is not None and host_release is not None
                 and family_release > host_release):
             return None, i18n.t(
                 "newer_version",
                 ver=as_unicode(getattr(fi, "revit_version", u"")),
-                cur=_current_revit_label())
+                cur=self._current_revit_label())
 
         try:
             fam_ref = clr.Reference[RevitFamily]()
@@ -2347,10 +2347,10 @@ class FamilyBrowserDialog(object):
         return self._get_family_symbol_single(fi)
 
     def _place_family(self, fi):
-        family_release = _release_number(
+        family_release = self._release_number(
             getattr(fi, "revit_version", u""))
-        host_label = _current_revit_label()
-        host_release = _release_number(host_label)
+        host_label = self._current_revit_label()
+        host_release = self._release_number(host_label)
         if (family_release is not None and host_release is not None
                 and family_release > host_release):
             self._set_status(i18n.t(
