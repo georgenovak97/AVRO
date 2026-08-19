@@ -32,6 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   grouped under one localized category in Filtering.
 - Hosting behavior now shows only Wall, Floor, Ceiling, Roof, Face-based, and
   Work plane-based options.
+- Preview cards now keep the same outer inset and inter-card spacing at all
+  supported window widths instead of shifting the leftover width into the
+  margins.
 
 ### Fixed
 - README typo and outdated feature list.

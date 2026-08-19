@@ -76,6 +76,7 @@ import image_utils
 import family_load_options
 import family_browser_props
 import family_browser_cards
+import card_layout
 import family_browser_status
 import family_browser_library
 import family_browser_quality
@@ -147,7 +148,6 @@ _VIRTUAL_ROW_BUFFER = 2
 _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
 _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
-_CARD_MARGIN = 8
 _CARD_OUTER_PAD = 8
 _CARD_W = 156
 _CARD_H = 182
@@ -1546,42 +1546,15 @@ class FamilyBrowserDialog(object):
         return float(w)
 
     def _layout_metrics(self):
-        """Equal outer pad on all sides; gutters == pad (small, uniform)."""
-        import math
-        w = self._viewport_width()
-        # One token for outer pad and inter-card gap — always identical.
-        gap = float(_CARD_MARGIN)
-        pad = float(gap)
-        inner_w = max(1.0, float(w) - 2.0 * pad)
-        min_w = float(_CARD_MIN_W)
-        max_w = float(_CARD_MAX_W)
-        cols = max(1, int((inner_w + gap) / (min_w + gap)))
-        # Whole-pixel card width so left/right leftover can be split equally.
-        raw = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
-        while raw > max_w + 0.5:
-            next_cols = cols + 1
-            next_raw = (inner_w - gap * (next_cols - 1)) / float(next_cols)
-            if next_raw < min_w:
-                break
-            cols = next_cols
-            raw = next_raw
-        if raw < min_w:
-            cols = max(1, int((inner_w + gap) / (min_w + gap)))
-            raw = (inner_w - gap * (cols - 1)) / float(cols) if cols > 1 else inner_w
-        card_w = float(math.floor(raw))
-        if card_w < 1:
-            card_w = 1.0
-        used = cols * card_w + max(0, cols - 1) * gap
-        leftover = max(0.0, inner_w - used)
-        # Split leftover pixels into left/right pad so both sides match.
-        pad_l = pad + math.floor(leftover / 2.0)
-        pad_r = pad + leftover - math.floor(leftover / 2.0)
-        # Use pad_l for positioning; pad_r is the residual right inset.
-        pad_pos = float(pad_l)
-        card_h = card_w * (float(_CARD_H) / float(_CARD_W))
-        # Store effective right pad via returning pad_pos; height uses same pad.
-        # For height top/bottom use the base gap (not leftover split).
-        return cols, float(card_w), float(card_h), gap, float(w), pad_pos, float(pad), float(pad_r)
+        """Return grid metrics with a fixed, symmetric outer inset."""
+        return card_layout.compute_grid_metrics(
+            self._viewport_width(),
+            min_w=_CARD_MIN_W,
+            max_w=_CARD_MAX_W,
+            base_w=_CARD_W,
+            base_h=_CARD_H,
+            margin=_CARD_OUTER_PAD,
+        )
 
     def _layout_cols(self):
         return self._layout_metrics()[0]

@@ -14,10 +14,19 @@ LIB = os.path.join(ROOT, "lib")
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
 
-from card_layout import compute_preview_box  # noqa: E402
+from card_layout import compute_grid_metrics, compute_preview_box  # noqa: E402
 
 
 class PreviewBoxMetricsTests(unittest.TestCase):
+    def test_grid_keeps_equal_outer_insets(self):
+        for viewport in (400, 768, 1024, 1440, 1920):
+            cols, card_w, _card_h, gap, _vw, pad_l, _pad_tb, pad_r = compute_grid_metrics(viewport)
+            self.assertEqual(pad_l, 8.0)
+            self.assertEqual(pad_r, 8.0)
+            self.assertEqual(gap, 8.0)
+            used = 16.0 + cols * card_w + max(0, cols - 1) * gap
+            self.assertAlmostEqual(used, float(viewport), places=6)
+
     def test_keeps_base_aspect(self):
         pw, ph = compute_preview_box(156, 182, 96, 67, 24, 78)
         self.assertAlmostEqual(ph / pw, 67.0 / 96.0, places=4)
