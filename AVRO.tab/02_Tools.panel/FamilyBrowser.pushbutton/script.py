@@ -1303,7 +1303,7 @@ class FamilyBrowserDialog(object):
 
             scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
-            msg = i18n.t("scan_error", err=ex)
+            msg = i18n.t("scan_error", err=as_unicode(ex))
             if self.win is not win or window_gen != self._window_gen:
                 return
             if scan_gen != self._scan_gen:
@@ -2342,7 +2342,7 @@ class FamilyBrowserDialog(object):
                 return i18n.t("placement_cancelled")
             return i18n.t("placed", name=family_name)
         except Exception as ex:
-            return i18n.t("placement_error", err=ex)
+            return i18n.t("placement_error", err=as_unicode(ex))
 
     def _pump_ui_before_reopen(self):
         """Let Revit/WPF finish the placement command before ShowDialog again."""
@@ -2393,7 +2393,7 @@ class FamilyBrowserDialog(object):
                     else:
                         skipped.append(fi.name)
                 except Exception as ex:
-                    errors.append(u"{}: {}".format(fi.name, ex))
+                    errors.append(u"{}: {}".format(fi.name, as_unicode(ex)))
             if loaded:
                 t.Commit()
                 self.cfg = config.load()
@@ -2405,7 +2405,7 @@ class FamilyBrowserDialog(object):
                     t.RollBack()
                 except Exception:
                     pass
-            self._set_status(i18n.t("error_generic", err=str(ex)))
+            self._set_status(i18n.t("error_generic", err=as_unicode(ex)))
             return
 
         parts = []
