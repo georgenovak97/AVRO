@@ -6,22 +6,9 @@ Walks library directories and returns FamilyInfo objects.
 Preview images are extracted from .rfa files using Revit API when possible.
 """
 import os
-import sys
 import re
 
 import rfa_version
-
-# Revit API available when running inside pyRevit
-try:
-    import clr
-    clr.AddReference("RevitAPI")
-    from Autodesk.Revit.DB import (
-        Document, Family, FamilySymbol, OpenOptions,
-        TransmissionData, ModelPath, FilePath,
-    )
-    REVIT_AVAILABLE = True
-except Exception:
-    REVIT_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # Data class

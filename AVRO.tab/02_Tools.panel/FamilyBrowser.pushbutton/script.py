@@ -6,7 +6,6 @@ Entry point script.
 import os
 import sys
 import threading
-import tempfile
 import time
 
 # ---------------------------------------------------------------------------
@@ -27,25 +26,17 @@ from System.Windows import (
     TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
-    TreeViewItem, Border, StackPanel, TextBlock, Image, Canvas, ScrollViewer,
-    WrapPanel, ComboBox, ComboBoxItem, CheckBox,
+    TreeViewItem, StackPanel, TextBlock, Canvas, CheckBox,
 )
-from System.Windows.Media import SolidColorBrush, Color, Stretch
+from System.Windows.Media import SolidColorBrush, Color
 from System.Windows.Input import Keyboard, ModifierKeys, Key
 from System.Windows.Controls import Orientation
-from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
-from System.IO import MemoryStream
-from System.Windows.Forms import FolderBrowserDialog, DialogResult
 from System.Windows.Threading import DispatcherTimer
-import Autodesk.Revit.DB as RDB
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
-    FamilySymbol as RevitFamilySymbol,
-    Element as RevitElement,
     Transaction,
     ElementId,
-    IFamilyLoadOptions,
 )
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
@@ -64,7 +55,6 @@ import family_scanner as scanner
 import family_inspector
 import category_utils
 import rfa_preview
-import rfa_version
 import library_cache as libcache
 import ui_theme
 import i18n
@@ -80,7 +70,7 @@ import card_layout
 import family_browser_status
 import family_browser_library
 import family_browser_quality
-from revit_utils import as_unicode, revit_name, symbol_family, element_id_value
+from revit_utils import as_unicode, revit_name, element_id_value
 
 # ---------------------------------------------------------------------------
 # Colour helpers

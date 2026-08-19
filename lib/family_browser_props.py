@@ -11,7 +11,6 @@ clr.AddReference("WindowsBase")
 
 from System.Windows import Thickness, Visibility, TextWrapping, FontStyles
 from System.Windows.Controls import TextBlock, StackPanel
-from System.Windows.Media import SolidColorBrush
 
 import family_inspector
 import i18n

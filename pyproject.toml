@@ -18,7 +18,6 @@ ignore = [
     "E501", # WPF / Revit scripts are long
     "E402", # sys.path bootstrap before lib imports
     "F821", # Autodesk / System / unicode on CPython
-    "F401", # unused imports in ribbon scripts; dead-import cleanup is a separate chore
 ]
 
 [tool.ruff.lint.per-file-ignores]

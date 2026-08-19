@@ -11,7 +11,6 @@ import os
 import json
 import hashlib
 import codecs
-import time
 
 import config
 import avro_log
@@ -123,8 +122,6 @@ def _utf8_to_unicode(val):
             return unicode(val, "utf-8")
         except Exception:
             return _repair_mojibake(val)
-    if isinstance(val, unicode):
-        return val
     return val
 
 

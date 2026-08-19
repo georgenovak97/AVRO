@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Small centralized logger for AVRO extension (best-effort, never raises)."""
 import codecs
-import os
 import time
 
 import config

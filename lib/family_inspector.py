@@ -29,7 +29,6 @@ try:
         ReferencePlane,
         Dimension,
         Material,
-        Family as RevitFamily,
         OpenOptions,
         ModelPathUtils,
     )
