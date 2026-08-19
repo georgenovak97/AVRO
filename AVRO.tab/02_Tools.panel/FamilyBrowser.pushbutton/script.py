@@ -1580,7 +1580,7 @@ class FamilyBrowserDialog(object):
             except Exception:
                 width = 0.0
             if width > 80:
-                w = max(400.0, width - 625.0)
+                w = max(400.0, width - 755.0)
         if w < 80 and self.win is not None:
             w = max(400.0, float(self.win.ActualWidth) - 620.0)
         if w < 80:

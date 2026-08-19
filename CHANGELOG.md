@@ -42,6 +42,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The Constraints panel now explains each option in the active Family Browser
   language, with the same details available as checkbox tooltips.
 - Constraint explanations are displayed as a readable hyphen bullet list.
+- The Filtering / Properties pane is wide enough to show constraint
+  explanations without line wrapping.
 
 ### Fixed
 - README typo and outdated feature list.
