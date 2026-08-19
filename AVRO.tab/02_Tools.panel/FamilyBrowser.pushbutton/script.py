@@ -6,6 +6,7 @@ Entry point script.
 import os
 import sys
 import threading
+import tempfile
 import time
 
 # ---------------------------------------------------------------------------
@@ -2209,24 +2210,18 @@ class FamilyBrowserDialog(object):
                 best = fam
         return best
 
-    def _load_family_element(self, fi, source_doc=None):
+    def _load_family_element(self, fi, load_path=None):
         """Return (Family, error_message). error_message is None on success."""
-        path = os.path.normpath(fi.path)
+        path = os.path.normpath(load_path or fi.path)
         if not os.path.isfile(path):
             return None, i18n.t("file_not_found_short")
 
         err_text = None
         try:
-            if source_doc is not None:
-                fam = self.doc.LoadFamily(
-                    source_doc, family_load_options.FAMILY_LOAD_OPTIONS)
-                if fam is not None:
-                    return fam, None
-            else:
-                fam_ref = clr.Reference[RevitFamily]()
-                if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
-                        and fam_ref.Value is not None):
-                    return fam_ref.Value, None
+            fam_ref = clr.Reference[RevitFamily]()
+            if (self.doc.LoadFamily(path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
+                    and fam_ref.Value is not None):
+                return fam_ref.Value, None
         except Exception as ex:
             err_text = as_unicode(ex)
 
@@ -2240,16 +2235,16 @@ class FamilyBrowserDialog(object):
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
 
-    def _open_upgrade_source(self, fi):
-        """Open an older family as a source document for LoadFamily(Document)."""
-        version = as_unicode(getattr(fi, "revit_version", u"") or u"")
-        if not version:
-            return None
+    def _save_upgrade_temp(self, fi):
+        """Save a current-format temporary copy before project loading."""
+        fd = None
+        temp_path = None
+        source_doc = None
         try:
-            family_year = int(u"20" + version[1:])
-            app_version = int(as_unicode(self.doc.Application.VersionNumber))
-            if family_year >= app_version:
-                return None
+            fd, temp_path = tempfile.mkstemp(suffix=".rfa")
+            os.close(fd)
+            fd = None
+            os.remove(temp_path)
             opts = OpenOptions()
             try:
                 opts.Audit = False
@@ -2257,10 +2252,30 @@ class FamilyBrowserDialog(object):
                 pass
             model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(
                 os.path.normpath(fi.path))
-            return self.doc.Application.OpenDocumentFile(model_path, opts)
+            source_doc = self.doc.Application.OpenDocumentFile(model_path, opts)
+            if source_doc is None:
+                raise Exception(u"OpenDocumentFile returned None")
+            source_doc.SaveAs(temp_path)
+            return temp_path
         except Exception as ex:
-            libcache._log(u"family source open: {}".format(as_unicode(ex)))
+            libcache._log(u"family temp save: {}".format(as_unicode(ex)))
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
             return None
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+            if source_doc is not None:
+                try:
+                    source_doc.Close(False)
+                except Exception as ex:
+                    libcache._log(u"family temp close: {}".format(as_unicode(ex)))
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -2290,11 +2305,12 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        source_doc = self._open_upgrade_source(fi)
+        temp_path = self._save_upgrade_temp(fi)
+        load_path = temp_path or fi.path
         t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
         try:
-            fam, err = self._load_family_element(fi, source_doc=source_doc)
+            fam, err = self._load_family_element(fi, load_path=load_path)
             if fam is None:
                 raise Exception(err or u"LoadFamily failed")
             symbol = self._get_placeable_symbol(fam, fi)
@@ -2313,11 +2329,11 @@ class FamilyBrowserDialog(object):
                 pass
             raise
         finally:
-            if source_doc is not None:
+            if temp_path is not None:
                 try:
-                    source_doc.Close(False)
-                except Exception as ex:
-                    libcache._log(u"family source close: {}".format(as_unicode(ex)))
+                    os.remove(temp_path)
+                except Exception:
+                    pass
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
