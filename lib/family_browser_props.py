@@ -24,6 +24,28 @@ except NameError:  # python3 test environment
     basestring = (str, bytes)
 
 
+def _yield_ui():
+    """Pump WPF render/layout messages so UI updates before blocking operation."""
+    try:
+        from System.Windows.Threading import (
+            Dispatcher, DispatcherFrame, DispatcherPriority)
+        import System
+        frame = DispatcherFrame()
+
+        def exit_frame():
+            frame.Continue = False
+
+        app = System.Windows.Application.Current
+        disp = app.Dispatcher if app is not None else Dispatcher.CurrentDispatcher
+        if disp is not None:
+            disp.BeginInvoke(
+                DispatcherPriority.Background,
+                System.Action(exit_frame))
+            Dispatcher.PushFrame(frame)
+    except Exception:
+        pass
+
+
 class PropsPanelController(object):
     """Manage the properties panel of the Family Browser dialog."""
 
@@ -60,15 +82,20 @@ class PropsPanelController(object):
             self.reset()
             return
         path = fi.path
-        self.set_loading(path)
         meta = family_inspector.load_cached(path)
         if meta is None:
+            self.set_loading(path)
+            _yield_ui()
+            if self._props_path != path:
+                return
             try:
                 app = self.dialog.doc.Application if self.dialog.doc is not None else None
             except Exception as ex:
                 avro_log.exception("props.inspect.app", ex)
                 app = None
             meta = family_inspector.inspect(path, app=app, use_cache=True)
+        else:
+            self._props_path = path
         if self._props_path != path:
             return
         self.fill(fi, meta)
