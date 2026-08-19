@@ -110,13 +110,8 @@ _sync_card_colors(ui_theme.LIGHT)
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
     "FiltersTitle", "FiltersCount", "BtnResetFilters", "BtnApplyFilters",
-    "LblCategoryFilter", "CategoryFilterList",
-    "LblHostFilter", "HostFilterList",
     "LblVersionFilter", "VersionFilterList",
-    "LblImportedFilter", "ImportedFilterList",
-    "LblSharedNestedFilter", "SharedNestedFilterList",
-    "ConstraintsHelpText",
-    "LblSharedFamilyFilter", "SharedFamilyFilterList",
+    "LblSizeFilter", "SizeFilterList",
     "BtnRunSearch", "BtnResetSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload",
@@ -239,11 +234,10 @@ class FamilyBrowserDialog(object):
         self._active_search_query = u""
         self._search_suppress = False
         self._search_timer = None
-        self._deferred_inspect_fi = None
-        self._deferred_inspect_gen = 0
         self._host_filter_keys = set()
         self._category_filter_keys = set()
         self._version_filter_keys = set()
+        self._size_filter_keys = set()
         self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()  # reserved (quality block panel host)
         self._quality_flags = {
@@ -296,9 +290,6 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._window_gen = 0
         self._scan_gen = 0
-        self._pre_inspect_gen = 0
-        self._pre_inspect_queue = []
-        self._pre_inspect_index = 0
 
     def _init_window(self):
         self._search_timer = None
@@ -401,6 +392,9 @@ class FamilyBrowserDialog(object):
         lbl_ver = getattr(self.ui, "LblVersionFilter", None)
         if lbl_ver is not None:
             lbl_ver.Text = i18n.t("filter_version_label")
+        lbl_size = getattr(self.ui, "LblSizeFilter", None)
+        if lbl_size is not None:
+            lbl_size.Text = i18n.t("filter_size_label")
         lbl_imp = getattr(self.ui, "LblImportedFilter", None)
         if lbl_imp is not None:
             lbl_imp.Visibility = Visibility.Collapsed
@@ -766,7 +760,6 @@ class FamilyBrowserDialog(object):
         self._build_tree(self._scan)
         self._show_recents_default()
         self._set_status(i18n.t("from_cache", n=total))
-        self._start_pre_inspect()
 
     def _try_restore_cache(self):
         paths = self._library_paths()
@@ -910,6 +903,7 @@ class FamilyBrowserDialog(object):
             if category_utils.normalize_category(v))
         _setset("_host_filter_keys", "hosting")
         _setset("_version_filter_keys", "revit_format")
+        _setset("_size_filter_keys", "size")
         self._work_plane_filter_keys = set()
 
         flags = state.get("quality_flags") or {}
@@ -934,6 +928,7 @@ class FamilyBrowserDialog(object):
             "category": sorted(self._category_filter_keys),
             "hosting": sorted(self._host_filter_keys),
             "revit_format": sorted(self._version_filter_keys),
+            "size": sorted(self._size_filter_keys),
             "quality_flags": dict(self._quality_flags),
             "quality_limits": dict(self._quality_limits),
         }
@@ -1060,11 +1055,8 @@ class FamilyBrowserDialog(object):
             panel = getattr(self.ui, panel_name, None)
             return set(self._checked_keys_from_panel(panel))
 
-        self._category_filter_keys = _many("CategoryFilterList")
-        self._host_filter_keys = _many("HostFilterList")
         self._version_filter_keys = _many("VersionFilterList")
-        self._shared_nested_filter_keys = set()
-        self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
+        self._size_filter_keys = _many("SizeFilterList")
 
     def _host_label(self, key):
         mapping = {
@@ -1099,10 +1091,8 @@ class FamilyBrowserDialog(object):
 
     def _filters_active(self):
         return bool(
-            self._category_filter_keys
-            or self._host_filter_keys
-            or self._version_filter_keys
-            or any(self._quality_flags.values())
+            self._version_filter_keys
+            or self._size_filter_keys
         )
 
     def _rebuild_meta_filters(self, preserve=True):
@@ -1111,33 +1101,16 @@ class FamilyBrowserDialog(object):
             return
 
         scope = self._folder_scope or []
-        meta_by_path = family_inspector.build_meta_by_path(scope)
-        opts = family_inspector.collect_filter_options(scope, meta_by_path=meta_by_path)
-        cat_available = [category_utils.normalize_category(c)
-                         for c in (opts.get("categories") or [])
-                         if category_utils.normalize_category(c)]
-
-        host_keys = [
-            family_inspector.HOST_CEILING,
-            family_inspector.HOST_WALL,
-            family_inspector.HOST_FLOOR,
-            family_inspector.HOST_ROOF,
-            family_inspector.HOST_FACE,
-            family_inspector.HOST_WORK_PLANE,
+        versions = set()
+        for fi in scope:
+            version = as_unicode(getattr(fi, "revit_version", u"") or u"").strip()
+            if version:
+                versions.add(version)
+        ver_available = sorted(versions, key=lambda s: s.lower())
+        size_entries = [
+            ("small", i18n.t("size_small")),
+            ("large", i18n.t("size_large")),
         ]
-        for h in opts.get("hostings") or []:
-            hu = as_unicode(h)
-            if hu.lower() not in set(x.lower() for x in host_keys):
-                host_keys.append(hu)
-
-        place_keys = list(family_inspector.PLACEMENT_KEYS)
-        for p in opts.get("placements") or []:
-            pu = as_unicode(p)
-            if pu.lower() not in set(x.lower() for x in place_keys):
-                place_keys.append(pu)
-
-        ver_available = [as_unicode(v) for v in (opts.get("revit_formats") or []) if as_unicode(v).strip()]
-        self._work_plane_filter_keys = set()
 
         def _pick_set(existing, available):
             if not preserve:
@@ -1150,34 +1123,23 @@ class FamilyBrowserDialog(object):
                     out.add(ku)
             return out
 
-        self._category_filter_keys = _pick_set(self._category_filter_keys, cat_available)
-        self._host_filter_keys = _pick_set(self._host_filter_keys, host_keys)
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
-        self._shared_nested_filter_keys = set()
-
-        cat_entries = [
-            (c, category_utils.display_name(c, i18n.t))
-            for c in sorted(cat_available, key=lambda s: s.lower())]
-        host_entries = [(h, self._host_label(h)) for h in host_keys]
-        ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
+        self._size_filter_keys = _pick_set(
+            self._size_filter_keys, [key for key, _label in size_entries])
+        ver_entries = [(v, v) for v in ver_available]
 
         self._filter_suppress = True
         try:
-            # Order: version first (matches XAML), then category/host, then quality
             self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
-            self._fill_check_list(getattr(self.ui, "CategoryFilterList", None), cat_entries, self._category_filter_keys)
-            self._fill_check_list(getattr(self.ui, "HostFilterList", None), host_entries, self._host_filter_keys)
-            self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
+            self._fill_check_list(getattr(self.ui, "SizeFilterList", None), size_entries, self._size_filter_keys)
         finally:
             self._filter_suppress = False
         self._update_filters_button_caption()
 
     def _active_filter_count(self):
         return (
-            len(self._category_filter_keys)
-            + len(self._host_filter_keys)
-            + len(self._version_filter_keys)
-            + sum(1 for v in self._quality_flags.values() if v)
+            len(self._version_filter_keys)
+            + len(self._size_filter_keys)
         )
 
     def _update_filters_button_caption(self):
@@ -1208,6 +1170,7 @@ class FamilyBrowserDialog(object):
         self._apply_search(query)
 
     def _on_reset_filters(self, sender, e):
+        self._size_filter_keys = set()
         self._category_filter_keys = set()
         self._host_filter_keys = set()
         self._version_filter_keys = set()
@@ -1241,6 +1204,7 @@ class FamilyBrowserDialog(object):
     def _on_reset_search(self, sender, e):
         self._stop_search_timer()
         self._active_search_query = u""
+        self._size_filter_keys = set()
         self._category_filter_keys = set()
         self._host_filter_keys = set()
         self._version_filter_keys = set()
@@ -1274,15 +1238,16 @@ class FamilyBrowserDialog(object):
         families = list(self._folder_scope or [])
         if query:
             families = scanner.flat_search(families, query)
-        meta_by_path = family_inspector.build_meta_by_path(families)
         families = family_inspector.filter_families(
             families,
-            category=self._category_filter_keys,
-            hosting=self._host_filter_keys,
             revit_format=self._version_filter_keys,
-            meta_by_path=meta_by_path,
         )
-        families = self._apply_quality_flag_filters(families, meta_by_path=meta_by_path)
+        size_keys = set(as_unicode(k).lower() for k in self._size_filter_keys)
+        if size_keys and size_keys != set(["small", "large"]):
+            families = [
+                fi for fi in families
+                if (("small" in size_keys and fi.size_kb <= 15 * 1024)
+                    or ("large" in size_keys and fi.size_kb > 15 * 1024))]
         self._show_families(families)
         self._update_breadcrumb_display()
         total = len(self._folder_scope or [])
@@ -1370,49 +1335,6 @@ class FamilyBrowserDialog(object):
                 MessageBoxImage.Warning)
         self._build_tree(self._scan)
         self._show_recents_default()
-        self._start_pre_inspect()
-
-    def _start_pre_inspect(self):
-        if self.ui is None or self.win is None:
-            return
-        self._pre_inspect_gen += 1
-        gen = self._pre_inspect_gen
-        try:
-            current = as_unicode(self.doc.Application.VersionNumber)
-            current_label = u"R" + current[-2:]
-        except Exception:
-            current_label = u""
-        self._pre_inspect_queue = [
-            fi for fi in (self._scan.get("all", []) or [])
-            if as_unicode(getattr(fi, "revit_version", u"") or u"")
-            == current_label]
-        self._pre_inspect_index = 0
-        total = len(self._pre_inspect_queue)
-        if total == 0:
-            return
-        self.win.Dispatcher.BeginInvoke(
-            System.Action(lambda: self._pre_inspect_step(gen)))
-
-    def _pre_inspect_step(self, gen):
-        if (gen != self._pre_inspect_gen or self.ui is None
-                or self.win is None):
-            return
-        total = len(self._pre_inspect_queue)
-        if self._pre_inspect_index >= total:
-            return
-
-        fi = self._pre_inspect_queue[self._pre_inspect_index]
-        self._pre_inspect_index += 1
-        try:
-            path = getattr(fi, "path", None) or u""
-            if path and family_inspector.load_cached(path) is None:
-                family_inspector.inspect(
-                    path, app=self.doc.Application, use_cache=True)
-        except Exception as ex:
-            libcache._log(u"pre-inspect: {}".format(as_unicode(ex)))
-
-        self.win.Dispatcher.BeginInvoke(
-            System.Action(lambda: self._pre_inspect_step(gen)))
 
     def _refresh_recent_header(self):
         tree = getattr(self.ui, "CategoryTree", None) if self.ui else None
@@ -2171,11 +2093,8 @@ class FamilyBrowserDialog(object):
 
     def _update_selection_status(self):
         n = len(self._selected_paths)
-        self._deferred_inspect_gen += 1
-        inspect_gen = self._deferred_inspect_gen
         self.ui.BtnLoadSelected.IsEnabled = n > 0
         if n == 0:
-            self._deferred_inspect_fi = None
             self._props_controller.reset()
             return
         if n == 1:
@@ -2190,29 +2109,12 @@ class FamilyBrowserDialog(object):
                     name=as_unicode(fi.name),
                     size=i18n.t("size_mb").format(size_mb),
                     ver=ver or i18n.t("ver_unknown")))
-                self._deferred_inspect_fi = fi
-                self.win.Dispatcher.BeginInvoke(
-                    System.Action(
-                        lambda g=inspect_gen: self._run_deferred_inspect(g)))
+                self._props_controller.inspect(fi)
             else:
-                self._deferred_inspect_fi = None
                 self._props_controller.reset()
             return
-        self._deferred_inspect_fi = None
         self._props_controller.reset(i18n.t("selected_count", n=n))
         self._set_status(i18n.t("selected_count", n=n))
-
-    def _run_deferred_inspect(self, inspect_gen):
-        if inspect_gen != self._deferred_inspect_gen:
-            return
-        fi = self._deferred_inspect_fi
-        if (fi is None or self.ui is None or self.win is None
-                or self._pending_placement_fi is not None):
-            return
-        if fi.path not in self._selected_paths:
-            return
-        self._deferred_inspect_fi = None
-        self._props_controller.inspect(fi)
 
     def _on_clear_search(self, sender, e):
         if not self.ui.SearchBox.Text.strip():

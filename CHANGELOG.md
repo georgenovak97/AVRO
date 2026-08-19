@@ -57,8 +57,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   reopens automatically after placement.
 - Properties inspection is deferred until after double-click detection, so a
   slow first read cannot turn a fast placement double-click into two selections.
-- Properties metadata is pre-inspected after scanning only for families saved
-  in the active Revit version; older families avoid upgrade dialogs during scan.
+- Filtering now uses only Revit version and file size; Properties data is read
+  on a single click as before.
 - Older-family placement polls Revit for up to 15 seconds and retries the load
   only at intervals while the upgrade operation finishes.
 - Older-family placement now allows a short Revit format-processing interval

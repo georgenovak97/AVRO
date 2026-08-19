@@ -329,72 +329,15 @@
                                         <StackPanel x:Name="VersionFilterList" Margin="4"/>
                                     </Border>
 
-                                    <TextBlock x:Name="LblCategoryFilter"
-                                               Text="Категория:"
+                                    <TextBlock x:Name="LblSizeFilter"
+                                               Text="Размер:"
                                                Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="CategoryFilterList" Margin="4"/>
-                                    </Border>
-                                    <TextBlock x:Name="LblHostFilter"
-                                               Text="Основа:"
-                                               Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="HostFilterList" Margin="4"/>
-                                    </Border>
-                                    <!-- Legacy work-plane multi-select host; collapsed in code (moved to Ограничения) -->
-                                    <TextBlock x:Name="LblImportedFilter"
-                                               Text="На рабочей плоскости:"
-                                               Margin="0,0,0,4"
-                                               Visibility="Collapsed"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Visibility="Collapsed"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="ImportedFilterList" Margin="4"/>
-                                    </Border>
-
-                                    <TextBlock x:Name="LblSharedNestedFilter"
-                                               Text="Ограничения:"
-                                               Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                     <Border BorderBrush="{DynamicResource BorderLight}"
-                                             BorderThickness="1" Margin="0,0,0,10"
-                                             MinHeight="40"
-                                             Background="{DynamicResource BgInput}">
-                                         <StackPanel x:Name="SharedNestedFilterList" Margin="4"/>
-                                     </Border>
-                                     <Border BorderBrush="{DynamicResource BorderLight}"
-                                             BorderThickness="1" Margin="0,0,0,10"
-                                             Padding="6,6"
-                                             Background="{DynamicResource BgInput}">
-                                         <TextBlock x:Name="ConstraintsHelpText"
-                                                    TextWrapping="NoWrap"
-                                                    FontSize="10"
-                                                    LineHeight="14"
-                                                    Foreground="{DynamicResource TextMuted}"/>
-                                     </Border>
-
-                                     <TextBlock x:Name="LblSharedFamilyFilter"
-                                               Text="Shared family:"
-                                               Margin="0,0,0,4"
-                                               Visibility="Collapsed"
                                                Foreground="{DynamicResource TextMuted}"/>
                                     <Border BorderBrush="{DynamicResource BorderLight}"
                                             BorderThickness="1" Margin="0,0,0,0"
                                             MinHeight="40"
-                                            Visibility="Collapsed"
                                             Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="SharedFamilyFilterList" Margin="4"/>
+                                        <StackPanel x:Name="SizeFilterList" Margin="4"/>
                                     </Border>
                                 </StackPanel>
                             </ScrollViewer>
