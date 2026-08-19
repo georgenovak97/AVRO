@@ -42,32 +42,6 @@ def _label_from_format_string(text):
     return u""
 
 
-def _label_via_basic_file_info(path):
-    try:
-        import clr
-        clr.AddReference("RevitAPI")
-        from Autodesk.Revit.DB import BasicFileInfo
-        bfi = BasicFileInfo.Extract(path)
-        fmt = getattr(bfi, "Format", None)
-        if fmt:
-            label = _label_from_format_string(fmt)
-            if label:
-                return label
-        for attr in ("GetSavedInVersion", "SavedInVersion"):
-            fn = getattr(bfi, attr, None)
-            if callable(fn):
-                try:
-                    val = fn()
-                    label = _label_from_format_string(unicode(val))
-                    if label:
-                        return label
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    return u""
-
-
 def _label_via_file_bytes(path):
     try:
         with open(path, "rb") as f:
@@ -105,13 +79,10 @@ def revit_version_from_path(rfa_path):
 
 
 def revit_version_label(rfa_path):
-    """Return display label like R22, or empty string if unknown."""
+    """Return display label like R22, or empty string if unknown (pure Python, no Revit API)."""
     if not rfa_path or not rfa_path.lower().endswith(".rfa"):
         return u""
     label = revit_version_from_path(rfa_path)
-    if label:
-        return label
-    label = _label_via_basic_file_info(rfa_path)
     if label:
         return label
     return _label_via_file_bytes(rfa_path)

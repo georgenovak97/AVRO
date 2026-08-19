@@ -21,7 +21,6 @@ from System.Windows import (
 
 from revit_utils import as_unicode
 import i18n
-import rfa_version
 from card_layout import compute_preview_box
 
 
@@ -109,9 +108,6 @@ def make_card(fi, dialog, brushes, card_w=None, card_h=None, preview_w=None, pre
     size_block.Margin = Thickness(0, 2, 0, 0)
 
     ver_label = as_unicode(getattr(fi, "revit_version", u"") or u"")
-    if not ver_label:
-        ver_label = rfa_version.revit_version_label(fi.path)
-        fi.revit_version = ver_label
     version_block = TextBlock()
     version_block.Text = ver_label if ver_label else u"—"
     version_block.Foreground = brushes["muted"]

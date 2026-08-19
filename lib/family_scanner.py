@@ -62,7 +62,7 @@ class FamilyInfo(object):
         import datetime
         self.modified = datetime.datetime.fromtimestamp(
             stat.st_mtime).strftime("%Y-%m-%d")
-        self.revit_version = rfa_version.revit_version_from_path(path)
+        self.revit_version = rfa_version.revit_version_label(path)
 
     def __repr__(self):
         return "<FamilyInfo '{}' cat='{}'>".format(self.name, self.category)
