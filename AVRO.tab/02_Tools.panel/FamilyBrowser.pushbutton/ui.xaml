@@ -453,9 +453,22 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusText" Grid.Column="0" Text="Готово"
-                           Foreground="{DynamicResource TextMuted}" FontSize="11"
-                           VerticalAlignment="Center"/>
+                <DockPanel Grid.Column="0">
+                    <TextBlock x:Name="StatusText" DockPanel.Dock="Top" Text="Готово"
+                               Foreground="{DynamicResource TextMuted}" FontSize="11"
+                               VerticalAlignment="Center"/>
+                    <DockPanel Margin="0,4,0,0">
+                        <TextBlock x:Name="ProgressLabel" Text=""
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource TextMuted}" FontSize="10"
+                                   VerticalAlignment="Center"/>
+                        <ProgressBar x:Name="ScanProgressBar"
+                                     Width="200" Height="10"
+                                     Minimum="0" Maximum="100"
+                                     Visibility="Collapsed"
+                                     VerticalAlignment="Center"/>
+                    </DockPanel>
+                </DockPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <Button x:Name="BtnSettings"
