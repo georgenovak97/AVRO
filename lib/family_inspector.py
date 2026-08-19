@@ -16,6 +16,7 @@ import config
 import avro_log
 import rfa_version
 import category_utils
+from revit_utils import element_id_value, instance_symbol
 import re
 
 try:
@@ -398,11 +399,11 @@ def _inspect_document(doc, rfa_path):
     try:
         for inst in FilteredElementCollector(doc).OfClass(FamilyInstance):
             try:
-                sym = getattr(inst, "Symbol", None)
+                sym = instance_symbol(inst)
                 fam = getattr(sym, "Family", None) if sym is not None else None
                 fid = getattr(fam, "Id", None)
                 if fid is not None:
-                    nested_ids.add(fid.IntegerValue)
+                    nested_ids.add(element_id_value(fid))
                     if _is_family_shared(fam):
                         name = _element_name(fam)
                         if name:

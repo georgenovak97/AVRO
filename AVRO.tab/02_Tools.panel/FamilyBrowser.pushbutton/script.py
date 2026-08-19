@@ -80,7 +80,7 @@ import card_layout
 import family_browser_status
 import family_browser_library
 import family_browser_quality
-from revit_utils import as_unicode, revit_name, symbol_family
+from revit_utils import as_unicode, revit_name, symbol_family, element_id_value
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -2320,7 +2320,7 @@ class FamilyBrowserDialog(object):
             "tree_tag": self._current_tree_tag(),
             "search_query": search_query,
         }
-        self._pending_symbol_id = symbol.Id.IntegerValue
+        self._pending_symbol_id = element_id_value(symbol.Id)
         self._pending_family_name = as_unicode(fi.name)
         self._pending_family_path = libcache._norm_path(fi.path)
         config.add_recent(self._pending_family_path)

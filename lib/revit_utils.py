@@ -49,3 +49,47 @@ def symbol_family(symbol):
         return getattr(symbol, "Family")
     except Exception:
         return None
+
+
+def element_id_value(element_id):
+    """
+    Return an int for an ElementId across Revit versions.
+
+    Revit 2024+ deprecated ``ElementId.IntegerValue`` in favour of ``.Value``.
+    Prefer ``.Value`` and fall back to ``IntegerValue`` for Revit 2020-2023.
+    """
+    if element_id is None:
+        return 0
+    try:
+        value = getattr(element_id, "Value", None)
+        if value is not None:
+            return int(value)
+    except Exception:
+        pass
+    try:
+        return int(getattr(element_id, "IntegerValue"))
+    except Exception:
+        return 0
+
+
+def instance_symbol(instance):
+    """
+    Return a FamilyInstance's FamilySymbol across Revit versions.
+
+    Revit 2024+ replaced ``FamilyInstance.Symbol`` with ``GetFamilySymbol()``.
+    Prefer the method and fall back to the property for Revit 2020-2023.
+    """
+    if instance is None:
+        return None
+    getter = getattr(instance, "GetFamilySymbol", None)
+    if callable(getter):
+        try:
+            symbol = getter()
+            if symbol is not None:
+                return symbol
+        except Exception:
+            pass
+    try:
+        return getattr(instance, "Symbol", None)
+    except Exception:
+        return None
