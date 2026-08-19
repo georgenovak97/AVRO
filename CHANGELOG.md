@@ -52,8 +52,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview and bitmap byte conversion no longer uses per-byte Python loops.
 - The Settings dialog version is populated from the runtime version constant,
   which is checked against package metadata and the changelog.
-- Placement gives Revit an idle dispatcher frame after a failed older-family
-  load before retrying the supported Document.LoadFamily call.
+- Family Browser now closes before loading and placing a family, so modal
+  upgrade dialogs are handled outside the WPF click handler and the browser
+  reopens automatically after placement.
 
 ### Fixed
 - README typo and outdated feature list.

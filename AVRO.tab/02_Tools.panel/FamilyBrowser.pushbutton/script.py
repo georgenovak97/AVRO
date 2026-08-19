@@ -36,7 +36,6 @@ from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
     Transaction,
-    ElementId,
 )
 from Autodesk.Revit.Exceptions import OperationCanceledException
 
@@ -70,7 +69,7 @@ import card_layout
 import family_browser_status
 import family_browser_library
 import family_browser_quality
-from revit_utils import as_unicode, revit_name, element_id_value
+from revit_utils import as_unicode, revit_name
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -278,6 +277,7 @@ class FamilyBrowserDialog(object):
         self._pending_symbol_id = None
         self._pending_family_name = u""
         self._pending_family_path = None
+        self._pending_placement_fi = None
         self._placement_status_msg = None
         self._reopen_ui_state = None
         self._reopen_layout_pending = False
@@ -793,7 +793,7 @@ class FamilyBrowserDialog(object):
             pass
         # Placement closes the window and reopens it; async cache save must not
         # overwrite recent_families written right after placement.
-        if self._pending_symbol_id:
+        if self._pending_symbol_id or self._pending_placement_fi is not None:
             return
         ui_notify.unregister_language_listener(self._on_external_language_changed)
         ui_notify.unregister_theme_listener(self._on_external_theme_changed)
@@ -2264,15 +2264,6 @@ class FamilyBrowserDialog(object):
         if uidoc is None or uidoc.ActiveView is None:
             self._set_status(i18n.t("no_active_view"))
             return
-        try:
-            symbol = self._get_family_symbol(fi)
-        except Exception as ex:
-            self._set_status(i18n.t("load_error", err=as_unicode(ex)))
-            return
-        if symbol is None:
-            self._set_status(
-                i18n.t("place_prepare_failed", name=fi.name))
-            return
         search_query = u""
         if self.ui is not None:
             search_query = as_unicode(self.ui.SearchBox.Text).strip()
@@ -2282,38 +2273,26 @@ class FamilyBrowserDialog(object):
             "tree_tag": self._current_tree_tag(),
             "search_query": search_query,
         }
-        self._pending_symbol_id = element_id_value(symbol.Id)
+        self._pending_placement_fi = fi
         self._pending_family_name = as_unicode(fi.name)
         self._pending_family_path = libcache._norm_path(fi.path)
         config.add_recent(self._pending_family_path)
         self.cfg = config.load()
         self.win.Close()
 
-    def _run_pending_placement(self, sym_id, family_name, family_path):
+    def _run_pending_placement(self, fi):
         uidoc = revit.uidoc
-        if uidoc is None or uidoc.ActiveView is None or not sym_id:
+        if uidoc is None or uidoc.ActiveView is None or fi is None:
             return u""
         try:
-            symbol = self.doc.GetElement(ElementId(int(sym_id)))
+            symbol = self._get_family_symbol(fi)
             if symbol is None:
-                return i18n.t("family_not_in_project")
-            if not symbol.IsActive:
-                t = Transaction(self.doc, i18n.t("txn_activate"))
-                t.Start()
-                try:
-                    symbol.Activate()
-                    t.Commit()
-                except Exception:
-                    try:
-                        t.RollBack()
-                    except Exception:
-                        pass
-                    raise
+                return i18n.t("place_prepare_failed", name=fi.name)
             try:
                 uidoc.PromptForFamilyInstancePlacement(symbol)
             except OperationCanceledException:
                 return i18n.t("placement_cancelled")
-            return i18n.t("placed", name=family_name)
+            return i18n.t("placed", name=fi.name)
         except Exception as ex:
             return i18n.t("placement_error", err=as_unicode(ex))
 
@@ -2421,19 +2400,21 @@ class FamilyBrowserDialog(object):
             self.win.ShowDialog()
 
             pending_id = self._pending_symbol_id
-            pending_name = self._pending_family_name
-            pending_path = self._pending_family_path
+            pending_fi = self._pending_placement_fi
             self._pending_symbol_id = None
+            self._pending_placement_fi = None
             self._pending_family_name = u""
             self._pending_family_path = None
             self.win = None
             self.ui = None
 
-            if not pending_id:
+            if pending_fi is None and not pending_id:
                 break
 
-            self._placement_status_msg = self._run_pending_placement(
-                pending_id, pending_name, pending_path)
+            if pending_fi is not None:
+                self._placement_status_msg = self._run_pending_placement(pending_fi)
+            else:
+                self._placement_status_msg = self._run_pending_placement(None)
             self._pump_ui_before_reopen()
 
 
