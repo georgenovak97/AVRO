@@ -214,7 +214,7 @@ class PropsPanelController(object):
 
     def _render_types(self, panel, types):
         types_title = TextBlock()
-        types_title.Text = u"{} ({})".format(i18n.t("props_types"), len(types))
+        types_title.Text = i18n.t("props_types")
         types_title.FontSize = 11
         types_title.Foreground = self.brushes["muted"]
         types_title.Margin = Thickness(0, 6, 0, 4)

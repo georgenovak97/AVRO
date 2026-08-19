@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Properties no longer show the numeric type count in the Types heading.
 - Removed family-card hover highlighting to keep the catalog visually stable
   while moving the pointer across cards.
 - Properties now show placement, work-plane status, nested-family counts,
