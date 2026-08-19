@@ -63,6 +63,7 @@ import ui_notify
 import family_utils
 import ui_utils
 import image_utils
+import family_load_options
 import family_browser_props
 import family_browser_cards
 import card_layout
@@ -2184,18 +2185,44 @@ class FamilyBrowserDialog(object):
     def _load_family(self, fi):
         self._load_families([fi.path])
 
+    def _find_family_in_project(self, fi):
+        keys = set(
+            family_utils.normalize_family_key(name)
+            for name in family_utils.family_name_candidates(fi))
+        keys.discard(u"")
+        if not keys:
+            return None
+        best = None
+        file_key = family_utils.normalize_family_key(fi.name)
+        for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
+            fam_key = family_utils.normalize_family_key(revit_name(fam))
+            if fam_key in keys:
+                return fam
+            if (file_key and len(file_key) >= 4
+                    and (file_key in fam_key or fam_key in file_key)):
+                best = fam
+        return best
+
     def _load_family_element(self, fi):
         """Return (Family, error_message). error_message is None on success."""
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
             return None, i18n.t("file_not_found_short")
 
+        err_text = None
         try:
-            family = revit.uidoc.LoadFamily(path)
-            if family is not None:
-                return family, None
+            fam_ref = clr.Reference[RevitFamily]()
+            if (self.doc.LoadFamily(
+                    path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
+                    and fam_ref.Value is not None):
+                return fam_ref.Value, None
         except Exception as ex:
-            return None, as_unicode(ex)
+            err_text = as_unicode(ex)
+        fam = self._find_family_in_project(fi)
+        if fam is not None:
+            return fam, None
+        if err_text:
+            return None, err_text
         ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
@@ -2228,26 +2255,31 @@ class FamilyBrowserDialog(object):
 
     def _get_family_symbol(self, fi):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
-        fam, err = self._load_family_element(fi)
-        if fam is None:
-            raise Exception(err or u"LoadFamily failed")
-        symbol = self._get_placeable_symbol(fam, fi)
-        if symbol is None:
-            raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
-        if not symbol.IsActive:
-            t = Transaction(self.doc, i18n.t("txn_activate"))
+        last_error = None
+        for attempt in (1, 2, 3):
+            t = Transaction(self.doc, i18n.t("txn_load"))
             t.Start()
             try:
-                symbol.Activate()
+                fam, err = self._load_family_element(fi)
+                if fam is None:
+                    raise Exception(err or u"LoadFamily failed")
+                symbol = self._get_placeable_symbol(fam, fi)
+                if symbol is None:
+                    raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
+                if not symbol.IsActive:
+                    symbol.Activate()
                 t.Commit()
-            except Exception:
+                self._invalidate_project_family_index()
+                return symbol
+            except Exception as ex:
+                last_error = ex
                 try:
                     t.RollBack()
                 except Exception:
                     pass
-                raise
-        self._invalidate_project_family_index()
-        return symbol
+                if attempt == 3:
+                    raise
+        raise last_error
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
