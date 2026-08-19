@@ -139,14 +139,12 @@ class PropsPanelController(object):
         self._render_list(
             panel, i18n.t("props_shared_nested"), shared,
             empty_text=i18n.t("props_no"))
-        panel.Children.Add(self._row(
-            i18n.t("props_shared_family"),
-            self._yes_no(meta.get("is_shared_family"))))
-        panel.Children.Add(self._row(
-            i18n.t("props_has_nested"), self._yes_no(has_shared)))
 
         self._render_separator(panel)
         rows = (
+            (i18n.t("props_shared_family"),
+             self._yes_no(meta.get("is_shared_family"))),
+            (i18n.t("props_has_nested"), self._yes_no(has_shared)),
             (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
             (i18n.t("props_placement"), meta.get("placement") or u""),
             (i18n.t("props_work_plane_based"), self._yes_no(meta.get("work_plane_based"))),
