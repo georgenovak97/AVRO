@@ -26,10 +26,10 @@ from System.Windows import (
     TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
-    TreeViewItem, StackPanel, TextBlock, Canvas, CheckBox,
+    TreeViewItem, StackPanel, TextBlock, Canvas, CheckBox, Border,
 )
-from System.Windows.Media import SolidColorBrush, Color
-from System.Windows.Input import Keyboard, ModifierKeys, Key
+from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
+from System.Windows.Input import Keyboard, ModifierKeys, Key, MouseButton
 from System.Windows.Controls import Orientation
 from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
@@ -225,6 +225,8 @@ class FamilyBrowserDialog(object):
         self._path_to_index = {}
         self._selected_paths = set()
         self._anchor_path = None
+        self._hover_card = None
+        self._family_panel_bound = None
         self._folder_scope = []
         self._folder_scope_label = u""
         self._scope_is_recent = False
@@ -1686,7 +1688,54 @@ class FamilyBrowserDialog(object):
         panel.HorizontalAlignment = HorizontalAlignment.Left
         panel.Margin = Thickness(0)
         self.ui.FamilyPanel = panel
+        if self._family_panel_bound is not panel:
+            panel.PreviewMouseDown += self._on_family_panel_mouse_down
+            panel.PreviewMouseMove += self._on_family_panel_mouse_move
+            self._family_panel_bound = panel
         return panel
+
+    def _card_from_mouse_source(self, source):
+        panel = self.ui.FamilyPanel
+        current = source
+        while current is not None and current is not panel:
+            if isinstance(current, Border):
+                tag = getattr(current, "Tag", None)
+                if tag is not None and hasattr(tag, "path"):
+                    return current, tag
+            try:
+                current = VisualTreeHelper.GetParent(current)
+            except Exception:
+                return None, None
+        return None, None
+
+    def _on_family_panel_mouse_down(self, sender, e):
+        if e.ChangedButton not in (
+                MouseButton.Left, MouseButton.Right, MouseButton.Middle):
+            return
+        card, fi = self._card_from_mouse_source(e.OriginalSource)
+        if card is None or fi is None:
+            return
+        if e.ChangedButton == MouseButton.Right:
+            self._on_card_right_click(card, fi, e)
+        elif e.ChangedButton == MouseButton.Middle:
+            self._on_card_middle_click(card, fi, e)
+        else:
+            self._on_card_click(card, fi, e)
+
+    def _on_family_panel_mouse_move(self, sender, e):
+        card, _fi = self._card_from_mouse_source(e.OriginalSource)
+        if card is self._hover_card:
+            return
+        old = self._hover_card
+        self._hover_card = card
+        if old is not None:
+            old_tag = getattr(old, "Tag", None)
+            if old_tag is None or old_tag.path not in self._selected_paths:
+                old.Background = COL_CARD
+        if card is not None:
+            new_tag = getattr(card, "Tag", None)
+            if new_tag is not None and new_tag.path not in self._selected_paths:
+                card.Background = COL_CARD_HOV
 
     def _force_scroll_top(self):
         """Scroll to top after canvas height changes (small folders after large)."""
