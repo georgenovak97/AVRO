@@ -7,8 +7,8 @@ preview sizing, theming and event wiring can be tested / iterated without the
 full FamilyBrowserDialog in memory.
 """
 import System
-from System.Windows import Visibility, UIElement
-from System.Windows.Input import MouseButtonEventHandler
+from System.Windows import Visibility
+from System.Windows.Input import MouseButton
 from System.Windows.Controls import Border, StackPanel, Image, TextBlock, Grid, RowDefinition
 from System.Windows.Media import Stretch
 from System.Windows import (
@@ -142,15 +142,14 @@ def make_card(fi, dialog, brushes, card_w=None, card_h=None, preview_w=None, pre
         dialog._on_card_right_click(s, fi, e)
 
     def mouse_middle_click(s, e):
-        dialog._on_card_middle_click(s, fi, e)
+        if e.ChangedButton == MouseButton.Middle:
+            dialog._on_card_middle_click(s, fi, e)
 
     card.MouseEnter += mouse_enter
     card.MouseLeave += mouse_leave
     card.MouseLeftButtonDown += mouse_click
     card.MouseRightButtonDown += mouse_right_click
-    card.AddHandler(
-        UIElement.MouseMiddleButtonDownEvent,
-        MouseButtonEventHandler(mouse_middle_click))
+    card.PreviewMouseDown += mouse_middle_click
 
     return card, preview_img
 
