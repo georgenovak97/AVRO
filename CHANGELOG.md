@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Properties now count family parameters in the Dimensions group instead of all Revit Dimension elements.
 - Properties now list Parameters, Formulas, Dimensions, and Materials in that order.
 - Formula Properties now display the formula count instead of Yes/No.
 - Empty type lists now show a normal “No” label without a blank row.

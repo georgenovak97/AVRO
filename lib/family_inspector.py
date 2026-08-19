@@ -23,11 +23,11 @@ try:
     from Autodesk.Revit.DB import (
         BasicFileInfo,
         BuiltInParameter,
+        BuiltInParameterGroup,
         FilteredElementCollector,
         ImportInstance,
         FamilyInstance,
         ReferencePlane,
-        Dimension,
         Material,
         OpenOptions,
         ModelPathUtils,
@@ -37,7 +37,7 @@ except Exception:
     _API_OK = False
 
 META_DIR = os.path.join(config.CONFIG_DIR, "family_meta")
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 _RE_R_LABEL = re.compile(r"^R?(\d{2})$", re.I)
 _RE_YEAR = re.compile(r"(20\d{2})")
@@ -143,7 +143,7 @@ def _empty_meta(path=u""):
         "param_has_formulas_count": 0,
         "reference_plane_count": 0,
         "reference_line_count": 0,
-        "dimension_count": 0,
+        "param_dimension_count": 0,
         "nested_family_count": 0,
         "material_count": 0,
         "file_size_mb": 0.0,
@@ -438,12 +438,6 @@ def _inspect_document(doc, rfa_path):
     meta["reference_plane_count"] = int(ref_planes)
     meta["reference_line_count"] = int(ref_lines)
     try:
-        meta["dimension_count"] = int(
-            FilteredElementCollector(doc).OfClass(Dimension).GetElementCount()
-        )
-    except Exception:
-        meta["dimension_count"] = 0
-    try:
         meta["material_count"] = int(
             FilteredElementCollector(doc).OfClass(Material).GetElementCount()
         )
@@ -475,6 +469,7 @@ def _inspect_document(doc, rfa_path):
         total = 0
         inst = 0
         typ = 0
+        dim_group_params = 0
         has_formulas = False
         formulas_count = 0
         try:
@@ -494,6 +489,11 @@ def _inspect_document(doc, rfa_path):
                         typ += 1
                 except Exception:
                     pass
+                try:
+                    if fp.GroupType == BuiltInParameterGroup.PG_DIMENSIONS:
+                        dim_group_params += 1
+                except Exception:
+                    pass
                 # Formula presence varies by API; keep it defensive.
                 try:
                     f = fp.Formula
@@ -508,6 +508,7 @@ def _inspect_document(doc, rfa_path):
         meta["param_total_count"] = total
         meta["param_instance_count"] = inst
         meta["param_type_count"] = typ
+        meta["param_dimension_count"] = dim_group_params
         meta["param_has_formulas"] = bool(has_formulas)
         meta["param_has_formulas_count"] = formulas_count
     except Exception:
