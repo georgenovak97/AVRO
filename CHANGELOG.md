@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Significantly faster filter application and search refreshes on network
   libraries by batch-loading family inspection metadata and eliminating
   redundant network round-trips.
+- Precomputed Revit version detection during background scanning, eliminating
+  UI freezes when scrolling and populating family cards.
 
 ### Fixed
 - README typo and outdated feature list.
@@ -35,6 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   detected automatically without requiring a manual cache reload.
 - Orphaned metadata and thumbnail cache files are now automatically pruned over
   time instead of accumulating on disk.
+- Properties panel now immediately renders the loading state when inspecting
+  uncached family files instead of appearing unresponsive.
 
 ### Removed
 - Unused C# `AVRO.Core` project; the extension is now Python-only
