@@ -121,7 +121,6 @@ _UI_CONTROL_NAMES = [
     "FiltersTitle", "FiltersCount", "BtnResetFilters", "BtnApplyFilters",
     "LblCategoryFilter", "CategoryFilterList",
     "LblHostFilter", "HostFilterList",
-    "LblPlacementFilter", "PlacementFilterList",
     "LblVersionFilter", "VersionFilterList",
     "LblImportedFilter", "ImportedFilterList",
     "LblSharedNestedFilter", "SharedNestedFilterList",
@@ -251,12 +250,10 @@ class FamilyBrowserDialog(object):
         self._search_timer = None
         self._host_filter_keys = set()
         self._category_filter_keys = set()
-        self._placement_filter_keys = set()
         self._version_filter_keys = set()
-        self._work_plane_filter_keys = set()  # Work Plane-Based (XAML: ImportedFilterList)
+        self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()  # reserved (quality block panel host)
         self._quality_flags = {
-            "work_plane_only": False,
             "shared_only": False,
             "no_imported_cad": False,
             "limit_types": False,
@@ -291,6 +288,7 @@ class FamilyBrowserDialog(object):
         self._pending_family_path = None
         self._placement_status_msg = None
         self._reopen_ui_state = None
+        self._reopen_layout_pending = False
         self._suppress_tree_events = False
         self._dark_theme = config.load().get("ui_theme", "light") == "dark"
         self._virtual_mode = False
@@ -311,6 +309,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
+        self._set_revit_window_owner()
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
         self._status_controller = family_browser_status.StatusController(self.ui)
         self._library_controller = family_browser_library.LibraryController(self)
@@ -330,6 +329,16 @@ class FamilyBrowserDialog(object):
         self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
+
+    def _set_revit_window_owner(self):
+        """Keep the modeless Family Browser associated with Revit's window."""
+        try:
+            from System.Windows.Interop import WindowInteropHelper
+            handle = revit.uidoc.Application.MainWindowHandle
+            if handle:
+                WindowInteropHelper(self.win).Owner = handle
+        except Exception:
+            pass
 
     def _apply_ui_theme(self, dark, persist=True):
         palette = ui_theme.DARK if dark else ui_theme.LIGHT
@@ -376,9 +385,6 @@ class FamilyBrowserDialog(object):
         lbl_host = getattr(self.ui, "LblHostFilter", None)
         if lbl_host is not None:
             lbl_host.Text = i18n.t("filter_host_label")
-        lbl_pl = getattr(self.ui, "LblPlacementFilter", None)
-        if lbl_pl is not None:
-            lbl_pl.Text = i18n.t("filter_placement_label")
         lbl_ver = getattr(self.ui, "LblVersionFilter", None)
         if lbl_ver is not None:
             lbl_ver.Text = i18n.t("filter_version_label")
@@ -514,6 +520,7 @@ class FamilyBrowserDialog(object):
     def _restore_ui_after_reopen(self):
         if not self._scan.get("all"):
             return
+        self._reopen_layout_pending = True
         self._build_tree(self._scan)
         state = self._reopen_ui_state
         self._reopen_ui_state = None
@@ -868,7 +875,6 @@ class FamilyBrowserDialog(object):
 
         _setset("_category_filter_keys", "category")
         _setset("_host_filter_keys", "hosting")
-        _setset("_placement_filter_keys", "placement")
         _setset("_version_filter_keys", "revit_format")
         self._work_plane_filter_keys = set()
 
@@ -884,16 +890,6 @@ class FamilyBrowserDialog(object):
                     self._quality_flags["shared_only"] = True
         except Exception:
             pass
-        # migrate legacy multi-select work plane -> quality work_plane_only
-        try:
-            legacy_wp = state.get("work_plane_based") or []
-            if legacy_wp and not self._quality_flags.get("work_plane_only"):
-                vals = set(as_unicode(v).strip().lower() for v in legacy_wp if as_unicode(v).strip())
-                if vals and vals.issubset(set([u"yes", u"true", u"1"])):
-                    self._quality_flags["work_plane_only"] = True
-        except Exception:
-            pass
-
         limits = state.get("quality_limits") or {}
         for k in list(self._quality_limits.keys()):
             self._quality_limits[k] = self._coerce_quality_limit(
@@ -903,7 +899,6 @@ class FamilyBrowserDialog(object):
         payload = {
             "category": sorted(self._category_filter_keys),
             "hosting": sorted(self._host_filter_keys),
-            "placement": sorted(self._placement_filter_keys),
             "revit_format": sorted(self._version_filter_keys),
             "quality_flags": dict(self._quality_flags),
             "quality_limits": dict(self._quality_limits),
@@ -930,7 +925,6 @@ class FamilyBrowserDialog(object):
             return
         panel.Children.Clear()
         defs = [
-            ("work_plane_only", i18n.t("qf_work_plane_only"), None),
             ("shared_only", i18n.t("qf_shared_only"), None),
             ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
             ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
@@ -1034,9 +1028,7 @@ class FamilyBrowserDialog(object):
 
         self._category_filter_keys = _many("CategoryFilterList")
         self._host_filter_keys = _many("HostFilterList")
-        self._placement_filter_keys = _many("PlacementFilterList")
         self._version_filter_keys = _many("VersionFilterList")
-        self._work_plane_filter_keys = set()  # moved to quality work_plane_only
         self._shared_nested_filter_keys = set()
         self._read_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
 
@@ -1074,7 +1066,6 @@ class FamilyBrowserDialog(object):
         return bool(
             self._category_filter_keys
             or self._host_filter_keys
-            or self._placement_filter_keys
             or self._version_filter_keys
             or any(self._quality_flags.values())
         )
@@ -1126,22 +1117,19 @@ class FamilyBrowserDialog(object):
 
         self._category_filter_keys = _pick_set(self._category_filter_keys, cat_available)
         self._host_filter_keys = _pick_set(self._host_filter_keys, host_keys)
-        self._placement_filter_keys = _pick_set(self._placement_filter_keys, place_keys)
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
         self._shared_nested_filter_keys = set()
 
         cat_entries = [(c, c) for c in sorted(cat_available, key=lambda s: s.lower())]
         host_entries = [(h, self._host_label(h)) for h in host_keys]
-        place_entries = [(p, self._placement_label(p)) for p in place_keys]
         ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
 
         self._filter_suppress = True
         try:
-            # Order: version first (matches XAML), then category/host/placement, then quality
+            # Order: version first (matches XAML), then category/host, then quality
             self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
             self._fill_check_list(getattr(self.ui, "CategoryFilterList", None), cat_entries, self._category_filter_keys)
             self._fill_check_list(getattr(self.ui, "HostFilterList", None), host_entries, self._host_filter_keys)
-            self._fill_check_list(getattr(self.ui, "PlacementFilterList", None), place_entries, self._placement_filter_keys)
             self._fill_quality_flags(getattr(self.ui, "SharedNestedFilterList", None))
         finally:
             self._filter_suppress = False
@@ -1151,7 +1139,6 @@ class FamilyBrowserDialog(object):
         return (
             len(self._category_filter_keys)
             + len(self._host_filter_keys)
-            + len(self._placement_filter_keys)
             + len(self._version_filter_keys)
             + sum(1 for v in self._quality_flags.values() if v)
         )
@@ -1186,7 +1173,6 @@ class FamilyBrowserDialog(object):
     def _on_reset_filters(self, sender, e):
         self._category_filter_keys = set()
         self._host_filter_keys = set()
-        self._placement_filter_keys = set()
         self._version_filter_keys = set()
         self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()
@@ -1220,7 +1206,6 @@ class FamilyBrowserDialog(object):
         self._active_search_query = u""
         self._category_filter_keys = set()
         self._host_filter_keys = set()
-        self._placement_filter_keys = set()
         self._version_filter_keys = set()
         self._work_plane_filter_keys = set()
         self._shared_nested_filter_keys = set()
@@ -1257,7 +1242,6 @@ class FamilyBrowserDialog(object):
             families,
             category=self._category_filter_keys,
             hosting=self._host_filter_keys,
-            placement=self._placement_filter_keys,
             revit_format=self._version_filter_keys,
             meta_by_path=meta_by_path,
         )
@@ -1752,7 +1736,11 @@ class FamilyBrowserDialog(object):
             self._force_scroll_top()
             self._catalog_changing = False
             if run_virtual:
+                self._reopen_layout_pending = False
                 self._virtual_sync_viewport()
+            elif self._reopen_layout_pending:
+                self._reopen_layout_pending = False
+                self._relayout_family_grid()
 
         from System.Windows.Threading import DispatcherPriority
         self.win.Dispatcher.BeginInvoke(

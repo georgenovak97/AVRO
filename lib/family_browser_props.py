@@ -133,7 +133,6 @@ class PropsPanelController(object):
             (i18n.t("props_name"), getattr(fi, "name", u"")),
             (i18n.t("props_category"), meta.get("category") or getattr(fi, "category", u"")),
             (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
-            (i18n.t("props_placement"), self.dialog._placement_label(meta.get("placement"))),
             (i18n.t("props_version"), ver),
             (i18n.t("props_size"), i18n.t("size_mb").format(size_mb)),
             (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),

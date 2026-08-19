@@ -349,17 +349,6 @@
                                             Background="{DynamicResource BgInput}">
                                         <StackPanel x:Name="HostFilterList" Margin="4"/>
                                     </Border>
-                                    <TextBlock x:Name="LblPlacementFilter"
-                                               Text="Размещение:"
-                                               Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="PlacementFilterList" Margin="4"/>
-                                    </Border>
-
                                     <!-- Legacy work-plane multi-select host; collapsed in code (moved to Ограничения) -->
                                     <TextBlock x:Name="LblImportedFilter"
                                                Text="На рабочей плоскости:"

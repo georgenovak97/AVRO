@@ -641,6 +641,11 @@ def category_of(fi_or_path, cached_meta=_UNSET):
         if cat:
             return cat
 
+    if not isinstance(fi_or_path, basestring):
+        scanned = _u(getattr(fi_or_path, "category", None) or u"").strip()
+        if scanned:
+            return scanned
+
     return u""
 
 

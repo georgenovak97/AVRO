@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   redundant network round-trips.
 - Precomputed Revit version detection during background scanning, eliminating
   UI freezes when scrolling and populating family cards.
+- Revit category filter options are available as soon as a library folder is
+  opened, without first selecting a family.
 
 ### Fixed
 - README typo and outdated feature list.
@@ -39,6 +41,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   time instead of accumulating on disk.
 - Properties panel now immediately renders the loading state when inspecting
   uncached family files instead of appearing unresponsive.
+- Placement is no longer shown in Properties or Filtering, and the work
+  plane-based constraint has been removed from the Constraints list.
+- Returning to Family Browser after placing a family recalculates the preview
+  grid after the window has its actual size.
+- Family Browser remains owned by Revit while a family from another Revit
+  version is inspected, preventing it from disappearing behind Revit.
 
 ### Removed
 - Unused C# `AVRO.Core` project; the extension is now Python-only
