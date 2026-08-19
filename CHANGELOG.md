@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   explanations without line wrapping.
 - The right Filtering / Properties pane is now narrower while keeping the
   constraint explanation readable on one line per rule.
+- The catalog tree is now the same width as the Filtering / Properties pane.
 
 ### Fixed
 - README typo and outdated feature list.

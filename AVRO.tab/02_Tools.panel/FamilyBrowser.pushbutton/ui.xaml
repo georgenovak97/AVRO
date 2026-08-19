@@ -145,7 +145,7 @@
         <!-- ═══ MAIN (tree | catalog | properties) ═══ -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" MinWidth="220"/>
+                <ColumnDefinition Width="366" MinWidth="323"/>
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
