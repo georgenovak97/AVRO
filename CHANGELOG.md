@@ -21,11 +21,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   range to Revit 2020–2025, and reworded the filter list to match the current
   split between filter axes and constraints.
 - `extension.json` repository URL.
+- Significantly faster filter application and search refreshes on network
+  libraries by batch-loading family inspection metadata and eliminating
+  redundant network round-trips.
 
 ### Fixed
 - README typo and outdated feature list.
 - `README.md` and `extension.json` were the only CRLF files in an otherwise LF
   repository, which made `git diff --check` fail on every edit to them.
+- Cyrillic Revit error and status messages no longer risk mojibake or encoding
+  crashes under IronPython 2.7.
+- Changes in library subfolders (e.g. adding or updating families) are now
+  detected automatically without requiring a manual cache reload.
+- Orphaned metadata and thumbnail cache files are now automatically pruned over
+  time instead of accumulating on disk.
 
 ### Removed
 - Unused C# `AVRO.Core` project; the extension is now Python-only
