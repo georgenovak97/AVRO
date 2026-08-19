@@ -1763,6 +1763,7 @@ class FamilyBrowserDialog(object):
             return
         if e.ChangedButton == MouseButton.Left:
             self._select_paths([fi.path], replace=True)
+            family_browser_props._yield_ui()
             self._on_card_click(card, fi, e)
         elif e.ChangedButton == MouseButton.Right:
             self._on_card_right_click(card, fi, e)
