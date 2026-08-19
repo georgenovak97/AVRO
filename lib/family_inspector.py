@@ -15,6 +15,7 @@ import time
 import config
 import avro_log
 import rfa_version
+import category_utils
 import re
 
 try:
@@ -75,6 +76,7 @@ HOST_WALL = u"wall"
 HOST_FLOOR = u"floor"
 HOST_ROOF = u"roof"
 HOST_FACE = u"face"
+HOST_WORK_PLANE = u"work_plane"
 HOST_INDEPENDENT = u"independent"
 HOST_UNKNOWN = u"unknown"
 HOST_OTHER = u"other"
@@ -89,6 +91,7 @@ HOST_FILTER_KEYS = (
     HOST_FLOOR,
     HOST_ROOF,
     HOST_FACE,
+    HOST_WORK_PLANE,
     HOST_INDEPENDENT,
     HOST_UNKNOWN,
     HOST_OTHER,
@@ -296,6 +299,9 @@ def _hosting_from_owner(owner):
             except Exception:
                 val = -1
             host = _HOSTING_BY_INT.get(val)
+            pl = placement.lower().replace(u"_", u"")
+            if u"workplane" in pl:
+                host = HOST_WORK_PLANE
             if host:
                 return host, placement
     except Exception:
@@ -303,7 +309,9 @@ def _hosting_from_owner(owner):
 
     # Placement fallbacks
     pl = placement.lower()
-    if u"workplane" in pl or u"face" in pl:
+    if u"workplane" in pl or u"work plane" in pl:
+        return HOST_WORK_PLANE, placement
+    if u"face" in pl:
         return HOST_FACE, placement
     if u"curve" in pl or u"onelevel" in pl or u"twolevel" in pl:
         return HOST_INDEPENDENT, placement
@@ -616,6 +624,8 @@ def hosting_of(rfa_path, cached_meta=_UNSET):
     else:
         cached = cached_meta
     if cached and cached.get("ok"):
+        if cached.get("work_plane_based") is True:
+            return HOST_WORK_PLANE
         return cached.get("hosting") or HOST_UNKNOWN
     return HOST_UNKNOWN
 
@@ -812,7 +822,8 @@ def filter_families(
 
     Axes are combined with AND.
     """
-    cat_keys = _normalize_filter_keys(category)
+    cat_keys = [category_utils.normalize_category(k)
+                for k in _normalize_filter_keys(category)]
     host_keys = set(k.lower() for k in _normalize_filter_keys(hosting))
     place_keys = set(k.lower() for k in _normalize_filter_keys(placement))
 
@@ -842,7 +853,8 @@ def filter_families(
         path = getattr(fi, "path", None) or getattr(fi, "Path", None) or u""
         meta = meta_by_path.get(path) if (meta_by_path is not None and path) else _UNSET
         if use_cat:
-            if category_of(fi, cached_meta=meta).lower() not in cat_lower:
+            if category_utils.normalize_category(
+                    category_of(fi, cached_meta=meta)).lower() not in cat_lower:
                 continue
         if use_host:
             if hosting_of_fi(fi, cached_meta=meta).lower() not in host_keys:
@@ -918,7 +930,8 @@ def collect_filter_options(families, meta_by_path=None):
         else:
             cached = load_cached(path) if path else None
 
-        cat = category_of(fi, cached_meta=cached)
+        cat = category_utils.normalize_category(
+            category_of(fi, cached_meta=cached))
         if cat:
             categories.add(cat)
 
@@ -928,7 +941,7 @@ def collect_filter_options(families, meta_by_path=None):
             revit_formats.add(ver)
 
         if cached and cached.get("ok"):
-            host = _u(cached.get("hosting") or HOST_UNKNOWN).strip() or HOST_UNKNOWN
+            host = hosting_of(path, cached_meta=cached)
             hostings.add(host)
             pl = _u(cached.get("placement") or u"").strip()
             if pl:

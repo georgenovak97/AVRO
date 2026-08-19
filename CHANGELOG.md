@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   UI freezes when scrolling and populating family cards.
 - Revit category filter options are available as soon as a library folder is
   opened, without first selecting a family.
+- Revit category names from Russian and English folders or family metadata are
+  grouped under one localized category in Filtering.
+- Hosting behavior now shows only Wall, Floor, Ceiling, Roof, Face-based, and
+  Work plane-based options.
 
 ### Fixed
 - README typo and outdated feature list.

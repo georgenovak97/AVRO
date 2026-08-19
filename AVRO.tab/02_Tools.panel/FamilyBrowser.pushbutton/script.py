@@ -62,6 +62,7 @@ if _EXT_LIB not in sys.path:
 import config
 import family_scanner as scanner
 import family_inspector
+import category_utils
 import rfa_preview
 import rfa_version
 import library_cache as libcache
@@ -874,6 +875,10 @@ class FamilyBrowserDialog(object):
                 setattr(self, name, set())
 
         _setset("_category_filter_keys", "category")
+        self._category_filter_keys = set(
+            category_utils.normalize_category(v)
+            for v in self._category_filter_keys
+            if category_utils.normalize_category(v))
         _setset("_host_filter_keys", "hosting")
         _setset("_version_filter_keys", "revit_format")
         self._work_plane_filter_keys = set()
@@ -1039,6 +1044,7 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_FLOOR: "host_floor",
             family_inspector.HOST_ROOF: "host_roof",
             family_inspector.HOST_FACE: "host_face",
+            family_inspector.HOST_WORK_PLANE: "host_work_plane",
             family_inspector.HOST_INDEPENDENT: "host_independent",
             family_inspector.HOST_UNKNOWN: "host_unknown",
             family_inspector.HOST_OTHER: "host_other",
@@ -1078,7 +1084,9 @@ class FamilyBrowserDialog(object):
         scope = self._folder_scope or []
         meta_by_path = family_inspector.build_meta_by_path(scope)
         opts = family_inspector.collect_filter_options(scope, meta_by_path=meta_by_path)
-        cat_available = [as_unicode(c) for c in (opts.get("categories") or []) if as_unicode(c).strip()]
+        cat_available = [category_utils.normalize_category(c)
+                         for c in (opts.get("categories") or [])
+                         if category_utils.normalize_category(c)]
 
         host_keys = [
             family_inspector.HOST_CEILING,
@@ -1086,9 +1094,7 @@ class FamilyBrowserDialog(object):
             family_inspector.HOST_FLOOR,
             family_inspector.HOST_ROOF,
             family_inspector.HOST_FACE,
-            family_inspector.HOST_INDEPENDENT,
-            family_inspector.HOST_UNKNOWN,
-            family_inspector.HOST_OTHER,
+            family_inspector.HOST_WORK_PLANE,
         ]
         for h in opts.get("hostings") or []:
             hu = as_unicode(h)
@@ -1120,7 +1126,9 @@ class FamilyBrowserDialog(object):
         self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
         self._shared_nested_filter_keys = set()
 
-        cat_entries = [(c, c) for c in sorted(cat_available, key=lambda s: s.lower())]
+        cat_entries = [
+            (c, category_utils.display_name(c, i18n.t))
+            for c in sorted(cat_available, key=lambda s: s.lower())]
         host_entries = [(h, self._host_label(h)) for h in host_keys]
         ver_entries = [(v, v) for v in sorted(ver_available, key=lambda s: s.lower())]
 
