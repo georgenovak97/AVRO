@@ -52,8 +52,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview and bitmap byte conversion no longer uses per-byte Python loops.
 - The Settings dialog version is populated from the runtime version constant,
   which is checked against package metadata and the changelog.
-- Placement uses the supported Document.LoadFamily API with fresh project
-  family lookup and up to three clean transaction attempts for older formats.
+- Placement pre-opens and closes older families before one supported
+  Document.LoadFamily call, keeping the upgrade outside the project transaction.
 
 ### Fixed
 - README typo and outdated feature list.
