@@ -252,108 +252,11 @@
             <GridSplitter Grid.Column="3" Width="4" Background="{DynamicResource BorderLight}"
                           HorizontalAlignment="Stretch"/>
 
-            <!-- RIGHT: two panes — Filtering / Properties -->
+            <!-- RIGHT: Properties -->
             <Border Grid.Column="4" Background="{DynamicResource BgSidebar}"
                     BorderBrush="{DynamicResource BorderMain}" BorderThickness="1,0,0,0">
                 <Grid Margin="6">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" MinHeight="160"/>
-                        <RowDefinition Height="6"/>
-                        <RowDefinition Height="*" MinHeight="140"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Window 1: Filtering -->
-                    <Border Grid.Row="0"
-                            Background="{DynamicResource BgPanel}"
-                            BorderBrush="{DynamicResource BorderMain}"
-                            BorderThickness="1">
-                        <DockPanel LastChildFill="True">
-                            <Border DockPanel.Dock="Top"
-                                    Background="{DynamicResource BgToolbar}"
-                                    BorderBrush="{DynamicResource BorderLight}"
-                                    BorderThickness="0,0,0,1"
-                                    Padding="8,6">
-                                <DockPanel LastChildFill="False">
-                                    <TextBlock x:Name="FiltersTitle"
-                                               DockPanel.Dock="Left"
-                                               Text="Фильтрация"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="{DynamicResource TextMain}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="FiltersCount"
-                                               DockPanel.Dock="Left"
-                                               Text=""
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               Margin="8,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </DockPanel>
-                            </Border>
-                            <Border DockPanel.Dock="Bottom"
-                                    Background="{DynamicResource BgToolbar}"
-                                    BorderBrush="{DynamicResource BorderLight}"
-                                    BorderThickness="0,1,0,0"
-                                    Padding="8,6">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="8"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button x:Name="BtnApplyFilters"
-                                            Grid.Column="0"
-                                            Content="Применить"
-                                            Style="{StaticResource RevitButtonPrimary}"
-                                            Height="28"
-                                            HorizontalAlignment="Stretch"/>
-                                    <Button x:Name="BtnResetFilters"
-                                            Grid.Column="2"
-                                            Content="Сброс"
-                                            Style="{StaticResource RevitButton}"
-                                            Height="28"
-                                            HorizontalAlignment="Stretch"/>
-                                </Grid>
-                            </Border>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled"
-                                          Padding="8,8,8,4">
-                                <StackPanel>
-                                    <TextBlock x:Name="LblVersionFilter"
-                                               Text="Версия Revit:"
-                                               Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="VersionFilterList" Margin="4"/>
-                                    </Border>
-
-                                    <TextBlock x:Name="LblSizeFilter"
-                                               Text="Размер:"
-                                               Margin="0,0,0,4"
-                                               Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,0"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="SizeFilterList" Margin="4"/>
-                                    </Border>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </DockPanel>
-                    </Border>
-
-                    <GridSplitter Grid.Row="1"
-                                  Height="6"
-                                  HorizontalAlignment="Stretch"
-                                  VerticalAlignment="Center"
-                                  Background="{DynamicResource BorderLight}"
-                                  ShowsPreview="True"
-                                  ResizeDirection="Rows"/>
-
-                    <!-- Window 2: Properties -->
-                    <Border Grid.Row="2"
+                    <Border
                             Background="{DynamicResource BgPanel}"
                             BorderBrush="{DynamicResource BorderMain}"
                             BorderThickness="1">
@@ -408,12 +311,6 @@
                             Content="Обновить" Style="{StaticResource RevitButton}"
                             MinWidth="88" Margin="6,0,0,0"
                             ToolTip="Пересканировать библиотеку"/>
-                    <Border Width="1" Margin="10,2,10,2"
-                            Background="{DynamicResource BorderMain}"
-                            VerticalAlignment="Stretch"/>
-                    <Button x:Name="BtnLoadSelected"
-                            Content="Загрузить" Style="{StaticResource RevitButtonPrimary}"
-                            MinWidth="96" IsEnabled="False"/>
                 </StackPanel>
             </Grid>
         </Border>

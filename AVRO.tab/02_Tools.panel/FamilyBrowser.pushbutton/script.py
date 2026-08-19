@@ -109,13 +109,10 @@ _sync_card_colors(ui_theme.LIGHT)
 
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
-    "FiltersTitle", "FiltersCount", "BtnResetFilters", "BtnApplyFilters",
-    "LblVersionFilter", "VersionFilterList",
-    "LblSizeFilter", "SizeFilterList",
     "BtnRunSearch", "BtnResetSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload",
-    "BtnLoadSelected", "FamilyPanel", "FamilyScrollViewer",
+    "FamilyPanel", "FamilyScrollViewer",
     "BreadcrumbText", "CountText", "StatusText",
 ]
 
@@ -427,7 +424,6 @@ class FamilyBrowserDialog(object):
         self.ui.BtnSettings.ToolTip = i18n.t("btn_library_tooltip")
         self.ui.BtnReload.Content = i18n.t("btn_reload")
         self.ui.BtnReload.ToolTip = i18n.t("btn_reload_tooltip")
-        self.ui.BtnLoadSelected.Content = i18n.t("btn_load")
         self._refresh_live_labels()
 
     def _on_external_language_changed(self):
@@ -828,7 +824,6 @@ class FamilyBrowserDialog(object):
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._library_controller.on_settings
         u.BtnReload.Click                  += self._library_controller.on_reload
-        u.BtnLoadSelected.Click            += lambda s, e: self._load_selected()
         btn_apply = getattr(u, "BtnApplyFilters", None)
         if btn_apply is not None:
             btn_apply.Click += self._on_apply_filters
@@ -1857,7 +1852,6 @@ class FamilyBrowserDialog(object):
             (fi.path, i) for i, fi in enumerate(families))
         self._selected_paths = set()
         self._anchor_path = None
-        self.ui.BtnLoadSelected.IsEnabled = False
         self._props_controller.reset()
 
         n = len(families)
@@ -2070,30 +2064,15 @@ class FamilyBrowserDialog(object):
                 i18n.t("explorer_failed", err=as_unicode(ex)))
 
     def _on_card_right_click(self, card, fi, e):
-        if e.ClickCount >= 2:
-            self._reveal_in_explorer(fi)
-            e.Handled = True
+        self._select_paths([fi.path], replace=True)
+        self._props_controller.inspect(fi)
+        e.Handled = True
 
     def _on_card_click(self, card, fi, e):
-        if e.ClickCount >= 2:
-            self._place_family(fi)
-            return
-        path = fi.path
-        ctrl, shift = self._mods()
-        if shift and self._anchor_path:
-            paths = self._range_paths(self._anchor_path, path)
-            self._select_paths(paths, replace=not ctrl)
-        elif ctrl:
-            self._toggle_path(path)
-            self._anchor_path = path
-        else:
-            self._select_paths([path], replace=True)
-            self._anchor_path = path
-        self._update_selection_status()
+        self._place_family(fi)
 
     def _update_selection_status(self):
         n = len(self._selected_paths)
-        self.ui.BtnLoadSelected.IsEnabled = n > 0
         if n == 0:
             self._props_controller.reset()
             return

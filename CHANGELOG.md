@@ -59,6 +59,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   slow first read cannot turn a fast placement double-click into two selections.
 - Filtering now uses only Revit version and file size; Properties data is read
   on a single click as before.
+- Filtering has now been removed completely. A left click places the family,
+  while a right click opens its Properties.
 - Older-family placement polls Revit for up to 15 seconds and retries the load
   only at intervals while the upgrade operation finishes.
 - Older-family placement now allows a short Revit format-processing interval
