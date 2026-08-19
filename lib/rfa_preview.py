@@ -360,6 +360,7 @@ def _read_stream_bytes(stream_info):
     """Read entire OLE stream into a Python byte string."""
     from System import Array, Byte
     from System.IO import FileMode, FileAccess
+    from System.Text import Encoding
 
     reader = stream_info.GetStream(FileMode.Open, FileAccess.Read)
     try:
@@ -370,7 +371,8 @@ def _read_stream_bytes(stream_info):
         read = int(reader.Read(buf, 0, length))
         if read <= 0:
             return None
-        return "".join(chr(int(buf[i])) for i in range(read))
+        text = Encoding.GetEncoding("latin-1").GetString(buf, 0, read)
+        return text.encode("latin-1")
     finally:
         reader.Close()
 

@@ -39,9 +39,8 @@ def bitmap_from_png_bytes(image_bytes):
         return bmp
     except Exception:
         try:
-            buf = System.Array.CreateInstance(System.Byte, len(image_bytes))
-            for i, ch in enumerate(image_bytes):
-                buf[i] = ord(ch)
+            text = image_bytes.decode("latin-1")
+            buf = System.Text.Encoding.GetEncoding("latin-1").GetBytes(text)
             ms = MemoryStream(buf)
             bmp = BitmapImage()
             bmp.BeginInit()
