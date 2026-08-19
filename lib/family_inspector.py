@@ -23,11 +23,11 @@ try:
     from Autodesk.Revit.DB import (
         BasicFileInfo,
         BuiltInParameter,
-        BuiltInParameterGroup,
         FilteredElementCollector,
         ImportInstance,
         FamilyInstance,
         ReferencePlane,
+        ParameterType,
         Material,
         OpenOptions,
         ModelPathUtils,
@@ -490,7 +490,10 @@ def _inspect_document(doc, rfa_path):
                 except Exception:
                     pass
                 try:
-                    if fp.GroupType == BuiltInParameterGroup.PG_DIMENSIONS:
+                    if fp.ParameterType in (
+                            ParameterType.Length,
+                            ParameterType.Angle,
+                            ParameterType.Slope):
                         dim_group_params += 1
                 except Exception:
                     pass
