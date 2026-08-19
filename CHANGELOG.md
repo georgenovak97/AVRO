@@ -39,6 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and the same preview grid for that geometry.
 - Constraints are shown in the requested order, starting with imported CAD
   and ending with shared families and file size.
+- The Constraints panel now explains each option in the active Family Browser
+  language, with the same details available as checkbox tooltips.
 
 ### Fixed
 - README typo and outdated feature list.

@@ -59,6 +59,24 @@ _STRINGS = {
         u"qf_limit_formulas": u"без кучи формул",
         u"qf_limit_materials": u"без кучи материалов",
         u"qf_not_huge": u"не огромное",
+        u"constraints_help_text": (
+            u"Пояснения: без импортированных CAD файлов — без DWG/DXF/SAT; "
+            u"без кучи типов — не более 10 типов; без кучи опорных — не более "
+            u"10 опорных плоскостей и линий; без кучи размеров — не более 10; "
+            u"без кучи вложенных семейств — не более 10; без кучи параметров — "
+            u"не более 10; без кучи формул — не более 5 параметров с формулами; "
+            u"без кучи материалов — не более 10; только общие семейства — "
+            u"Shared включён; не огромное — файл не более 5 МБ."),
+        u"qf_help_no_imported_cad": u"Исключает семейства с импортированной DWG/DXF/SAT геометрией.",
+        u"qf_help_limit_types": u"Не более 10 типов семейства.",
+        u"qf_help_limit_ref_planes": u"Не более 10 опорных плоскостей и линий.",
+        u"qf_help_limit_dimensions": u"Не более 10 размеров.",
+        u"qf_help_limit_nested": u"Не более 10 вложенных семейств.",
+        u"qf_help_limit_params": u"Не более 10 параметров.",
+        u"qf_help_limit_formulas": u"Не более 5 параметров с формулами.",
+        u"qf_help_limit_materials": u"Не более 10 материалов.",
+        u"qf_help_shared_only": u"Только семейства с включённым параметром Shared.",
+        u"qf_help_not_huge": u"Размер файла на диске не более 5 МБ.",
         u"filter_always_vertical_label": u"Always vertical:",
         u"filter_category_label": u"Категория Revit:",
         u"category_furniture": u"Мебель",
@@ -244,6 +262,25 @@ _STRINGS = {
         u"qf_limit_formulas": u"without too many formulas",
         u"qf_limit_materials": u"without too many materials",
         u"qf_not_huge": u"not huge",
+        u"constraints_help_text": (
+            u"Explanation: without imported CAD files — no DWG/DXF/SAT; "
+            u"without too many types — at most 10 types; without too many "
+            u"reference planes — at most 10 planes and lines; without too many "
+            u"dimensions — at most 10; without too many nested families — at "
+            u"most 10; without too many parameters — at most 10; without too "
+            u"many formulas — at most 5 formula parameters; without too many "
+            u"materials — at most 10; shared families only — Shared is enabled; "
+            u"not huge — file size is at most 5 MB."),
+        u"qf_help_no_imported_cad": u"Excludes families with imported DWG/DXF/SAT geometry.",
+        u"qf_help_limit_types": u"At most 10 family types.",
+        u"qf_help_limit_ref_planes": u"At most 10 reference planes and lines.",
+        u"qf_help_limit_dimensions": u"At most 10 dimensions.",
+        u"qf_help_limit_nested": u"At most 10 nested families.",
+        u"qf_help_limit_params": u"At most 10 parameters.",
+        u"qf_help_limit_formulas": u"At most 5 parameters with formulas.",
+        u"qf_help_limit_materials": u"At most 10 materials.",
+        u"qf_help_shared_only": u"Only families with the Shared parameter enabled.",
+        u"qf_help_not_huge": u"File size on disk is at most 5 MB.",
         u"filter_always_vertical_label": u"Always vertical:",
         u"filter_category_label": u"Revit category:",
         u"category_furniture": u"Furniture",

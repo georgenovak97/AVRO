@@ -367,14 +367,24 @@
                                                Text="Ограничения:"
                                                Margin="0,0,0,4"
                                                Foreground="{DynamicResource TextMuted}"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}"
-                                            BorderThickness="1" Margin="0,0,0,10"
-                                            MinHeight="40"
-                                            Background="{DynamicResource BgInput}">
-                                        <StackPanel x:Name="SharedNestedFilterList" Margin="4"/>
-                                    </Border>
+                                     <Border BorderBrush="{DynamicResource BorderLight}"
+                                             BorderThickness="1" Margin="0,0,0,10"
+                                             MinHeight="40"
+                                             Background="{DynamicResource BgInput}">
+                                         <StackPanel x:Name="SharedNestedFilterList" Margin="4"/>
+                                     </Border>
+                                     <Border BorderBrush="{DynamicResource BorderLight}"
+                                             BorderThickness="1" Margin="0,0,0,10"
+                                             Padding="6,6"
+                                             Background="{DynamicResource BgInput}">
+                                         <TextBlock x:Name="ConstraintsHelpText"
+                                                    TextWrapping="Wrap"
+                                                    FontSize="10"
+                                                    LineHeight="14"
+                                                    Foreground="{DynamicResource TextMuted}"/>
+                                     </Border>
 
-                                    <TextBlock x:Name="LblSharedFamilyFilter"
+                                     <TextBlock x:Name="LblSharedFamilyFilter"
                                                Text="Shared family:"
                                                Margin="0,0,0,4"
                                                Visibility="Collapsed"

@@ -126,6 +126,7 @@ _UI_CONTROL_NAMES = [
     "LblVersionFilter", "VersionFilterList",
     "LblImportedFilter", "ImportedFilterList",
     "LblSharedNestedFilter", "SharedNestedFilterList",
+    "ConstraintsHelpText",
     "LblSharedFamilyFilter", "SharedFamilyFilterList",
     "BtnRunSearch", "BtnResetSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
@@ -418,6 +419,9 @@ class FamilyBrowserDialog(object):
         sn_list = getattr(self.ui, "SharedNestedFilterList", None)
         if sn_list is not None and getattr(sn_list, "Parent", None) is not None:
             sn_list.Parent.Visibility = Visibility.Visible
+        constraints_help = getattr(self.ui, "ConstraintsHelpText", None)
+        if constraints_help is not None:
+            constraints_help.Text = i18n.t("constraints_help_text")
         lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
         if lbl_sf is not None:
             lbl_sf.Visibility = Visibility.Collapsed
@@ -882,6 +886,7 @@ class FamilyBrowserDialog(object):
         for key, label in entries:
             cb = CheckBox()
             cb.Content = label
+            cb.ToolTip = i18n.t(u"qf_help_" + key)
             cb.Tag = key
             cb.Margin = Thickness(0, 1, 0, 1)
             cb.Foreground = COL_TEXT
