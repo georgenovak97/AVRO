@@ -296,6 +296,7 @@ class FamilyBrowserDialog(object):
         self._virtual_scroll_gen = 0
         self._virtual_updating = False
         self._last_scroll_width = -1.0
+        self._reopen_window_geometry = None
         self._catalog_changing = False
         self._project_family_index = None
         self._project_family_index_doc = None
@@ -310,6 +311,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
+        self._restore_window_geometry()
         self._set_revit_window_owner()
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
         self._status_controller = family_browser_status.StatusController(self.ui)
@@ -330,6 +332,20 @@ class FamilyBrowserDialog(object):
         self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
+
+    def _restore_window_geometry(self):
+        """Restore the user's window bounds before rebuilding the catalog."""
+        geometry = self._reopen_window_geometry
+        if not geometry:
+            return
+        try:
+            self.win.WindowStartupLocation = System.Windows.WindowStartupLocation.Manual
+            self.win.Width = float(geometry.get("width"))
+            self.win.Height = float(geometry.get("height"))
+            self.win.Left = float(geometry.get("left"))
+            self.win.Top = float(geometry.get("top"))
+        except Exception:
+            pass
 
     def _set_revit_window_owner(self):
         """Keep the modeless Family Browser associated with Revit's window."""
@@ -769,6 +785,18 @@ class FamilyBrowserDialog(object):
 
     def _on_window_closing(self, sender, e):
         self._window_gen += 1
+        try:
+            width = float(self.win.ActualWidth)
+            height = float(self.win.ActualHeight)
+            if width > 0 and height > 0:
+                self._reopen_window_geometry = {
+                    "width": width,
+                    "height": height,
+                    "left": float(self.win.Left),
+                    "top": float(self.win.Top),
+                }
+        except Exception:
+            pass
         # Placement closes the window and reopens it; async cache save must not
         # overwrite recent_families written right after placement.
         if self._pending_symbol_id:
@@ -1539,6 +1567,15 @@ class FamilyBrowserDialog(object):
                     pass
         except Exception:
             w = 0.0
+        if w < 80 and self._last_scroll_width > 80:
+            w = self._last_scroll_width
+        if w < 80 and self.win is not None:
+            try:
+                width = float(self.win.Width)
+            except Exception:
+                width = 0.0
+            if width > 80:
+                w = max(400.0, width - 625.0)
         if w < 80 and self.win is not None:
             w = max(400.0, float(self.win.ActualWidth) - 620.0)
         if w < 80:

@@ -238,7 +238,7 @@
 
                 <!-- Family grid with previews -->
                 <ScrollViewer x:Name="FamilyScrollViewer" Grid.Row="2"
-                              VerticalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Visible"
                               HorizontalScrollBarVisibility="Disabled"
                               Background="{DynamicResource BgPanel}"
                               Margin="0"

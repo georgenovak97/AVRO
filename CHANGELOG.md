@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preview cards now keep the same outer inset and inter-card spacing at all
   supported window widths instead of shifting the leftover width into the
   margins.
+- Returning to Family Browser after placement preserves the window geometry
+  and the same preview grid for that geometry.
 
 ### Fixed
 - README typo and outdated feature list.
