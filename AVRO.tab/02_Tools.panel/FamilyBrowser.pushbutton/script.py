@@ -6,7 +6,6 @@ Entry point script.
 import os
 import sys
 import threading
-import tempfile
 import time
 
 # ---------------------------------------------------------------------------
@@ -36,8 +35,6 @@ from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
-    OpenOptions,
-    ModelPathUtils,
     Transaction,
     ElementId,
 )
@@ -2195,10 +2192,8 @@ class FamilyBrowserDialog(object):
         keys.discard(u"")
         if not keys:
             return None
-        idx = (
-            self._project_family_index
-            if self._project_family_index_ready()
-            else self._build_project_family_index_sync())
+        self._invalidate_project_family_index()
+        idx = self._build_project_family_index_sync()
         for key in keys:
             fam = idx.get(key)
             if fam is not None:
@@ -2212,9 +2207,9 @@ class FamilyBrowserDialog(object):
                 best = fam
         return best
 
-    def _load_family_element(self, fi, load_path=None):
+    def _load_family_element(self, fi):
         """Return (Family, error_message). error_message is None on success."""
-        path = os.path.normpath(load_path or fi.path)
+        path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
             return None, i18n.t("file_not_found_short")
 
@@ -2236,49 +2231,6 @@ class FamilyBrowserDialog(object):
         ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
         return None, i18n.t("load_failed", hint=hint)
-
-    def _upgrade_family_to_temp(self, fi):
-        """Save an older family as a current-format temporary .rfa."""
-        source_path = os.path.normpath(fi.path)
-        fd = None
-        temp_path = None
-        upgrade_doc = None
-        try:
-            fd, temp_path = tempfile.mkstemp(suffix=".rfa")
-            os.close(fd)
-            fd = None
-            os.remove(temp_path)
-
-            opts = OpenOptions()
-            try:
-                opts.Audit = False
-            except Exception:
-                pass
-            model_path = ModelPathUtils.ConvertUserVisiblePathToModelPath(source_path)
-            upgrade_doc = self.doc.Application.OpenDocumentFile(model_path, opts)
-            if upgrade_doc is None:
-                raise Exception(u"OpenDocumentFile returned None")
-            upgrade_doc.SaveAs(temp_path)
-            return temp_path
-        except Exception as ex:
-            libcache._log(u"family temp upgrade: {}".format(as_unicode(ex)))
-            if temp_path:
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-            return None
-        finally:
-            if fd is not None:
-                try:
-                    os.close(fd)
-                except Exception:
-                    pass
-            if upgrade_doc is not None:
-                try:
-                    upgrade_doc.Close(False)
-                except Exception as ex:
-                    libcache._log(u"family temp close: {}".format(as_unicode(ex)))
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -2310,7 +2262,6 @@ class FamilyBrowserDialog(object):
         """Load .rfa if needed and return a FamilySymbol ready to place."""
         t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
-        first_error = None
         try:
             fam, err = self._load_family_element(fi)
             if fam is None:
@@ -2324,43 +2275,12 @@ class FamilyBrowserDialog(object):
             t.Commit()
             self._invalidate_project_family_index()
             return symbol
-        except Exception as ex:
-            first_error = ex
+        except Exception:
             try:
                 t.RollBack()
             except Exception:
                 pass
-
-        temp_path = self._upgrade_family_to_temp(fi)
-        if not temp_path:
-            raise first_error
-        try:
-            t = Transaction(self.doc, i18n.t("txn_load"))
-            t.Start()
-            try:
-                fam, err = self._load_family_element(fi, load_path=temp_path)
-                if fam is None:
-                    raise Exception(err or u"LoadFamily failed")
-                symbol = self._get_placeable_symbol(fam, fi)
-                if symbol is None:
-                    raise Exception(
-                        i18n.t("no_symbol", name=revit_name(fam)))
-                if not symbol.IsActive:
-                    symbol.Activate()
-                t.Commit()
-                self._invalidate_project_family_index()
-                return symbol
-            except Exception:
-                try:
-                    t.RollBack()
-                except Exception:
-                    pass
-                raise
-        finally:
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass
+            raise
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
