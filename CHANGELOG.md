@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Corrected Russian Properties labels for nested shared families, shared
+  families and work-plane hosting.
 - Reordered the first Properties section to show version, category, name,
   size and modification date.
 - Reworked Properties into grouped sections with separators, bullet lists for
