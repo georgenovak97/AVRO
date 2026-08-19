@@ -185,6 +185,52 @@ def load_cached(rfa_path):
         return None
 
 
+_last_meta_prune = 0
+
+
+def prune_cache(max_files=5000, max_age_days=30, force=False):
+    """Prune orphaned/old inspect cache files by age and count limit."""
+    global _last_meta_prune
+    now = time.time()
+    if not force and (now - _last_meta_prune < 300):
+        return
+    _last_meta_prune = now
+
+    if not os.path.isdir(META_DIR):
+        return
+
+    try:
+        max_age_sec = max_age_days * 86400
+        entries = []
+        for name in os.listdir(META_DIR):
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(META_DIR, name)
+            try:
+                st = os.stat(path)
+                mtime = st.st_mtime
+                if (now - mtime) > max_age_sec:
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                    continue
+                entries.append((mtime, path))
+            except Exception:
+                pass
+
+        if len(entries) > max_files:
+            entries.sort(key=lambda x: x[0])
+            to_remove = len(entries) - max_files
+            for i in range(to_remove):
+                try:
+                    os.remove(entries[i][1])
+                except Exception:
+                    pass
+    except Exception as ex:
+        avro_log.exception("family_meta.prune", ex)
+
+
 def save_cached(rfa_path, meta):
     try:
         _ensure_meta_dir()
@@ -197,6 +243,7 @@ def save_cached(rfa_path, meta):
             text = _u(text)
         with codecs.open(_cache_path(rfa_path), "w", "utf-8") as f:
             f.write(text)
+        prune_cache()
     except Exception as ex:
         avro_log.exception("family_meta.save", ex)
 

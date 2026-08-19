@@ -9,6 +9,7 @@ where present. Falls back to scanning the raw file.
 import os
 import hashlib
 import struct
+import time
 
 import config
 import avro_log
@@ -56,6 +57,52 @@ def clear_preview_cache():
         _log(u"preview cache clear failed: {}".format(ex))
 
 
+_last_preview_prune = 0
+
+
+def prune_preview_cache(max_files=5000, max_age_days=30, force=False):
+    """Prune orphaned/old thumbnail cache files by age and count limit."""
+    global _last_preview_prune
+    now = time.time()
+    if not force and (now - _last_preview_prune < 300):
+        return
+    _last_preview_prune = now
+
+    if not os.path.isdir(THUMB_CACHE_DIR):
+        return
+
+    try:
+        max_age_sec = max_age_days * 86400
+        entries = []
+        for name in os.listdir(THUMB_CACHE_DIR):
+            if not (name.endswith(".png") or name.endswith(".jpg")):
+                continue
+            path = os.path.join(THUMB_CACHE_DIR, name)
+            try:
+                st = os.stat(path)
+                mtime = st.st_mtime
+                if (now - mtime) > max_age_sec:
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                    continue
+                entries.append((mtime, path))
+            except Exception:
+                pass
+
+        if len(entries) > max_files:
+            entries.sort(key=lambda x: x[0])
+            to_remove = len(entries) - max_files
+            for i in range(to_remove):
+                try:
+                    os.remove(entries[i][1])
+                except Exception:
+                    pass
+    except Exception as ex:
+        _log(u"preview cache prune failed: {}".format(ex))
+
+
 def _cache_key(rfa_path):
     st = os.stat(rfa_path)
     raw = u"{}|{}".format(os.path.normcase(rfa_path), int(st.st_mtime)).encode("utf-8")
@@ -74,6 +121,7 @@ def _write_cache_jpeg(cache_path, jpeg_bytes):
     _ensure_cache_dir()
     with open(cache_path, "wb") as f:
         f.write(jpeg_bytes)
+    prune_preview_cache()
 
 
 def _read_cache_jpeg(cache_path):
@@ -97,6 +145,7 @@ def _write_cache(cache_path, png_bytes):
     _ensure_cache_dir()
     with open(cache_path, "wb") as f:
         f.write(png_bytes)
+    prune_preview_cache()
 
 
 def _read_cache(cache_path):
