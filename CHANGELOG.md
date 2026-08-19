@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Constraint explanations are displayed as a readable hyphen bullet list.
 - The Filtering / Properties pane is wide enough to show constraint
   explanations without line wrapping.
+- The right Filtering / Properties pane is now narrower while keeping the
+  constraint explanation readable on one line per rule.
 
 ### Fixed
 - README typo and outdated feature list.

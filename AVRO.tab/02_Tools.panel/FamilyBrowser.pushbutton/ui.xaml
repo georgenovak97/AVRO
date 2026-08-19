@@ -1,8 +1,8 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Family Browser"
-    Height="860" Width="1360"
-    MinHeight="600" MinWidth="1050"
+    Height="860" Width="1296"
+    MinHeight="600" MinWidth="986"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI"
@@ -149,7 +149,7 @@
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="430" MinWidth="380"/>
+                <ColumnDefinition Width="366" MinWidth="323"/>
             </Grid.ColumnDefinitions>
 
             <!-- LEFT: Places / library tree -->
