@@ -2185,6 +2185,24 @@ class FamilyBrowserDialog(object):
     def _load_family(self, fi):
         self._load_families([fi.path])
 
+    def _find_family_in_project(self, fi):
+        keys = set(
+            family_utils.normalize_family_key(name)
+            for name in family_utils.family_name_candidates(fi))
+        keys.discard(u"")
+        if not keys:
+            return None
+        file_key = family_utils.normalize_family_key(fi.name)
+        best = None
+        for fam in FilteredElementCollector(self.doc).OfClass(RevitFamily):
+            fam_key = family_utils.normalize_family_key(revit_name(fam))
+            if fam_key in keys:
+                return fam
+            if (file_key and len(file_key) >= 4
+                    and (file_key in fam_key or fam_key in file_key)):
+                best = fam
+        return best
+
     def _load_family_element(self, fi):
         """Return (Family, error_message). error_message is None on success."""
         path = os.path.normpath(fi.path)
@@ -2229,36 +2247,46 @@ class FamilyBrowserDialog(object):
             pass
         return symbols
 
-    def _get_family_symbol(self, fi):
-        """Load .rfa if needed and return a FamilySymbol ready to place."""
-        last_error = None
-        for attempt in (1, 2):
-            t = Transaction(self.doc, i18n.t("txn_load"))
-            t.Start()
+    def _activate_symbol(self, symbol):
+        if symbol is None or symbol.IsActive:
+            return
+        t = Transaction(self.doc, i18n.t("txn_activate"))
+        t.Start()
+        try:
+            symbol.Activate()
+            t.Commit()
+        except Exception:
             try:
-                fam, err = self._load_family_element(fi)
-                if fam is None:
-                    raise Exception(err or u"LoadFamily failed")
-                symbol = self._get_placeable_symbol(fam, fi)
-                if symbol is None:
-                    raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
-                if not symbol.IsActive:
-                    symbol.Activate()
-                t.Commit()
-                self._invalidate_project_family_index()
-                return symbol
-            except Exception as ex:
-                last_error = ex
-                try:
-                    t.RollBack()
-                except Exception:
-                    pass
-                if attempt == 1:
-                    time.sleep(2)
-                    self._pump_ui_before_reopen()
-                else:
-                    raise
-        raise last_error
+                t.RollBack()
+            except Exception:
+                pass
+            raise
+
+    def _get_family_symbol_single(self, fi):
+        """Load a family once and return an activated symbol."""
+        t = Transaction(self.doc, i18n.t("txn_load"))
+        t.Start()
+        try:
+            fam, err = self._load_family_element(fi)
+            if fam is None:
+                raise Exception(err or u"LoadFamily failed")
+            symbol = self._get_placeable_symbol(fam, fi)
+            if symbol is None:
+                raise Exception(i18n.t("no_symbol", name=revit_name(fam)))
+            if not symbol.IsActive:
+                symbol.Activate()
+            t.Commit()
+            self._invalidate_project_family_index()
+            return symbol
+        except Exception:
+            try:
+                t.RollBack()
+            except Exception:
+                pass
+            raise
+
+    def _get_family_symbol(self, fi):
+        return self._get_family_symbol_single(fi)
 
     def _place_family(self, fi):
         uidoc = revit.uidoc
@@ -2285,17 +2313,43 @@ class FamilyBrowserDialog(object):
         uidoc = revit.uidoc
         if uidoc is None or uidoc.ActiveView is None or fi is None:
             return u""
+        last_error = None
         try:
-            symbol = self._get_family_symbol(fi)
-            if symbol is None:
-                return i18n.t("place_prepare_failed", name=fi.name)
-            try:
-                uidoc.PromptForFamilyInstancePlacement(symbol)
-            except OperationCanceledException:
-                return i18n.t("placement_cancelled")
-            return i18n.t("placed", name=fi.name)
+            symbol = self._get_family_symbol_single(fi)
+            if symbol is not None:
+                return self._prompt_place_family(uidoc, symbol, fi)
         except Exception as ex:
-            return i18n.t("placement_error", err=as_unicode(ex))
+            last_error = ex
+
+        for index in range(30):
+            time.sleep(0.5)
+            self._pump_ui_before_reopen()
+            try:
+                fam = self._find_family_in_project(fi)
+                if fam is not None:
+                    symbol = self._get_placeable_symbol(fam, fi)
+                    if symbol is not None:
+                        self._activate_symbol(symbol)
+                        return self._prompt_place_family(uidoc, symbol, fi)
+            except Exception as ex:
+                last_error = ex
+
+            if index > 0 and index % 10 == 0:
+                try:
+                    symbol = self._get_family_symbol_single(fi)
+                    if symbol is not None:
+                        return self._prompt_place_family(uidoc, symbol, fi)
+                except Exception as ex:
+                    last_error = ex
+
+        return i18n.t("placement_error", err=as_unicode(last_error))
+
+    def _prompt_place_family(self, uidoc, symbol, fi):
+        try:
+            uidoc.PromptForFamilyInstancePlacement(symbol)
+        except OperationCanceledException:
+            return i18n.t("placement_cancelled")
+        return i18n.t("placed", name=fi.name)
 
     def _pump_ui_before_reopen(self):
         """Let Revit/WPF finish the placement command before ShowDialog again."""
