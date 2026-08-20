@@ -110,7 +110,7 @@ _sync_card_colors(ui_theme.LIGHT)
 
 _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
-    "BtnRunSearch", "BtnToggleGridSize", "BtnResetSearch",
+    "BtnRunSearch", "BtnResetSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload",
     "FamilyPanel", "FamilyScrollViewer",
@@ -138,7 +138,6 @@ _CARD_MIN_W = 132
 _CARD_MAX_W = 220
 _PREVIEW_W = 96
 _PREVIEW_H = 67
-_GRID_ENLARGED_SCALE = 2.0
 _STICKY_KEY = "AVRO_session"
 
 
@@ -259,7 +258,6 @@ class FamilyBrowserDialog(object):
         self._folder_scope_label = u""
         self._scope_is_recent = False
         self._active_search_query = u""
-        self._grid_enlarged = False
         self._search_suppress = False
         self._search_timer = None
         self._host_filter_keys = set()
@@ -411,7 +409,6 @@ class FamilyBrowserDialog(object):
         btn_reset = getattr(self.ui, "BtnResetSearch", None)
         if btn_reset is not None:
             btn_reset.Content = i18n.t("btn_reset_search")
-        self._update_grid_size_button()
         lbl_cat = getattr(self.ui, "LblCategoryFilter", None)
         if lbl_cat is not None:
             lbl_cat.Text = i18n.t("filter_category_label")
@@ -886,9 +883,6 @@ class FamilyBrowserDialog(object):
         btn_reset = getattr(u, "BtnResetSearch", None)
         if btn_reset is not None:
             btn_reset.Click += self._on_reset_search
-        btn_grid = getattr(u, "BtnToggleGridSize", None)
-        if btn_grid is not None:
-            btn_grid.Click += self._on_toggle_grid_size
         self._rebuild_meta_filters(preserve=False)
         self._update_filters_button_caption()
         self._props_controller.reset()
@@ -1272,22 +1266,6 @@ class FamilyBrowserDialog(object):
         self._update_filters_button_caption()
         self._refresh_catalog_view()
 
-    def _on_toggle_grid_size(self, sender, e):
-        self._grid_enlarged = not self._grid_enlarged
-        self._update_grid_size_button()
-        self._relayout_family_grid()
-
-    def _update_grid_size_button(self):
-        btn = getattr(self.ui, "BtnToggleGridSize", None)
-        if btn is None:
-            return
-        if self._grid_enlarged:
-            btn.Content = u"⊟"
-            btn.ToolTip = i18n.t("grid_size_standard_tooltip")
-        else:
-            btn.Content = u"⊞"
-            btn.ToolTip = i18n.t("grid_size_enlarged_tooltip")
-
     def _on_search_box_keydown(self, sender, e):
         try:
             if e.Key == Key.Enter:
@@ -1615,14 +1593,13 @@ class FamilyBrowserDialog(object):
 
     def _layout_metrics(self):
         """Return grid metrics with a fixed, symmetric outer inset."""
-        scale = _GRID_ENLARGED_SCALE if self._grid_enlarged else 1.0
         return card_layout.compute_grid_metrics(
             self._viewport_width(),
-            min_w=_CARD_MIN_W * scale,
-            max_w=_CARD_MAX_W * scale,
-            base_w=_CARD_W * scale,
-            base_h=_CARD_H * scale,
-            margin=_CARD_OUTER_PAD * scale,
+            min_w=_CARD_MIN_W,
+            max_w=_CARD_MAX_W,
+            base_w=_CARD_W,
+            base_h=_CARD_H,
+            margin=_CARD_OUTER_PAD,
         )
 
     def _layout_cols(self):

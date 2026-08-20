@@ -192,14 +192,13 @@
                     </Grid>
                 </Border>
 
-                <!-- Search | Search | Grid size | Reset -->
+                <!-- Search | Search | Reset -->
                 <Border Grid.Row="1" Background="{DynamicResource BgToolbar}"
                         BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1"
                         Padding="8,6">
                     <Grid VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -230,12 +229,7 @@
                                 Style="{StaticResource RevitButton}"
                                 MinWidth="72" Height="26" Padding="10,2"
                                 Margin="0,0,6,0"/>
-                        <Button x:Name="BtnToggleGridSize" Grid.Column="2"
-                                Content="⊞"
-                                Style="{StaticResource RevitButton}"
-                                Width="26" Height="26" Padding="2,0"
-                                Margin="0,0,6,0"/>
-                        <Button x:Name="BtnResetSearch" Grid.Column="3"
+                        <Button x:Name="BtnResetSearch" Grid.Column="2"
                                 Content="Сброс"
                                 Style="{StaticResource RevitButton}"
                                 MinWidth="72" Height="26" Padding="10,2"/>
