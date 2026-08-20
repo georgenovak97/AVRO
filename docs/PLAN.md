@@ -1,92 +1,346 @@
-# AVRO Extension — Plan
+# AVRO Extension — актуальный план исправлений
 
-Full audit of `lib/` (24 modules), `scripts/`, `startup.py`, entry point
-`AVRO.tab/02_Tools.panel/FamilyBrowser.pushbutton/script.py` (2461 lines).
-Branch `main`, version `1.2.1-dev`.
+Дата ревью: 2026-08-20
+Версия кода: `1.3`, commit `3f932bf`
+Поддерживаемые версии Revit: **2020–2025**
+Runtime: pyRevit 4.8+, IronPython 2.7
 
-Baseline verified: `ruff check .` clean, 45 unit tests pass.
-Gate for every batch: `python3 scripts/check.py`.
+Этот документ заменяет предыдущий план. Он составлен по результатам полного
+code review текущего репозитория AVRO. Код во время ревью не изменялся.
 
-Constraints that shape this plan:
+## Статус ревью
 
-- **ADR 0002** — `OpenDocumentFile`, `FilteredElementCollector`, `LoadFamily`,
-  `Transaction`, and *any* `Autodesk.Revit.*` access are main-thread only.
-  Any threading/lifecycle change requires a manual 20-cycle open/close Revit
-  stress test plus a `git revert` rollback plan. **Not reproducible on the VPS.**
-- **ADR 0003** — strict-unknown for quality flags: meta is usable only when
-  `meta["ok"] is True`, and unknown must FAIL an active flag. Refactors must not
-  silently turn strict into soft.
-- **AGENTS.md** — IronPython 2.7 (no f-strings, annotations, walrus); smoke on
-  Revit **2020 and 2025** before a client build.
+### Автоматические проверки
 
----
+Все команды выполнены из каталога `AVRO/` и завершились успешно:
 
-## Batch 1 — Verifiable on the VPS (pure logic, no Revit needed)
+```text
+python3 scripts/check.py                         PASS
+python3 -m unittest discover -s tests -p 'test_*.py' -v   PASS (50 tests)
+~/.local/bin/ruff check .                        PASS
+python3 scripts/verify_family_browser.py         PASS
+git diff --check                                 PASS
+```
 
-| # | Commit | Files | What |
-|---|--------|-------|------|
-| 1 | `perf(filters): batch-load inspect meta per refresh` | `lib/family_inspector.py`, `script.py` | Build `meta_by_path` once per `_refresh_catalog_view` / `_rebuild_meta_filters`; add the parameter to `family_inspector.filter_families` and `collect_filter_options`. **Reuse the existing `family_browser_quality.filter_families(families, meta_by_path, flags, limits)` (`:215`) instead of the per-family `_apply_quality_flag_filters`.** Today roughly 5 `load_cached` calls per family in the filter plus 3 in `collect_filter_options`, and each `load_cached` runs `os.stat()` on the **network share** through `_cache_key` — that network round-trip is the dominant cost, not the local JSON read. Must preserve ADR 0003: a missing path yields `None`, which has to keep failing strictly. |
-| 2 | `fix(cache): detect subfolder changes in library fingerprint` | `lib/library_cache.py` | `library_fingerprint` (`:152-163`) hashes only the *root* folder mtime, so families added inside subfolders on the share stay invisible until a manual Reload. Walk one or two levels of subdirectory mtimes, or sample per-file mtime into the meta file. |
-| 3 | `fix(i18n): unicode-encode exception args in user messages` | `script.py:1299,2338` | `err=ex` → `err=as_unicode(ex)`, matching `:2091` and `:2290`. Cyrillic Revit messages currently risk mojibake under IronPython 2.7. |
-| 4 | `fix(cache): prune orphaned family_meta entries` | `lib/family_inspector.py`, `lib/rfa_preview.py` | `_cache_key` is path + mtime (`:157-166`), so every external edit on the share orphans the previous `family_meta/*.json` permanently; only all-or-nothing `clear_cache()` exists. Add a size- or age-capped sweep on save. `rfa_preview.THUMB_CACHE_DIR` has the same pattern. |
+Unit-тесты работают в CPython 3 без Revit/CLR. Они подтверждают чистую логику,
+но не заменяют smoke-тест в Revit.
 
----
+### Git-состояние на момент ревью
 
-## Batch 2 — Requires a Revit machine (ADR 0002 guardrails apply)
+- AVRO — отдельный git-репозиторий.
+- Ветка: `main`, синхронизирована с `origin/main`.
+- Рабочее дерево до этой записи было чистым.
+- Внешний workspace содержит AVRO как untracked-каталог родительского git;
+  коммиты выполняются только в `AVRO/.git`.
 
-Do **not** merge from the VPS. Each item needs the full ADR 0002 checklist:
-list of affected handlers, 20-cycle open/close stress test, revert plan.
+## Приоритеты
 
-| # | Commit | Files | What |
-|---|--------|-------|------|
-| 5 | `fix(ui): yield to dispatcher before blocking inspect` | `lib/family_browser_props.py`, `lib/family_inspector.py` | `props.inspect` (`:57-74`) calls `set_loading` and then `load_cached`/`inspect` on the same thread, so the "Reading .rfa…" hint never paints and the UI looks dead for 1-5 s. **Do not move `inspect` to a worker thread** — ADR 0002 forbids `OpenDocumentFile` off the main thread and `inspect:481` states the same. Yield a single dispatcher frame first, reusing the existing `_pump_ui_before_reopen` pattern (`script.py:2340-2362`). |
-| 6 | `perf(cards): populate revit version without Revit API on scan thread` | `lib/family_browser_cards.py`, `lib/rfa_version.py`, `lib/family_scanner.py` | `make_card:111-114` calls `revit_version_label(fi.path)` on the UI thread whenever `fi.revit_version` is empty, reading up to 512 KB from the share. Precompute during the background scan using **only** `revit_version_from_path` and `_label_via_file_bytes`; `_label_via_basic_file_info` calls `BasicFileInfo.Extract`, which is Revit API and must stay on the main thread or be dropped. Decide explicitly which. |
+### HIGH — исправить до smoke/release
 
----
+#### H1. Неопределённая переменная `total`
 
-## Batch 3 — Hygiene / minor (verifiable on the VPS)
+- Файл: `AVRO.tab/02_Tools.panel/FamilyBrowser.pushbutton/script.py:805`.
+- `_restore_window_focus()` вызывает `i18n.t("from_cache", n=total)`, но
+  `total` не определён ни в методе, ни в модуле.
+- Метод вызывается после полного сканирования и после загрузки кэша. Поэтому
+  ошибка возникает на обоих основных путях успешного открытия браузера.
+- Симптом: необработанный `NameError` через Dispatcher после построения каталога;
+  статус не обновляется, ошибка попадает в Revit/pyRevit журнал.
+- Минимальное исправление: вычислять `len(self._scan.get("all", []))` внутри
+  метода или передавать число явным параметром.
+- Тесты после исправления:
+  - добавить CPython-совместимый статический/runtime guard для вычисления
+    статуса, если entry point можно безопасно изолировать;
+  - Revit 2020: первое открытие после полного скана;
+  - Revit 2020 и 2025: повторное открытие из кэша;
+  - проверить журнал на отсутствие `NameError`.
 
-| # | Commit | Files | What |
-|---|--------|-------|------|
-| 7 | `fix(api): dual-path deprecated ElementId and Symbol access` | `lib/family_inspector.py:346,350`, `script.py:2305` | `fid.IntegerValue` → `.Value` with fallback at **both** sites; `getattr(inst, "Symbol")` → `GetFamilySymbol()` first with `Symbol` as fallback. Required for Revit 2024+ per AGENTS.md. |
-| 8 | `refactor(txn): single rollback path, recents after commit` | `script.py:2256-2280,2364-2399` | `_get_family_symbol` rolls back twice (`:2263`/`:2267`, then again at `:2277`); collapse to one path. `_load_families` calls `config.add_recent` (`:2383`) inside the open transaction, which takes `_IO_LOCK` and writes JSON to disk — move it after `Commit`. Consider `FailureHandlingOptions` for the batch path so a mid-batch family failure is not silent. |
-| 9 | `chore: remove dead imports and unreachable branch` | `lib/family_scanner.py:15-24`, `lib/family_inspector.py:30`, `script.py:36-48`, `lib/library_cache.py:126-127` | Unused `REVIT_AVAILABLE` flag and RevitAPI imports in the pure-IO scanner, `Family as RevitFamily`, unused WPF/Revit imports in the entry script, duplicate `unicode` branch in `_utf8_to_unicode`. `pyproject.toml` currently ignores `F401` for exactly this reason — after the cleanup, tighten `per-file-ignores` so it cannot regress. |
-| 10 | `perf: replace per-byte loops with managed decoding` | `lib/rfa_preview.py:324`, `lib/image_utils.py:43-44` | `"".join(chr(int(buf[i])) …)` and `buf[i] = ord(ch)` are O(n) IronPython loops over payloads up to ~1 MB. Use an `Encoding.GetEncoding("latin-1")` round-trip or `Marshal.Copy`. |
-| 11 | `chore(version): single runtime source for version string` | `lib/config.py`, `settings_dialog.xaml`, `scripts/check.py` | Three sources exist today: `pyproject.toml:3`, the hardcoded `1.2.1-dev` in `settings_dialog.xaml:54`, and `CHANGELOG.md`. IronPython 2.7 cannot read TOML, so add a runtime `VERSION` constant, set the dialog text programmatically, and make `check.py` assert all three agree. `extension.json` stays untouched: pyRevit does not read a `version` key there — `ExtensionPackage.version` returns the git commit hash. |
+### MEDIUM — исправить до release или явно принять риск
 
----
+#### M1. Имена транзакций не имеют префикса `AVRO: `
 
-## Batch 4 — Tests
+- Файлы: `lib/i18n.py:211-213,426-428`, вызовы в
+  `script.py:2313,2327,2458-2459`.
+- Текущие имена: «Активация типа семейства», «Загрузка семейства» и
+  локализованные варианты без `AVRO: `.
+- Это нарушает правило `AVRO/AGENTS.md` и release checklist; действия трудно
+  отличить в Undo.
+- Минимальное исправление: централизованно добавлять `AVRO: ` к именам
+  `Transaction`, сохраняя локализованный хвост.
+- Тесты: статический guard на все `Transaction(doc, ...)`; ручная проверка Undo
+  в Revit 2020 и 2025.
 
-| # | Commit | Files | What |
-|---|--------|-------|------|
-| 12 | `test(filters): cover filter_families and batch meta path` | `tests/test_family_inspector_filter.py` (new) | Fake `load_cached`; AND across axes; **ADR 0003 regression guard: missing meta must still fail an active quality flag after the Batch 1 refactor.** |
-| 13 | `test(cache): cover fingerprint invalidation` | `tests/test_library_cache.py` (extend) | Fingerprint mismatch, stale-cache rejection, and the subfolder-mtime gap from item 2. |
-| 14 | `test(loadopts): cover out-param fallback` | `tests/test_family_load_options.py` (new) | Mock `.Value` versus `__setitem__`; `FamilySource(0)`. This is the only module on the model-write path with zero coverage. |
-| 15 | `test(preview): cover byte parsers` | `tests/test_rfa_preview.py` (new) | `_slice_png`, `_extract_jpeg_from_bytes`, `_maybe_inflate_truncated_gzip`, `_find_png_in_buffer` — pure Python, no CLR required. |
+#### M2. Частично неудачная инспекция может стать usable meta
 
----
+- Файл: `lib/family_inspector.py:323-449`.
+- `_inspect_document()` устанавливает `meta["ok"] = True` до выполнения
+  отдельных блоков. Ошибки отдельных collectors/FamilyManager подавляются,
+  а некоторые счётчики остаются `0` из `_empty_meta`.
+- При активном STRICT quality flag такой счётчик выглядит как подтверждённый
+  ноль и может дать ложный pass вместо unknown/fail.
+- Минимальное исправление: для невычисленных счётчиков использовать `None`;
+  разделить «документ открылся» и «поле успешно инспектировано» либо выставлять
+  `ok=True` только после обязательных блоков.
+- Тесты:
+  - partial-inspection meta с ошибкой FamilyManager;
+  - каждый `limit_*` с отсутствующим/`None` счётчиком;
+  - позитивные нулевые значения после успешной инспекции;
+  - ручная проверка повреждённого/неполного RFA в Revit 2020/2025.
 
-## Release
+#### M3. Повторная загрузка не классифицируется как already loaded
 
-- `CHANGELOG.md` `[Unreleased]` written in human language, per the
-  `plugin-release-checklist` skill.
-- `python3 scripts/check.py` green after every batch.
-- Before a client build: smoke on Revit **2020 and 2025**, readable `AVRO: …`
-  transaction names in the Undo menu, no debug `TaskDialog`, no absolute paths,
-  previous bundle still installable.
+- Файл: `script.py:2466-2476`.
+- `_load_family_element()` возвращает непустую ошибку на любом неуспешном
+  `LoadFamily`, поэтому ветка `skipped.append(...)` фактически недостижима.
+- Уже загруженное семейство может отображаться как `not_loaded`, а не как
+  `already_in_project`.
+- Минимальное исправление: отличать отказ/отмену/ошибку от уже существующего
+  семейства через явный результат или проверку проекта.
+- Тест: загрузить одно семейство, повторить действие и проверить сообщение;
+  отдельно проверить reload с изменёнными параметрами.
 
----
+#### M4. Документация обещает удалённую фильтрацию
 
-## Open findings (not scheduled)
+- `README.md:10-13` описывает filter axes, constraints, double-click и Load
+  button.
+- `AVRO.tab/02_Tools.panel/FamilyBrowser.pushbutton/bundle.yaml` содержит
+  tooltip `Search, filter by category, double-click to place in project`.
+- В текущем `ui.xaml` фильтры отсутствуют; CHANGELOG фиксирует, что filtering
+  был удалён, а фактический путь — левый клик для размещения и правый клик для
+  свойств.
+- Минимальное исправление: синхронизировать README и bundle tooltip с текущим
+  интерфейсом либо вернуть фильтры отдельной задачей с UI и тестами.
+- Тест: проверить текст README/tooltip и ручной осмотр ribbon в Revit.
 
-- `reference_line_count` (`family_inspector.py:371-384`) relies on
-  `getattr(rp, "IsReferenceLine", False)`, which has no public API backing, so
-  the field is always `0`. `family_browser_quality.py:157-159` only consumes the
-  **sum** with `reference_plane_count`, so the filter stays correct and only the
-  standalone field is misleading. Tests hardcode the key, so do not delete it
-  without updating `test_family_browser_quality.py`.
-- The `reload_fixup` idling handler stays subscribed after a pyRevit reload, but
-  it unsubscribes itself on its next tick (`:177`), so it self-heals. Nit.
-- Transaction names resolve through i18n without an explicit `AVRO: ` prefix;
-  adding one would make Undo entries attributable to the extension.
+#### M5. Повторная загрузка всегда перезаписывает значения параметров
+
+- Файл: `lib/family_load_options.py:27-29`.
+- `OnFamilyFound()` всегда выставляет `overwriteParameterValues=True`.
+- Это может заменить пользовательские значения параметров уже загруженного и
+  изменённого семейства. Поведение выглядит намеренным, но пользователь не
+  получает подтверждения.
+- Варианты минимального решения:
+  - оставить поведение, но явно документировать overwrite;
+  - добавить подтверждение перед reload;
+  - разделить обычную загрузку и явный reload.
+- Тест: ручной Revit smoke с изменённым параметром уже загруженного семейства.
+
+### LOW — плановая гигиена
+
+#### L1. Большой объём мёртвого кода после удаления фильтров
+
+В `FamilyBrowser.pushbutton/script.py` не имеют callers или являются пустыми:
+
+- `clear_library_cache`;
+- `_fill_quality_flags`, `_read_quality_flags`;
+- `_passes_quality_flags`, `_apply_quality_flag_filters`, `_meta_int`;
+- `_fill_check_list`, `_checked_keys_from_panel`, `_sync_filters_from_ui`;
+- `_close_filters_popup`;
+- `_all_families`, `_mods`, `_toggle_path`, `_range_paths`;
+- `_update_selection_status`, `_on_clear_search`;
+- `_load_selected`, `_load_family`, `_load_families`, `_get_family_symbol`.
+
+Также атрибуты `_category_filter_keys`, `_host_filter_keys`,
+`_work_plane_filter_keys`, `_shared_nested_filter_keys` загружаются/сохраняются,
+но не участвуют в текущем UI.
+
+В `lib/family_inspector.py` сохранены неиспользуемые текущим UI оси
+category/hosting/placement и tri-state options. Не удалять механически: сначала
+решить, будет ли фильтрация возвращаться. Если нет, удалить одним отдельным
+cleanup commit вместе с устаревшими тестами и документацией.
+
+#### L2. Нелокализованный заголовок MessageBox
+
+- `script.py:1373-1377` использует `config.APP_NAME`, всегда русский текст.
+- Использовать `i18n.t("app_title")`.
+- Тест: английская и русская локализация в UI smoke.
+
+#### L3. Магический порог размера
+
+- `script.py:1291-1292` содержит `15 * 1024` напрямую.
+- Вынести в именованную константу, если size filter будет возвращён; иначе
+  удалить вместе с мёртвым фильтром.
+
+#### L4. Избыточная проверка в `limit_ref_planes`
+
+- `lib/family_browser_quality.py:146-163` имеет дублирующий check
+  `is_meta_usable` после `_meta_int`.
+- Исправлять только при следующем изменении модуля; функциональный риск низкий.
+
+#### L5. Sticky-session содержит WPF bitmap objects
+
+- `script.py:176-193,2082-2096` сохраняет `BitmapImage` в `preview_mem`.
+- pyRevit sticky обычно сериализуется, а .NET bitmap не гарантированно
+  pickle-safe; исключение подавляется. Проверить, действительно ли кэш
+  восстанавливается, либо сохранять только PNG/пути.
+- Тест: два последовательных запуска в Revit/pyRevit с большим каталогом.
+
+#### L6. Блокирующий polling размещения
+
+- `script.py:2395-2414` делает до 30 циклов `sleep(0.5)` на основном потоке.
+- ADR 0002 запрещает менять reopen-flow без отдельного stress-теста, поэтому
+  это не включать в обычный cleanup. Для изменения обязательны 20 циклов
+  open/close и отдельное решение по ExternalEvent/Idling.
+
+## План по этапам
+
+### Этап 0 — блокирующий smoke guard
+
+Цель: устранить гарантированное runtime-исключение без изменения архитектуры.
+
+1. Исправить H1.
+2. Добавить статический guard, который ловит неопределённые имена в критическом
+   post-load пути, если это возможно без импорта CLR.
+3. Запустить все автоматические проверки.
+4. Проверить Revit 2020 и 2025: full scan, cache hit, reload window.
+
+Критерий выхода: H1 отсутствует, журнал чистый, каталог открывается обоими
+путями.
+
+### Этап 1 — Revit API transaction hygiene
+
+1. Исправить M1, сохранив локализацию имён.
+2. Проверить все `Transaction`/`RollBack` в entry point и load options.
+3. Уточнить M3 и поведение `LoadFamily == False`.
+4. Проверить M5 и выбрать продуктовую политику overwrite.
+5. Повторить unit/static checks.
+6. Revit 2020 и 2025: загрузка новой семьи, повторная загрузка, отмена,
+   ошибка/повреждённый RFA, проверка Undo и отсутствия незавершённой транзакции.
+
+Критерий выхода: понятный результат для success/already-loaded/cancel/error;
+в Undo отображаются `AVRO: ...`; нет потери параметров без принятой политики.
+
+### Этап 2 — корректность strict quality metadata
+
+1. Исправить M2 в `family_inspector.py`.
+2. Добавить unit-тесты partial failure, missing keys, `None`, нулевых границ и
+   всех комбинаций quality flags.
+3. Проверить единицы размера, reference planes + reference lines, повреждённый
+   кэш и отсутствие файла.
+4. Решить, возвращается ли quality filter в продуктовый UI. Не возвращать его
+   частично: потребуются XAML, binding, AND-фильтрация, coverage indicator и
+   ручной тест.
+
+Критерий выхода: active unknown никогда не проходит STRICT policy; успешный
+нулевой результат отличим от отсутствующего результата.
+
+### Этап 3 — документация и cleanup
+
+1. Исправить M4: README, bundle tooltip, CHANGELOG/описание текущего UI.
+2. Исправить L2.
+3. После решения по фильтрам удалить или восстановить мёртвый стек L1 одним
+   отдельным commit.
+4. Вынести/удалить L3 и L4 только вместе с затрагиваемой функциональностью.
+5. Проверить L5 на реальном pyRevit runtime.
+
+Критерий выхода: README, ribbon tooltip, XAML и фактические действия совпадают;
+мёртвый код либо удалён, либо явно помечен как будущий API и покрыт callers.
+
+### Этап 4 — ручной Revit smoke/release
+
+Обязательные версии: Revit 2020 и Revit 2025. Revit 2024 дополнительно нужен
+для dark UI/API deprecation проверки.
+
+#### Extension и окно
+
+- extension загружается через pyRevit Reload без ошибок;
+- вкладка AVRO и кнопки Settings/Family Browser видны;
+- запуск на пустом и рабочем проекте;
+- каталог с отсутствующим путём, пустой библиотекой и отсутствующим кэшем;
+- повторный запуск после полного скана и cache hit;
+- закрытие окна, повторное открытие, отсутствие двойных callbacks.
+
+#### Каталог
+
+- сканирование локального и network path;
+- поиск по имени/папке/версии;
+- сортировка и навигация по дереву;
+- пустые результаты;
+- файл удалён во время отображения;
+- read-only и недоступный каталог;
+- повреждённый RFA и отсутствующее preview.
+
+#### Загрузка и размещение
+
+- левый клик загружает/размещает семейство;
+- уже загруженное семейство;
+- семейство из более новой версии Revit;
+- отмена `PromptForFamilyInstancePlacement`;
+- закрытие окна во время фоновой активности;
+- 20 циклов open/close с активным scan/preview/cache worker для любых изменений
+  threading/lifecycle.
+
+#### Properties/inspection
+
+- right-click на семействе с кэшем;
+- right-click без кэша и отображение loading state;
+- успешный inspect;
+- повреждённый/неполный RFA;
+- корректные category, hosting, placement, types, nested, parameters,
+  materials, formulas и file size;
+- unknown не отображается как подтверждённый `No` там, где значение не было
+  проверено.
+
+#### UI
+
+- Revit 2024/2025 dark theme;
+- DPI 100%, 150%, 200%;
+- минимальный размер окна и resize;
+- окно не теряется за Revit;
+- нет лишних модальных окон;
+- нет необработанных ошибок в journal.
+
+## Покрытие тестами
+
+### Уже подтверждено CPython/unit-тестами
+
+- `family_browser_quality`: 20+ сценариев strict unknown, AND, thresholds,
+  size units, reference plane/line sum и dict/object inputs;
+- `family_inspector`: tri-state cached values, category/version fallback;
+- `library_cache`: key/hash/save/load roundtrip;
+- scanner/category/family name helpers;
+- card layout metrics;
+- i18n.
+
+### Требует новых CPython-тестов
+
+- H1 post-load status path;
+- M2 partial inspection/unknown counters;
+- M3 classification of already-loaded family;
+- `family_load_options` out-parameter fallbacks;
+- `rfa_preview` PNG/JPEG/gzip parsers;
+- corrupted/incomplete cache and malformed JSON;
+- config read/write failures and read-only paths;
+- stale cache after file/subfolder changes;
+- `None`, empty and invalid types for public pure helpers.
+
+### Невозможно подтвердить без Revit
+
+- API thread affinity и ExternalEvent/Idling;
+- реальные Transaction commit/rollback/failure handling;
+- `LoadFamily`, `IFamilyLoadOptions`, overwrite behavior;
+- `OpenDocumentFile`/close family document;
+- placement cancellation and modal version dialogs;
+- WPF owner, DPI, dark theme, dispatcher lifecycle;
+- journal cleanliness and ribbon appearance.
+
+## Ограничения и принятые правила
+
+- Не добавлять C# без нового ADR и измеренного hotspot.
+- Не использовать f-strings, walrus, `match`, annotations, `async` и прочие
+  конструкции Python 3 в Revit-side коде.
+- Не переносить Revit API в worker thread.
+- Не подавлять реальные исключения в новых критических путях; сохранять понятное
+  сообщение пользователю и traceback/контекст в журнале.
+- Не считать зелёные unit-тесты доказательством Revit-совместимости.
+- Любой commit по model-write/threading/lifecycle должен содержать затронутые
+  handlers и ссылку на выполненный Revit smoke/stress-test.
+
+## Итоговая оценка
+
+Текущее состояние: **готов после исправлений**.
+
+Автоматические проверки зелёные, но H1 — гарантированное runtime-исключение
+на штатном пути загрузки каталога. До исправления H1 и проверки Revit 2020/2025
+нельзя считать плагин готовым к smoke/release. После H1 следует исправить M1,
+проверить M2/M3/M5 на Revit и синхронизировать документацию.
