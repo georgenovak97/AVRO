@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Added a square toggle between Search and Reset to switch between standard and 2x card sizes.
 - Removed separate Formulas and Dimensions rows from Properties.
 - Dimension Properties now count Length, Angle, and Slope parameters.
 - Properties now count family parameters in the Dimensions group instead of all Revit Dimension elements.
