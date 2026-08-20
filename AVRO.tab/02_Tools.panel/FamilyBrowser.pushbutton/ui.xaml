@@ -265,7 +265,7 @@
                                     Background="{DynamicResource BgToolbar}"
                                     BorderBrush="{DynamicResource BorderLight}"
                                     BorderThickness="0,0,0,1"
-                                    Padding="8,6">
+                                    Padding="8,4">
                                 <TextBlock x:Name="PropsTitle"
                                            Text="Свойства"
                                            FontWeight="SemiBold" FontSize="13"

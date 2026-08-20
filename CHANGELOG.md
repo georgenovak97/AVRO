@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Fine-tuned Properties title spacing to align its divider with the search toolbar.
 - Aligned the Properties title divider with the search toolbar divider.
 - Removed separate Formulas and Dimensions rows from Properties.
 - Dimension Properties now count Length, Angle, and Slope parameters.
