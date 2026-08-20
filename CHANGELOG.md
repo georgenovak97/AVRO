@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+## [1.3] - 2026-08-20
+
+### Added
 - `docs/PLAN.md` — reviewed work plan grouped into batches, with the items that
   require a Revit machine separated from those verifiable without Revit.
 - `AGENTS.md` — supported Revit years, IronPython 2.7 constraints, transaction

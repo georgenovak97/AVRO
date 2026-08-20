@@ -18,7 +18,7 @@ LOG_FILE    = os.path.join(CONFIG_DIR, "cache.log")
 THUMB_CACHE_DIR = os.path.join(CONFIG_DIR, "thumbs")
 
 APP_NAME = u"Диспетчер семейств"
-VERSION = u"1.2.1-dev"
+VERSION = u"1.3"
 _IO_LOCK = threading.RLock()
 
 DEFAULTS = {
