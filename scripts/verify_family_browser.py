@@ -19,7 +19,6 @@ LIB = os.path.join(ROOT, "lib")
 REQUIRED_METHODS = {
     "_bind",
     "_init_window",
-    "_load_selected",
     "show",
 }
 

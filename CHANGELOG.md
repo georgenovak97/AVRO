@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 ### Changed
+- Removed obsolete Family Browser filter and selection plumbing after the filter UI
+  was removed; search, properties, and placement paths remain unchanged.
+- Sticky session data no longer stores WPF bitmap objects, the status MessageBox
+  uses the active localization, and the reference-plane quality guard treats
+  incomplete metadata as unknown.
 - Family Browser transaction names now use the `AVRO: ` prefix, repeated loads
   are reported as already in the project, and the intentional parameter-value
   overwrite policy is documented.

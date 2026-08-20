@@ -146,11 +146,8 @@ def passes_quality_flags(fi, meta, flags, limits=None):
     if flags.get("limit_ref_planes"):
         rp = _meta_int(meta, "reference_plane_count")
         rl = _meta_int(meta, "reference_line_count")
-        if rp is None and rl is None:
+        if rp is None or rl is None:
             return False
-        # missing one side counts as 0 only when meta usable and key absent→None
-        # If meta usable but key missing, treat missing key as 0 for sum components
-        # only when the other exists OR both keys can be 0 from inspect.
         if not is_meta_usable(meta):
             return False
         try:

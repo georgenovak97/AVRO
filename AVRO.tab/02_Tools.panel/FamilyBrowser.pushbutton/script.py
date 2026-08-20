@@ -27,11 +27,10 @@ from System.Windows import (
     TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
-    TreeViewItem, StackPanel, TextBlock, Canvas, CheckBox, Border,
+    TreeViewItem, TextBlock, Canvas, Border,
 )
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
-from System.Windows.Input import Keyboard, ModifierKeys, Key, MouseButton
-from System.Windows.Controls import Orientation
+from System.Windows.Input import Key, MouseButton
 from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -53,7 +52,6 @@ if _EXT_LIB not in sys.path:
 import config
 import family_scanner as scanner
 import family_inspector
-import category_utils
 import rfa_preview
 import library_cache as libcache
 import ui_theme
@@ -69,7 +67,6 @@ import family_browser_cards
 import card_layout
 import family_browser_status
 import family_browser_library
-import family_browser_quality
 from revit_utils import as_unicode, revit_name
 
 # ---------------------------------------------------------------------------
@@ -141,22 +138,6 @@ _PREVIEW_H = 67
 _STICKY_KEY = "AVRO_session"
 
 
-def _library_cache_key(paths):
-    return libcache.cache_key(paths)
-
-
-def clear_library_cache():
-    libcache.clear()
-    _save_sticky_session(None, {}, set())
-    try:
-        config.patch_fields({
-            "library_cache_hash": "",
-            "library_cache_count": 0,
-        })
-    except Exception:
-        pass
-
-
 def _load_sticky_session():
     try:
         if hasattr(script, "get_sticky"):
@@ -168,7 +149,7 @@ def _load_sticky_session():
         sk = data.get("key")
         if sk is not None and not isinstance(sk, tuple):
             sk = tuple(sk)
-        return sk, data.get("preview_mem", {}), set(data.get("preview_miss", []))
+        return sk, {}, set(data.get("preview_miss", []))
     except Exception:
         return None, {}, set()
 
@@ -179,7 +160,8 @@ def _save_sticky_session(key, preview_mem, preview_miss):
         if key is not None:
             payload = {
                 "key": list(key),
-                "preview_mem": dict(preview_mem),
+                # BitmapImage instances are WPF objects and are not sticky-safe.
+                "preview_mem": {},
                 "preview_miss": sorted(preview_miss),
             }
         if hasattr(script, "set_sticky"):
@@ -260,36 +242,6 @@ class FamilyBrowserDialog(object):
         self._active_search_query = u""
         self._search_suppress = False
         self._search_timer = None
-        self._host_filter_keys = set()
-        self._category_filter_keys = set()
-        self._version_filter_keys = set()
-        self._size_filter_keys = set()
-        self._work_plane_filter_keys = set()
-        self._shared_nested_filter_keys = set()  # reserved (quality block panel host)
-        self._quality_flags = {
-            "shared_only": False,
-            "no_imported_cad": False,
-            "limit_types": False,
-            "limit_ref_planes": False,
-            "limit_dimensions": False,
-            "limit_nested": False,
-            "limit_params": False,
-            "limit_formulas": False,
-            "limit_materials": False,
-            "not_huge": False,
-        }
-        self._quality_limits = {
-            "limit_types": 10,
-            "limit_ref_planes": 10,
-            "limit_dimensions": 10,
-            "limit_nested": 10,
-            "limit_params": 10,
-            "limit_formulas": 5,
-            "limit_materials": 10,
-            "not_huge": 5.0,
-        }
-        self._load_filter_state_from_cfg()
-        self._filter_suppress = False
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
         # Extract preview from .rfa when thumb cache is empty (visible items only in virtual mode).
@@ -332,8 +284,7 @@ class FamilyBrowserDialog(object):
         self._card_brushes = ui_theme.card_brushes(
             ui_theme.DARK if self._dark_theme else ui_theme.LIGHT)
         self._props_controller = family_browser_props.PropsPanelController(
-            self, self._card_brushes,
-            rebuild_filters_callback=self._rebuild_meta_filters)
+            self, self._card_brushes)
         self._bind()
         i18n.init_from_config()
         self._apply_ui_theme(self._dark_theme, persist=False)
@@ -396,54 +347,12 @@ class FamilyBrowserDialog(object):
         filters_title = getattr(self.ui, "FiltersTitle", None)
         if filters_title is not None:
             filters_title.Text = i18n.t("filters_title")
-        self._update_filters_button_caption()
-        btn_reset_f = getattr(self.ui, "BtnResetFilters", None)
-        if btn_reset_f is not None:
-            btn_reset_f.Content = i18n.t("btn_reset_filters")
-        btn_apply = getattr(self.ui, "BtnApplyFilters", None)
-        if btn_apply is not None:
-            btn_apply.Content = i18n.t("btn_apply_filters")
         btn_run = getattr(self.ui, "BtnRunSearch", None)
         if btn_run is not None:
             btn_run.Content = i18n.t("btn_run_search")
         btn_reset = getattr(self.ui, "BtnResetSearch", None)
         if btn_reset is not None:
             btn_reset.Content = i18n.t("btn_reset_search")
-        lbl_cat = getattr(self.ui, "LblCategoryFilter", None)
-        if lbl_cat is not None:
-            lbl_cat.Text = i18n.t("filter_category_label")
-        lbl_host = getattr(self.ui, "LblHostFilter", None)
-        if lbl_host is not None:
-            lbl_host.Text = i18n.t("filter_host_label")
-        lbl_ver = getattr(self.ui, "LblVersionFilter", None)
-        if lbl_ver is not None:
-            lbl_ver.Text = i18n.t("filter_version_label")
-        lbl_size = getattr(self.ui, "LblSizeFilter", None)
-        if lbl_size is not None:
-            lbl_size.Text = i18n.t("filter_size_label")
-        lbl_imp = getattr(self.ui, "LblImportedFilter", None)
-        if lbl_imp is not None:
-            lbl_imp.Visibility = Visibility.Collapsed
-        imp_list = getattr(self.ui, "ImportedFilterList", None)
-        if imp_list is not None and getattr(imp_list, "Parent", None) is not None:
-            imp_list.Parent.Visibility = Visibility.Collapsed
-        lbl_sn = getattr(self.ui, "LblSharedNestedFilter", None)
-        if lbl_sn is not None:
-            lbl_sn.Text = i18n.t("filter_quality_flags_label")
-            lbl_sn.Visibility = Visibility.Visible
-        sn_list = getattr(self.ui, "SharedNestedFilterList", None)
-        if sn_list is not None and getattr(sn_list, "Parent", None) is not None:
-            sn_list.Parent.Visibility = Visibility.Visible
-        constraints_help = getattr(self.ui, "ConstraintsHelpText", None)
-        if constraints_help is not None:
-            constraints_help.Text = i18n.t("constraints_help_text")
-        lbl_sf = getattr(self.ui, "LblSharedFamilyFilter", None)
-        if lbl_sf is not None:
-            lbl_sf.Visibility = Visibility.Collapsed
-        sf_list = getattr(self.ui, "SharedFamilyFilterList", None)
-        if sf_list is not None and getattr(sf_list, "Parent", None) is not None:
-            sf_list.Parent.Visibility = Visibility.Collapsed
-        self._rebuild_meta_filters(preserve=True)
         props_title = getattr(self.ui, "PropsTitle", None)
         if props_title is not None:
             props_title.Text = i18n.t("props_title")
@@ -594,7 +503,6 @@ class FamilyBrowserDialog(object):
                 self._search_suppress = False
         else:
             self._reset_search_field()
-        self._rebuild_meta_filters(preserve=True)
         self._refresh_catalog_view()
 
         if tag == "__recent__":
@@ -872,234 +780,14 @@ class FamilyBrowserDialog(object):
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._library_controller.on_settings
         u.BtnReload.Click                  += self._library_controller.on_reload
-        btn_apply = getattr(u, "BtnApplyFilters", None)
-        if btn_apply is not None:
-            btn_apply.Click += self._on_apply_filters
-        btn_reset_f = getattr(u, "BtnResetFilters", None)
-        if btn_reset_f is not None:
-            btn_reset_f.Click += self._on_reset_filters
         btn_run = getattr(u, "BtnRunSearch", None)
         if btn_run is not None:
             btn_run.Click += self._on_run_search
         btn_reset = getattr(u, "BtnResetSearch", None)
         if btn_reset is not None:
             btn_reset.Click += self._on_reset_search
-        self._rebuild_meta_filters(preserve=False)
-        self._update_filters_button_caption()
         self._props_controller.reset()
 
-    def _checked_keys_from_panel(self, panel):
-        keys = []
-        if panel is None:
-            return keys
-        try:
-            for child in panel.Children:
-                try:
-                    if not isinstance(child, CheckBox):
-                        continue
-                    if child.IsChecked:
-                        tag = getattr(child, "Tag", None)
-                        if tag is not None:
-                            keys.append(as_unicode(tag))
-                except Exception:
-                    continue
-        except Exception:
-            pass
-        return keys
-
-    def _fill_check_list(self, panel, entries, selected_keys):
-        """entries: list of (key, label). selected_keys: set/list of keys."""
-        if panel is None:
-            return
-        selected = set()
-        for k in selected_keys or []:
-            selected.add(as_unicode(k).lower())
-        panel.Children.Clear()
-        for key, label in entries:
-            cb = CheckBox()
-            cb.Content = label
-            cb.ToolTip = i18n.t(u"qf_help_" + key)
-            cb.Tag = key
-            cb.Margin = Thickness(0, 1, 0, 1)
-            cb.Foreground = COL_TEXT
-            try:
-                cb.IsChecked = as_unicode(key).lower() in selected
-            except Exception:
-                cb.IsChecked = False
-            panel.Children.Add(cb)
-
-
-    def _load_filter_state_from_cfg(self):
-        state = (self.cfg or {}).get("family_browser_filters") or {}
-
-        def _setset(name, key):
-            vals = state.get(key) or []
-            try:
-                setattr(self, name, set([as_unicode(v) for v in vals if as_unicode(v)]))
-            except Exception:
-                setattr(self, name, set())
-
-        _setset("_category_filter_keys", "category")
-        self._category_filter_keys = set(
-            category_utils.normalize_category(v)
-            for v in self._category_filter_keys
-            if category_utils.normalize_category(v))
-        _setset("_host_filter_keys", "hosting")
-        _setset("_version_filter_keys", "revit_format")
-        _setset("_size_filter_keys", "size")
-        self._work_plane_filter_keys = set()
-
-        flags = state.get("quality_flags") or {}
-        for k in list(self._quality_flags.keys()):
-            self._quality_flags[k] = bool(flags.get(k, self._quality_flags[k]))
-        # migrate legacy multi-select Shared axis -> quality shared_only
-        try:
-            legacy_shared = state.get("is_shared_family") or []
-            if legacy_shared and not self._quality_flags.get("shared_only"):
-                vals = set(as_unicode(v).strip().lower() for v in legacy_shared if as_unicode(v).strip())
-                if vals and vals.issubset(set([u"yes", u"true", u"1"])):
-                    self._quality_flags["shared_only"] = True
-        except Exception:
-            pass
-        limits = state.get("quality_limits") or {}
-        for k in list(self._quality_limits.keys()):
-            self._quality_limits[k] = self._coerce_quality_limit(
-                k, limits.get(k, self._quality_limits[k]))
-
-    def _save_filter_state_to_cfg(self):
-        payload = {
-            "category": sorted(self._category_filter_keys),
-            "hosting": sorted(self._host_filter_keys),
-            "revit_format": sorted(self._version_filter_keys),
-            "size": sorted(self._size_filter_keys),
-            "quality_flags": dict(self._quality_flags),
-            "quality_limits": dict(self._quality_limits),
-        }
-        self.cfg["family_browser_filters"] = payload
-        try:
-            config.set_value("family_browser_filters", payload)
-        except Exception:
-            pass
-
-    def _coerce_quality_limit(self, key, value):
-        try:
-            if key == "not_huge":
-                v = float(value)
-                return 5.0 if v <= 0 else round(v, 3)
-            v = int(value)
-            return 10 if v < 1 else v
-        except Exception:
-            return 5.0 if key == "not_huge" else 10
-
-
-    def _fill_quality_flags(self, panel):
-        if panel is None:
-            return
-        panel.Children.Clear()
-        defs = [
-            ("no_imported_cad", i18n.t("qf_no_imported_cad"), None),
-            ("limit_types", i18n.t("qf_limit_types"), "limit_types"),
-            ("limit_ref_planes", i18n.t("qf_limit_ref_planes"), "limit_ref_planes"),
-            ("limit_dimensions", i18n.t("qf_limit_dimensions"), "limit_dimensions"),
-            ("limit_nested", i18n.t("qf_limit_nested"), "limit_nested"),
-            ("limit_params", i18n.t("qf_limit_params"), "limit_params"),
-            ("limit_formulas", i18n.t("qf_limit_formulas"), "limit_formulas"),
-            ("limit_materials", i18n.t("qf_limit_materials"), "limit_materials"),
-            ("shared_only", i18n.t("qf_shared_only"), None),
-            ("not_huge", i18n.t("qf_not_huge"), "not_huge"),
-        ]
-        for key, label, limit_key in defs:
-            row = StackPanel()
-            row.Orientation = Orientation.Horizontal
-            row.Margin = Thickness(0, 1, 0, 1)
-
-            cb = CheckBox()
-            cb.Tag = key
-            cb.Content = label
-            cb.Foreground = COL_TEXT
-            cb.VerticalAlignment = VerticalAlignment.Center
-            cb.IsChecked = bool(self._quality_flags.get(key, False))
-            row.Children.Add(cb)
-
-
-            panel.Children.Add(row)
-
-    def _read_quality_flags(self, panel):
-        if panel is None:
-            return
-        for key in list(self._quality_flags.keys()):
-            self._quality_flags[key] = False
-
-        def _read_row(row):
-            cb = None
-            try:
-                for child in row.Children:
-                    if isinstance(child, CheckBox):
-                        cb = child
-            except Exception:
-                return
-            if cb is None:
-                return
-            tag = as_unicode(getattr(cb, 'Tag', u''))
-            if tag in self._quality_flags:
-                self._quality_flags[tag] = bool(cb.IsChecked)
-
-        try:
-            for child in panel.Children:
-                if isinstance(child, StackPanel):
-                    _read_row(child)
-                elif isinstance(child, CheckBox):
-                    tag = as_unicode(getattr(child, 'Tag', u''))
-                    if tag in self._quality_flags:
-                        self._quality_flags[tag] = bool(child.IsChecked)
-        except Exception:
-            pass
-
-    def _meta_int(self, meta, key):
-        """Legacy helper: usable meta int, else 0. Prefer family_browser_quality for filters."""
-        if not family_browser_quality.is_meta_usable(meta):
-            return 0
-        try:
-            return int(meta.get(key) or 0)
-        except Exception:
-            return 0
-
-    def _passes_quality_flags(self, fi):
-        """AND quality flags; STRICT unknown when inspect cache missing (ADR 0003)."""
-        path = getattr(fi, 'path', None) or u''
-        meta = None
-        try:
-            if path:
-                meta = family_inspector.load_cached(path)
-        except Exception:
-            meta = None
-        return family_browser_quality.passes_quality_flags(
-            fi,
-            meta,
-            self._quality_flags,
-            limits=self._quality_limits,
-        )
-
-    def _apply_quality_flag_filters(self, families, meta_by_path=None):
-        if not any(self._quality_flags.values()):
-            return families
-        if meta_by_path is None:
-            meta_by_path = family_inspector.build_meta_by_path(families)
-        return family_browser_quality.filter_families(
-            families,
-            meta_by_path,
-            self._quality_flags,
-            limits=self._quality_limits,
-        )
-
-    def _sync_filters_from_ui(self):
-        """Read filter UI into applied sets/flags (checkbox lists + quality block)."""
-        def _many(panel_name):
-            panel = getattr(self.ui, panel_name, None)
-            return set(self._checked_keys_from_panel(panel))
-
-        self._version_filter_keys = _many("VersionFilterList")
-        self._size_filter_keys = _many("SizeFilterList")
 
     def _host_label(self, key):
         mapping = {
@@ -1132,111 +820,7 @@ class FamilyBrowserDialog(object):
             pass
         return k
 
-    def _filters_active(self):
-        return bool(
-            self._version_filter_keys
-            or self._size_filter_keys
-        )
-
-    def _rebuild_meta_filters(self, preserve=True):
-        """Rebuild filter controls: checkbox lists + quality constraints."""
-        if self.ui is None:
-            return
-
-        scope = self._folder_scope or []
-        versions = set()
-        for fi in scope:
-            version = as_unicode(getattr(fi, "revit_version", u"") or u"").strip()
-            if version:
-                versions.add(version)
-        ver_available = sorted(versions, key=lambda s: s.lower())
-        size_entries = [
-            ("small", i18n.t("size_small")),
-            ("large", i18n.t("size_large")),
-        ]
-
-        def _pick_set(existing, available):
-            if not preserve:
-                return set()
-            avail_l = set(as_unicode(a).lower() for a in (available or []))
-            out = set()
-            for k in existing or []:
-                ku = as_unicode(k)
-                if ku.lower() in avail_l:
-                    out.add(ku)
-            return out
-
-        self._version_filter_keys = _pick_set(self._version_filter_keys, ver_available)
-        self._size_filter_keys = _pick_set(
-            self._size_filter_keys, [key for key, _label in size_entries])
-        ver_entries = [(v, v) for v in ver_available]
-
-        self._filter_suppress = True
-        try:
-            self._fill_check_list(getattr(self.ui, "VersionFilterList", None), ver_entries, self._version_filter_keys)
-            self._fill_check_list(getattr(self.ui, "SizeFilterList", None), size_entries, self._size_filter_keys)
-        finally:
-            self._filter_suppress = False
-        self._update_filters_button_caption()
-
-    def _active_filter_count(self):
-        return (
-            len(self._version_filter_keys)
-            + len(self._size_filter_keys)
-        )
-
-    def _update_filters_button_caption(self):
-        """Show applied filter count next to the Filtering title."""
-        tb = getattr(self.ui, "FiltersCount", None) if self.ui else None
-        if tb is None:
-            return
-        n = self._active_filter_count()
-        if n > 0:
-            tb.Text = u"({})".format(n)
-            tb.Visibility = Visibility.Visible
-        else:
-            tb.Text = u""
-            tb.Visibility = Visibility.Collapsed
-
-    def _close_filters_popup(self):
-        return
-
-    def _on_apply_filters(self, sender, e):
-        self._sync_filters_from_ui()
-        self._save_filter_state_to_cfg()
-        self._update_filters_button_caption()
-        query = u""
-        try:
-            query = as_unicode(self.ui.SearchBox.Text)
-        except Exception:
-            query = u""
-        self._apply_search(query)
-
-    def _on_reset_filters(self, sender, e):
-        self._size_filter_keys = set()
-        self._category_filter_keys = set()
-        self._host_filter_keys = set()
-        self._version_filter_keys = set()
-        self._work_plane_filter_keys = set()
-        self._shared_nested_filter_keys = set()
-        for k in list(self._quality_flags.keys()):
-            self._quality_flags[k] = False
-        for k in list(self._quality_limits.keys()):
-            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else (5 if k == "limit_formulas" else 10))
-        self._save_filter_state_to_cfg()
-        self._rebuild_meta_filters(preserve=False)
-        self._update_filters_button_caption()
-        query = u""
-        try:
-            query = as_unicode(self.ui.SearchBox.Text)
-        except Exception:
-            query = u""
-        self._apply_search(query)
-
     def _on_run_search(self, sender, e):
-        self._sync_filters_from_ui()
-        self._save_filter_state_to_cfg()
-        self._update_filters_button_caption()
         query = u""
         try:
             query = as_unicode(self.ui.SearchBox.Text)
@@ -1247,24 +831,11 @@ class FamilyBrowserDialog(object):
     def _on_reset_search(self, sender, e):
         self._stop_search_timer()
         self._active_search_query = u""
-        self._size_filter_keys = set()
-        self._category_filter_keys = set()
-        self._host_filter_keys = set()
-        self._version_filter_keys = set()
-        self._work_plane_filter_keys = set()
-        self._shared_nested_filter_keys = set()
-        for k in list(self._quality_flags.keys()):
-            self._quality_flags[k] = False
-        for k in list(self._quality_limits.keys()):
-            self._quality_limits[k] = self._coerce_quality_limit(k, 5.0 if k == "not_huge" else (5 if k == "limit_formulas" else 10))
-        self._save_filter_state_to_cfg()
         self._search_suppress = True
         try:
             self.ui.SearchBox.Text = u""
         finally:
             self._search_suppress = False
-        self._rebuild_meta_filters(preserve=False)
-        self._update_filters_button_caption()
         self._refresh_catalog_view()
 
     def _on_search_box_keydown(self, sender, e):
@@ -1276,32 +847,20 @@ class FamilyBrowserDialog(object):
             pass
 
     def _refresh_catalog_view(self):
-        """Re-apply search + meta filters to current folder scope."""
+        """Re-apply the current search query to the folder scope."""
         query = as_unicode(self._active_search_query).strip()
         families = list(self._folder_scope or [])
         if query:
             families = scanner.flat_search(families, query)
-        families = family_inspector.filter_families(
-            families,
-            revit_format=self._version_filter_keys,
-        )
-        size_keys = set(as_unicode(k).lower() for k in self._size_filter_keys)
-        if size_keys and size_keys != set(["small", "large"]):
-            families = [
-                fi for fi in families
-                if (("small" in size_keys and fi.size_kb <= 15 * 1024)
-                    or ("large" in size_keys and fi.size_kb > 15 * 1024))]
         self._show_families(families)
         self._update_breadcrumb_display()
         total = len(self._folder_scope or [])
         shown = len(families)
-        if (query or self._filters_active()) and total != shown:
+        if query and total != shown:
             self._update_count_display(shown, total)
         else:
             self._update_count_display(shown)
         self._props_controller.reset()
-        if self._filters_active() and shown == 0 and total > 0:
-            self._set_status(i18n.t("host_filter_empty"))
 
     def _schedule_scan(self):
         paths = self._library_paths()
@@ -1373,7 +932,7 @@ class FamilyBrowserDialog(object):
             self._set_status(i18n.t("loaded_no_cache", n=total))
             MessageBox.Show(
                 i18n.t("cache_save_failed", msg=save_msg),
-                config.APP_NAME,
+                i18n.t("app_title"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning)
         self._build_tree(self._scan)
@@ -1515,7 +1074,6 @@ class FamilyBrowserDialog(object):
         self._folder_scope_label = breadcrumb
         self._active_search_query = u""
         self._reset_search_field()
-        self._rebuild_meta_filters(preserve=True)
         self._refresh_catalog_view()
 
     def _on_cat_selected(self, sender, e):
@@ -1552,9 +1110,6 @@ class FamilyBrowserDialog(object):
             path = parent
         parts.reverse()
         return u" / ".join(parts)
-
-    def _all_families(self):
-        return list(self._scan.get("all", []))
 
     def _viewport_width(self):
         """Content width inside ScrollViewer (excludes vertical scrollbar)."""
@@ -2096,12 +1651,6 @@ class FamilyBrowserDialog(object):
         preview_img.Source     = bmp
         preview_img.Visibility = Visibility.Visible
 
-    def _mods(self):
-        m = Keyboard.Modifiers
-        ctrl = (m & ModifierKeys.Control) == ModifierKeys.Control
-        shift = (m & ModifierKeys.Shift) == ModifierKeys.Shift
-        return ctrl, shift
-
     def _set_card_selected(self, path, selected):
         card = self._card_by_path.get(path)
         if card is None:
@@ -2126,23 +1675,6 @@ class FamilyBrowserDialog(object):
                 continue
             self._selected_paths.add(path)
             self._set_card_selected(path, True)
-
-    def _toggle_path(self, path):
-        if path in self._selected_paths:
-            self._selected_paths.discard(path)
-            self._set_card_selected(path, False)
-        else:
-            self._selected_paths.add(path)
-            self._set_card_selected(path, True)
-
-    def _range_paths(self, anchor, target):
-        if anchor not in self._order_paths or target not in self._order_paths:
-            return [target]
-        i0 = self._order_paths.index(anchor)
-        i1 = self._order_paths.index(target)
-        if i0 > i1:
-            i0, i1 = i1, i0
-        return self._order_paths[i0:i1 + 1]
 
     def _reveal_in_explorer(self, fi):
         path = libcache._norm_path(fi.path)
@@ -2173,38 +1705,6 @@ class FamilyBrowserDialog(object):
     def _on_card_click(self, card, fi, e):
         self._place_family(fi)
 
-    def _update_selection_status(self):
-        n = len(self._selected_paths)
-        if n == 0:
-            self._props_controller.reset()
-            return
-        if n == 1:
-            fi = self._fi_by_path.get(list(self._selected_paths)[0])
-            if fi:
-                ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
-                folder = as_unicode(getattr(fi, "folder", u"") or u"")
-                size_mb = fi.size_kb / 1024.0
-                self._set_status(i18n.t(
-                    "status_item",
-                    folder=folder,
-                    name=as_unicode(fi.name),
-                    size=i18n.t("size_mb").format(size_mb),
-                    ver=ver or i18n.t("ver_unknown")))
-                self._props_controller.inspect(fi)
-            else:
-                self._props_controller.reset()
-            return
-        self._props_controller.reset(i18n.t("selected_count", n=n))
-        self._set_status(i18n.t("selected_count", n=n))
-
-    def _on_clear_search(self, sender, e):
-        if not self.ui.SearchBox.Text.strip():
-            return
-        self._stop_search_timer()
-        self._reset_search_field()
-        self._active_search_query = u""
-        self._refresh_catalog_view()
-
     def _apply_search(self, query):
         query = as_unicode(query).strip()
         self._active_search_query = query
@@ -2222,20 +1722,6 @@ class FamilyBrowserDialog(object):
         self._ensure_search_timer()
         self._search_timer.Stop()
         self._search_timer.Start()
-
-    def _load_selected(self):
-        paths = [p for p in self._order_paths if p in self._selected_paths]
-        if not paths:
-            return
-        if len(paths) == 1:
-            fi = self._fi_by_path.get(paths[0])
-            if fi:
-                self._load_family(fi)
-            return
-        self._load_families(paths)
-
-    def _load_family(self, fi):
-        self._load_families([fi.path])
 
     def _find_family_in_project(self, fi):
         keys = set(
@@ -2350,9 +1836,6 @@ class FamilyBrowserDialog(object):
             except Exception:
                 pass
             raise
-
-    def _get_family_symbol(self, fi):
-        return self._get_family_symbol_single(fi)
 
     def _place_family(self, fi):
         family_release = self._release_number(
