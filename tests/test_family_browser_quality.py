@@ -153,14 +153,18 @@ class QualityStrictUnknownTests(unittest.TestCase):
         )
 
     def test_all_count_flags_unknown_fail(self):
-        for key in (
-            "limit_dimensions",
-            "limit_nested",
-            "limit_params",
-            "limit_materials",
-        ):
+        field_by_flag = {
+            "limit_dimensions": "param_dimension_count",
+            "limit_nested": "nested_family_count",
+            "limit_params": "param_total_count",
+            "limit_formulas": "param_has_formulas_count",
+            "limit_materials": "material_count",
+        }
+        for key, field in field_by_flag.items():
             self.assertFalse(
-                q.passes_quality_flags(Dummy(), None, _flags(**{key: True})),
+                q.passes_quality_flags(
+                    Dummy(), {"ok": True, field: None}, _flags(**{key: True})
+                ),
                 msg=key,
             )
 

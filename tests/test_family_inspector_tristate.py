@@ -79,6 +79,31 @@ class FamilyInspectorTriStateTests(unittest.TestCase):
         self.assertIs(meta.get('has_shared_nested'), None)
         self.assertEqual(fi._bool_filter_key(meta.get('is_shared_family')), fi.BOOL_UNKNOWN)
 
+    def test_empty_meta_counters_are_unknown(self):
+        meta = fi._empty_meta('x.rfa')
+        for key in (
+                'type_count', 'reference_plane_count',
+                'reference_line_count', 'param_dimension_count',
+                'param_total_count', 'param_has_formulas_count',
+                'nested_family_count', 'material_count'):
+            self.assertIsNone(meta.get(key), msg=key)
+
+    def test_successful_empty_results_keep_zero(self):
+        meta = fi._empty_meta('x.rfa')
+        meta.update({
+            'ok': True,
+            'type_count': 0,
+            'reference_plane_count': 0,
+            'reference_line_count': 0,
+            'param_dimension_count': 0,
+            'param_total_count': 0,
+            'param_has_formulas_count': 0,
+            'nested_family_count': 0,
+            'material_count': 0,
+        })
+        self.assertEqual(meta['type_count'], 0)
+        self.assertEqual(meta['material_count'], 0)
+
     def test_normalize_revit_label_stable(self):
         self.assertEqual(fi.normalize_revit_label('2024'), 'R24')
         self.assertEqual(fi.normalize_revit_label('R22'), 'R22')

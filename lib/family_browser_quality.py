@@ -163,7 +163,7 @@ def passes_quality_flags(fi, meta, flags, limits=None):
             return False
 
     if flags.get("limit_dimensions"):
-        n = _meta_int(meta, "dimension_count")
+        n = _meta_int(meta, "param_dimension_count")
         if n is None:
             return False
         if n > _limit_value(lim, "limit_dimensions", 10):

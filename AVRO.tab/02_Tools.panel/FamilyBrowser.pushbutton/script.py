@@ -2256,10 +2256,10 @@ class FamilyBrowserDialog(object):
         return best
 
     def _load_family_element(self, fi):
-        """Return (Family, error_message). error_message is None on success."""
+        """Return (Family, error_message, state) for a family load attempt."""
         path = os.path.normpath(fi.path)
         if not os.path.isfile(path):
-            return None, i18n.t("file_not_found_short")
+            return None, i18n.t("file_not_found_short"), "error"
         family_release = self._release_number(
             getattr(fi, "revit_version", u""))
         host_release = self._release_number(self._current_revit_label())
@@ -2268,19 +2268,24 @@ class FamilyBrowserDialog(object):
             return None, i18n.t(
                 "newer_version",
                 ver=as_unicode(getattr(fi, "revit_version", u"")),
-                cur=self._current_revit_label())
+                cur=self._current_revit_label()), "error"
+
+        existing = self._find_family_in_project(fi)
 
         try:
             fam_ref = clr.Reference[RevitFamily]()
             if (self.doc.LoadFamily(
                     path, family_load_options.FAMILY_LOAD_OPTIONS, fam_ref)
                     and fam_ref.Value is not None):
-                return fam_ref.Value, None
+                state = "already_loaded" if existing is not None else "loaded"
+                return fam_ref.Value, None, state
         except Exception as ex:
-            return None, as_unicode(ex)
+            return None, as_unicode(ex), "error"
+        if existing is not None:
+            return existing, None, "already_loaded"
         ver = as_unicode(getattr(fi, "revit_version", u"") or u"")
         hint = i18n.t("load_hint_ver", ver=ver) if ver else u""
-        return None, i18n.t("load_failed", hint=hint)
+        return None, i18n.t("load_failed", hint=hint), "error"
 
     def _get_placeable_symbol(self, family, fi=None):
         symbols = self._symbols_for_family(family)
@@ -2328,7 +2333,7 @@ class FamilyBrowserDialog(object):
         t = Transaction(self.doc, i18n.t("txn_load"))
         t.Start()
         try:
-            fam, err = self._load_family_element(fi)
+            fam, err, state = self._load_family_element(fi)
             if fam is None:
                 raise Exception(err or u"LoadFamily failed")
             symbol = self._get_placeable_symbol(fam, fi)
@@ -2464,17 +2469,20 @@ class FamilyBrowserDialog(object):
                 if fi is None:
                     continue
                 try:
-                    fam, err = self._load_family_element(fi)
+                    fam, err, state = self._load_family_element(fi)
                     if fam is not None:
-                        loaded.append(fi.name)
-                        loaded_paths.append(fi.path)
+                        if state == "already_loaded":
+                            skipped.append(fi.name)
+                        else:
+                            loaded.append(fi.name)
+                            loaded_paths.append(fi.path)
                     elif err:
                         errors.append(u"{}: {}".format(fi.name, err))
                     else:
                         skipped.append(fi.name)
                 except Exception as ex:
                     errors.append(u"{}: {}".format(fi.name, as_unicode(ex)))
-            if loaded:
+            if loaded or skipped:
                 t.Commit()
                 for path in loaded_paths:
                     config.add_recent(path)

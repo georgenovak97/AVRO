@@ -6,15 +6,16 @@
   ![Family Browser](familybrowser.jpg)
 	- Browse folders with `.rfa` files and thumbnail previews
 	- Folder tree with multiple levels
-	- Search by name
-	- Filter axes: Revit category, hosting behavior, placement, Revit version
-	- Constraints: shared family, work plane-based, no imported CAD, and limits on types, reference planes, formulas and file size
-	- Inspect family properties: types, parameters, formulas
-	- Left double-click or "Load" button — load family into project
-	- Right double-click — open family location in Windows Explorer
+    - Search by name, folder, and Revit version
+    - Family properties and quality constraints are available from the properties view
+    - Left-click — load and place the family in the project
+    - Right-click — inspect family properties
 	- Place in model with return to the browser window
-	- Recent files list
-	- Dark/light theme
+    - Recent files list
+    - Dark/light theme
+
+  The former category, hosting, placement, and quality filter axes are not part of
+  the current Family Browser UI.
 
 ---
 #### Installation
@@ -35,3 +36,6 @@
 
 - pyRevit 4.8+
 - Revit 2020–2025 (2026+ untested)
+
+Reloading a family that is already in the project intentionally overwrites its
+parameter values through Revit's `IFamilyLoadOptions` callback.

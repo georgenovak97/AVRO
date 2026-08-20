@@ -133,9 +133,13 @@ class PropsPanelController(object):
             panel.Children.Add(self._row(label, value))
 
         self._render_separator(panel)
+        type_values = meta.get("types") or []
+        type_empty = (i18n.t("props_no")
+                      if meta.get("type_count") is not None
+                      else i18n.t("props_unknown"))
         self._render_list(
-            panel, i18n.t("props_types"), meta.get("types") or [],
-            empty_text=i18n.t("props_no"))
+            panel, i18n.t("props_types"), type_values,
+            empty_text=type_empty)
         self._render_list(
             panel, i18n.t("props_shared_nested"), shared,
             empty_text=i18n.t("props_no"))
@@ -153,11 +157,17 @@ class PropsPanelController(object):
             panel.Children.Add(self._row(label, value))
 
         self._render_separator(panel)
+        param_keys = (
+            "param_total_count", "param_instance_count", "param_type_count")
+        if all(meta.get(key) is not None for key in param_keys):
+            param_value = u"{} (inst {}, type {})".format(
+                meta.get("param_total_count"),
+                meta.get("param_instance_count"),
+                meta.get("param_type_count"))
+        else:
+            param_value = i18n.t("props_unknown")
         rows = (
-            (i18n.t("props_params"), u"{} (inst {}, type {})".format(
-                meta.get("param_total_count") or 0,
-                meta.get("param_instance_count") or 0,
-                meta.get("param_type_count") or 0)),
+            (i18n.t("props_params"), param_value),
             (i18n.t("props_materials"), self._count(meta, "material_count")),
         )
         for label, value in rows:

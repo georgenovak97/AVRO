@@ -135,18 +135,20 @@ def _empty_meta(path=u""):
         "has_shared_nested": None,
         "shared_nested": [],
         "types": [],
-        "type_count": 0,
-        "param_total_count": 0,
-        "param_instance_count": 0,
-        "param_type_count": 0,
-        "param_has_formulas": False,
-        "param_has_formulas_count": 0,
-        "reference_plane_count": 0,
-        "reference_line_count": 0,
-        "param_dimension_count": 0,
-        "nested_family_count": 0,
-        "material_count": 0,
-        "file_size_mb": 0.0,
+        # None means the collector did not complete; zero is only written
+        # after a successful collector pass.
+        "type_count": None,
+        "param_total_count": None,
+        "param_instance_count": None,
+        "param_type_count": None,
+        "param_has_formulas": None,
+        "param_has_formulas_count": None,
+        "reference_plane_count": None,
+        "reference_line_count": None,
+        "param_dimension_count": None,
+        "nested_family_count": None,
+        "material_count": None,
+        "file_size_mb": None,
         "revit_format": u"",
         "inspected_at": u"",
     }
@@ -369,6 +371,7 @@ def _inspect_document(doc, rfa_path):
 
     # Types
     types = []
+    types_ok = False
     try:
         fm = doc.FamilyManager
         for t in fm.Types:
@@ -380,9 +383,12 @@ def _inspect_document(doc, rfa_path):
                 types.append(name)
     except Exception:
         pass
+    else:
+        types_ok = True
     types = sorted(set(types), key=lambda s: s.lower())
     meta["types"] = types
-    meta["type_count"] = len(types)
+    if types_ok:
+        meta["type_count"] = len(types)
 
     # Imported geometry (CAD / ImportInstance)
     try:
@@ -424,6 +430,7 @@ def _inspect_document(doc, rfa_path):
     # Extra complexity counters for quality filters
     ref_planes = 0
     ref_lines = 0
+    references_ok = False
     try:
         for rp in FilteredElementCollector(doc).OfClass(ReferencePlane):
             try:
@@ -435,18 +442,21 @@ def _inspect_document(doc, rfa_path):
                 ref_planes += 1
     except Exception:
         pass
-    meta["reference_plane_count"] = int(ref_planes)
-    meta["reference_line_count"] = int(ref_lines)
+    else:
+        references_ok = True
+    if references_ok:
+        meta["reference_plane_count"] = int(ref_planes)
+        meta["reference_line_count"] = int(ref_lines)
     try:
         meta["material_count"] = int(
             FilteredElementCollector(doc).OfClass(Material).GetElementCount()
         )
     except Exception:
-        meta["material_count"] = 0
+        pass
     try:
         meta["file_size_mb"] = round(float(os.path.getsize(rfa_path)) / (1024.0 * 1024.0), 3)
     except Exception:
-        meta["file_size_mb"] = 0.0
+        pass
 
     # Revit version: normalize to R22/R24 labels for stable filters
     raw_ver = u""
@@ -508,12 +518,13 @@ def _inspect_document(doc, rfa_path):
                         has_formulas = True
                 except Exception:
                     pass
-        meta["param_total_count"] = total
-        meta["param_instance_count"] = inst
-        meta["param_type_count"] = typ
-        meta["param_dimension_count"] = dim_group_params
-        meta["param_has_formulas"] = bool(has_formulas)
-        meta["param_has_formulas_count"] = formulas_count
+        if params is not None:
+            meta["param_total_count"] = total
+            meta["param_instance_count"] = inst
+            meta["param_type_count"] = typ
+            meta["param_dimension_count"] = dim_group_params
+            meta["param_has_formulas"] = bool(has_formulas)
+            meta["param_has_formulas_count"] = formulas_count
     except Exception:
         pass
 

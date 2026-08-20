@@ -47,6 +47,12 @@ class I18nTests(unittest.TestCase):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"loaded_n", n=3), u"Loaded: 3")
 
+    def test_transaction_names_have_avro_prefix(self):
+        for lang in (u"ru", u"en"):
+            i18n.set_language(lang)
+            for key in (u"txn_activate", u"txn_load", u"txn_load_family"):
+                self.assertTrue(i18n.t(key, label=u"Family").startswith(u"AVRO: "))
+
     def test_lang_override_argument(self):
         i18n.set_language(u"ru")
         self.assertEqual(i18n.t(u"btn_load", lang=u"en"), u"Load")

@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 ### Changed
+- Family Browser transaction names now use the `AVRO: ` prefix, repeated loads
+  are reported as already in the project, and the intentional parameter-value
+  overwrite policy is documented.
+- Family Browser README and ribbon tooltip now describe the current click actions
+  and no longer promise removed filter axes.
 
 ## [1.3] - 2026-08-20
 
