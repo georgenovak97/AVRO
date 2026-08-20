@@ -255,11 +255,11 @@
             <!-- RIGHT: Properties -->
             <Border Grid.Column="4" Background="{DynamicResource BgSidebar}"
                     BorderBrush="{DynamicResource BorderMain}" BorderThickness="1,0,0,0">
-                <Grid Margin="6">
+                <Grid Margin="0">
                     <Border
                             Background="{DynamicResource BgPanel}"
                             BorderBrush="{DynamicResource BorderMain}"
-                            BorderThickness="1">
+                            BorderThickness="0">
                         <DockPanel LastChildFill="True">
                             <Border DockPanel.Dock="Top"
                                     Background="{DynamicResource BgToolbar}"
