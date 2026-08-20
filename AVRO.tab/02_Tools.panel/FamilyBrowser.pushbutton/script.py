@@ -802,6 +802,7 @@ class FamilyBrowserDialog(object):
             self.win.Focus()
         except Exception:
             pass
+        total = len(self._scan.get("all", []))
         self._set_status(i18n.t("from_cache", n=total))
 
     def _try_restore_cache(self):
