@@ -147,7 +147,6 @@ class PropsPanelController(object):
             (i18n.t("props_has_nested"), self._yes_no(has_shared)),
             (i18n.t("props_hosting"), self.dialog._host_label(meta.get("hosting"))),
             (i18n.t("props_placement"), meta.get("placement") or u""),
-            (i18n.t("props_work_plane_based"), self._yes_no(meta.get("work_plane_based"))),
             (i18n.t("props_imported"), self._yes_no(meta.get("has_imported_geometry"))),
         )
         for label, value in rows:
