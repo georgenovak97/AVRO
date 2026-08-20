@@ -138,6 +138,10 @@ _PREVIEW_H = 67
 _STICKY_KEY = "AVRO_session"
 
 
+def _library_cache_key(paths):
+    return libcache.cache_key(paths)
+
+
 def _load_sticky_session():
     try:
         if hasattr(script, "get_sticky"):
