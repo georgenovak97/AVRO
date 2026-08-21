@@ -7,21 +7,19 @@
 	- Browse folders with `.rfa` files and thumbnail previews
 	- Folder tree with multiple levels
     - Search by name, folder, and Revit version
-    - Family properties and quality constraints are available from the properties view
+    - Middle-click — open the family in Windows Explorer
     - Left-click — load and place the family in the project
     - Right-click — inspect family properties
 	- Place in model with return to the browser window
     - Recent files list
     - Dark/light theme
-
-  The former category, hosting, placement, and quality filter axes are not part of
-  the current Family Browser UI.
+    - Library and Refresh buttons for managing the family library
 
 ---
 #### Installation
   ![Install](install.jpg)
 1. Add `https://github.com/georgenovak97/AVRO.git` via **pyRevit → Extensions → Git URL → Add and install**.
-2. In the Revit ribbon: tab **"AVRO"** → panel **"Tools"** → **"Family Browser"**.
+2. In the Revit ribbon, open **"AVRO"** → **"Tools"** → **"Family Browser"**.
 
 ---
 #### First Launch
@@ -35,6 +33,7 @@
 #### Requirements
 
 - pyRevit 4.8+
+- AVRO version 1.3
 - Revit 2020–2025 (2026+ untested)
 
 Reloading a family that is already in the project intentionally overwrites its
