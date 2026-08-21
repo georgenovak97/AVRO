@@ -517,14 +517,14 @@ def _inspect_document(doc, rfa_path):
     # Revit version: normalize to R22/R24 labels for stable filters
     raw_ver = u""
     try:
-        raw_ver = _u(doc.Application.VersionNumber)
+        info = BasicFileInfo.Extract(rfa_path)
+        if info is not None and info.Format:
+            raw_ver = _u(info.Format)
     except Exception:
         raw_ver = u""
     if not raw_ver:
         try:
-            info = BasicFileInfo.Extract(rfa_path)
-            if info is not None and info.Format:
-                raw_ver = _u(info.Format)
+            raw_ver = _u(doc.Application.VersionNumber)
         except Exception:
             raw_ver = u""
     meta["revit_format"] = normalize_revit_label(raw_ver)

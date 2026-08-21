@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 ### Changed
+- Family properties now show the Revit format of the selected family file,
+  not the version of the currently running Revit application.
 - Family Browser family inspection now supports the Revit 2023 API and later
   versions without relying on the removed `ParameterType` enum.
 - Removed obsolete Family Browser filter and selection plumbing after the filter UI
