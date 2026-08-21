@@ -315,6 +315,10 @@ class FamilyBrowserDialog(object):
         except Exception:
             pass
 
+    def _window_is_current(self, win, window_gen):
+        return (self.win is win and self.ui is not None
+                and window_gen == self._window_gen)
+
     def _set_revit_window_owner(self):
         """Keep the modeless Family Browser associated with Revit's window."""
         try:
@@ -740,6 +744,8 @@ class FamilyBrowserDialog(object):
 
     def _on_window_closing(self, sender, e):
         self._window_gen += 1
+        self._stop_search_timer()
+        self._stop_grid_relayout_timer()
         try:
             width = float(self.win.ActualWidth)
             height = float(self.win.ActualHeight)
@@ -754,11 +760,78 @@ class FamilyBrowserDialog(object):
             pass
         # Placement closes the window and reopens it; async cache save must not
         # overwrite recent_families written right after placement.
-        if self._pending_symbol_id or self._pending_placement_fi is not None:
-            return
-        ui_notify.unregister_language_listener(self._on_external_language_changed)
-        ui_notify.unregister_theme_listener(self._on_external_theme_changed)
-        self._persist_cache(async_save=True)
+        is_placement = (self._pending_symbol_id
+                        or self._pending_placement_fi is not None)
+        if not is_placement:
+            ui_notify.unregister_language_listener(
+                self._on_external_language_changed)
+            ui_notify.unregister_theme_listener(
+                self._on_external_theme_changed)
+            self._persist_cache(async_save=True)
+        self._cleanup_window_resources()
+
+    def _cleanup_window_resources(self):
+        """Stop window work and release references before WPF teardown."""
+        self._preview_gen += 1
+        self._grid_relayout_gen += 1
+        self._virtual_scroll_gen += 1
+        self._card_build_gen += 1
+        self._card_batch_families = None
+        self._card_batch_index = 0
+        self._hover_card = None
+
+        if self._search_timer is not None:
+            try:
+                self._search_timer.Tick -= self._on_search_debounced
+            except Exception:
+                pass
+            self._search_timer = None
+        if self._grid_relayout_timer is not None:
+            try:
+                self._grid_relayout_timer.Tick -= self._on_grid_relayout_debounced
+            except Exception:
+                pass
+            self._grid_relayout_timer = None
+
+        u = self.ui
+        win = self.win
+        if u is not None:
+            try:
+                u.SearchBox.KeyDown -= self._on_search_box_keydown
+                u.CategoryTree.SelectedItemChanged -= self._on_cat_selected
+                u.FamilyScrollViewer.ScrollChanged -= self._on_family_scroll
+                u.FamilyScrollViewer.SizeChanged -= self._on_family_panel_resize
+                u.BtnSettings.Click -= self._library_controller.on_settings
+                u.BtnReload.Click -= self._library_controller.on_reload
+                btn_run = getattr(u, "BtnRunSearch", None)
+                if btn_run is not None:
+                    btn_run.Click -= self._on_run_search
+                btn_reset = getattr(u, "BtnResetSearch", None)
+                if btn_reset is not None:
+                    btn_reset.Click -= self._on_reset_search
+            except Exception:
+                pass
+            panel = self._family_panel_bound
+            if panel is not None:
+                try:
+                    panel.PreviewMouseDown -= self._on_family_panel_mouse_down
+                    panel.PreviewMouseMove -= self._on_family_panel_mouse_move
+                except Exception:
+                    pass
+        if win is not None:
+            try:
+                win.PreviewKeyDown -= self._on_window_preview_keydown
+                win.SizeChanged -= self._on_window_resize
+                win.Closing -= self._on_window_closing
+            except Exception:
+                pass
+
+        self._preview_mem.clear()
+        self._preview_miss.clear()
+        self._card_views.clear()
+        self._card_by_path.clear()
+        self._fi_by_path.clear()
+        self._family_panel_bound = None
 
     def _on_window_preview_keydown(self, sender, e):
         try:
@@ -1244,13 +1317,17 @@ class FamilyBrowserDialog(object):
             self._grid_relayout_gen = 0
         self._grid_relayout_gen += 1
         gen = self._grid_relayout_gen
+        win = self.win
+        window_gen = self._window_gen
 
         def run():
-            if gen != self._grid_relayout_gen:
+            if (gen != self._grid_relayout_gen
+                    or not self._window_is_current(win, window_gen)):
                 return
             self._relayout_family_grid()
 
-        self.win.Dispatcher.BeginInvoke(System.Action(run))
+        if self._window_is_current(win, window_gen):
+            win.Dispatcher.BeginInvoke(System.Action(run))
 
     def _relayout_family_grid(self):
         """Clear visible cards and rebuild layout for current panel width."""
@@ -1292,13 +1369,17 @@ class FamilyBrowserDialog(object):
     def _queue_virtual_sync(self):
         self._virtual_scroll_gen += 1
         gen = self._virtual_scroll_gen
+        win = self.win
+        window_gen = self._window_gen
 
         def run():
-            if gen != self._virtual_scroll_gen:
+            if (gen != self._virtual_scroll_gen
+                    or not self._window_is_current(win, window_gen)):
                 return
             self._virtual_sync_viewport()
 
-        self.win.Dispatcher.BeginInvoke(System.Action(run))
+        if self._window_is_current(win, window_gen):
+            win.Dispatcher.BeginInvoke(System.Action(run))
 
     def _remove_family_card(self, path):
         card = self._card_by_path.pop(path, None)
@@ -1390,9 +1471,11 @@ class FamilyBrowserDialog(object):
     def _finish_family_view_layout(self):
         """Reset scroll after layout — fixes grid offset after large folders."""
         run_virtual = self._virtual_mode
+        win = self.win
+        window_gen = self._window_gen
 
         def done():
-            if self.ui is None:
+            if not self._window_is_current(win, window_gen):
                 return
             self._force_scroll_top()
             self._catalog_changing = False
@@ -1404,8 +1487,9 @@ class FamilyBrowserDialog(object):
                 self._relayout_family_grid()
 
         from System.Windows.Threading import DispatcherPriority
-        self.win.Dispatcher.BeginInvoke(
-            System.Action(done), DispatcherPriority.Loaded)
+        if self._window_is_current(win, window_gen):
+            win.Dispatcher.BeginInvoke(
+                System.Action(done), DispatcherPriority.Loaded)
 
     def _virtual_sync_viewport(self):
         if not self._virtual_mode or not self._active:
@@ -1569,8 +1653,11 @@ class FamilyBrowserDialog(object):
         self._set_status(i18n.t("loading_cards", n=n))
         self._add_card_batch()
 
-    def _add_card_batch(self):
-        if self._card_batch_gen != self._card_build_gen:
+    def _add_card_batch(self, expected_win=None, expected_window_gen=None):
+        if (self._card_batch_gen != self._card_build_gen
+                or (expected_win is not None
+                    and not self._window_is_current(
+                        expected_win, expected_window_gen))):
             return
         families = self._card_batch_families
         total = len(families)
@@ -1586,8 +1673,12 @@ class FamilyBrowserDialog(object):
         if end < total:
             self._set_status(
                 i18n.t("loading_cards_progress", done=end, total=total))
-            self.win.Dispatcher.BeginInvoke(
-                System.Action(self._add_card_batch))
+            win = self.win
+            window_gen = self._window_gen
+            if self._window_is_current(win, window_gen):
+                win.Dispatcher.BeginInvoke(
+                    System.Action(
+                        lambda: self._add_card_batch(win, window_gen)))
             return
         self._card_batch_families = None
         self._schedule_previews(
