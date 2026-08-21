@@ -697,7 +697,8 @@ class FamilyBrowserDialog(object):
         if self._show_catalog_after_scan:
             self._show_catalog_after_scan = False
             self._open_catalog(
-                self._scan.get("all", []), i18n.t("btn_library"))
+                self._scan.get("all", []),
+                os.path.basename(os.path.normpath(self._library_path())))
         else:
             self._show_recents_default()
         self._restore_window_focus()
@@ -927,7 +928,8 @@ class FamilyBrowserDialog(object):
         if self._show_catalog_after_scan:
             self._show_catalog_after_scan = False
             self._open_catalog(
-                self._scan.get("all", []), i18n.t("btn_library"))
+                self._scan.get("all", []),
+                os.path.basename(os.path.normpath(self._library_path())))
         else:
             self._show_recents_default()
         self._restore_window_focus()
