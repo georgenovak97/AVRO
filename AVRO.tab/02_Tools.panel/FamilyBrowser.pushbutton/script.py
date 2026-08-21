@@ -23,7 +23,6 @@ clr.AddReference("System.Windows.Forms")
 import System
 from System.Windows import (
     Thickness, HorizontalAlignment, VerticalAlignment, Visibility,
-    MessageBox, MessageBoxButton, MessageBoxImage,
     TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
@@ -906,14 +905,14 @@ class FamilyBrowserDialog(object):
                 return
             if scan_gen != self._scan_gen:
                 return
-            win.Dispatcher.Invoke(
+            win.Dispatcher.BeginInvoke(
                 System.Action(lambda: self._set_status(msg)))
             return
         if self.win is not win or window_gen != self._window_gen:
             return
         if scan_gen != self._scan_gen:
             return
-        win.Dispatcher.Invoke(
+        win.Dispatcher.BeginInvoke(
             System.Action(lambda: self._scan_done(scan, scan_gen)))
 
     def _scan_done(self, scan, scan_gen=None):
@@ -922,11 +921,27 @@ class FamilyBrowserDialog(object):
         self._scan = self._normalize_scan(scan)
         total = len(self._scan.get("all", []))
         n_folders = len(self._scan.get("index", {}))
-        key = self._cache_key()
         self._preview_miss = set()
-        saved, save_msg = libcache.save(
-            key, self._scan, None)
         self._invalidate_project_family_index()
+        self._build_tree(self._scan)
+        if self._show_catalog_after_scan:
+            self._show_catalog_after_scan = False
+            self._open_catalog(
+                self._scan.get("all", []), i18n.t("btn_library"))
+        else:
+            self._show_recents_default()
+        self._restore_window_focus()
+        t = threading.Thread(
+            target=self._save_scan_cache,
+            args=(self._scan, scan_gen, self.win, self._window_gen,
+                  total, n_folders))
+        t.setDaemon(True)
+        t.start()
+
+    def _save_scan_cache(self, scan, scan_gen, win, window_gen,
+                         total, n_folders):
+        key = self._cache_key()
+        saved, save_msg = libcache.save(key, scan, None)
         self.cfg = config.load()
         if saved:
             config.patch_fields({
@@ -935,19 +950,21 @@ class FamilyBrowserDialog(object):
             })
             self.cfg = config.load()
         _save_sticky_session(key, self._preview_mem, self._preview_miss)
+        if self.win is not win or window_gen != self._window_gen:
+            return
+        if scan_gen != self._scan_gen:
+            return
+        win.Dispatcher.BeginInvoke(
+            System.Action(
+                lambda: self._cache_save_done(
+                    saved, save_msg, total, n_folders)))
+
+    def _cache_save_done(self, saved, save_msg, total, n_folders):
         if saved:
             self._set_status(
                 i18n.t("loaded_saved", n=total, f=n_folders))
         else:
             self._set_status(i18n.t("loaded_no_cache", n=total))
-            MessageBox.Show(
-                i18n.t("cache_save_failed", msg=save_msg),
-                i18n.t("app_title"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning)
-        self._build_tree(self._scan)
-        self._show_recents_default()
-        self._restore_window_focus()
 
     def _refresh_recent_header(self):
         tree = getattr(self.ui, "CategoryTree", None) if self.ui else None
