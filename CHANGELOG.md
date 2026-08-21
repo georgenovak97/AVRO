@@ -148,12 +148,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Unused C# `AVRO.Core` project; the extension is now Python-only
   (see `docs/adr/0001-python-only.md`). Its stale `.gitignore` rules too.
 
-## [1.2.1-dev] - 2026-08-12
-
-### Changed
-- Settings dialog shows `1.2.1-dev` to distinguish develop builds.
-- Refactored shared IronPython helpers into `lib/revit_utils.py`.
-
 ## [1.2.0] - 2026-08-12
 
 ### Added
