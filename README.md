@@ -6,7 +6,7 @@
   ![Family Browser](familybrowser.jpg)
 	- Browse folders with `.rfa` files and thumbnail previews
 	- Folder tree with multiple levels
-    - Search by name, folder, and Revit version
+    - Search by family name
     - Middle-click — open the family in Windows Explorer
     - Left-click — load and place the family in the project
     - Right-click — inspect family properties

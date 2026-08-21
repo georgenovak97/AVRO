@@ -41,7 +41,7 @@ class FamilyScannerTests(unittest.TestCase):
         rows = [FakeFamilyInfo("A", "Cat", "Folder", "Rel", "R24")]
         self.assertEqual(family_scanner.flat_search(rows, "   "), [])
 
-    def test_flat_search_matches_multiple_fields_and_sorts(self):
+    def test_flat_search_matches_family_names_and_sorts(self):
         rows = [
             FakeFamilyInfo("Window_Z", "Windows", "Facade", "A/Facade", "R25"),
             FakeFamilyInfo("Door_A", "Doors", "Core", "B/Core", "R24"),
@@ -51,17 +51,10 @@ class FamilyScannerTests(unittest.TestCase):
         by_name = family_scanner.flat_search(rows, "window")
         self.assertEqual([x.name for x in by_name], ["Window_Z"])
 
-        by_category = family_scanner.flat_search(rows, "doors")
-        self.assertEqual([x.name for x in by_category], ["Door_A"])
-
-        by_folder = family_scanner.flat_search(rows, "office")
-        self.assertEqual([x.name for x in by_folder], ["Desk_B"])
-
-        by_rel_path = family_scanner.flat_search(rows, "facade")
-        self.assertEqual([x.name for x in by_rel_path], ["Window_Z"])
-
-        by_revit = family_scanner.flat_search(rows, "r2")
-        self.assertEqual([x.name for x in by_revit], ["Desk_B", "Door_A", "Window_Z"])
+        self.assertEqual(family_scanner.flat_search(rows, "doors"), [])
+        self.assertEqual(family_scanner.flat_search(rows, "office"), [])
+        self.assertEqual(family_scanner.flat_search(rows, "facade"), [])
+        self.assertEqual(family_scanner.flat_search(rows, "r2"), [])
 
 
 if __name__ == "__main__":

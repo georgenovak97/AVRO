@@ -293,13 +293,7 @@ def flat_search(all_families, query):
         return []
     results = []
     for fi in all_families:
-        hay = u" ".join([
-            fi.name.lower(),
-            fi.category.lower(),
-            fi.folder.lower(),
-            (fi.rel_path or u"").lower().replace("\\", " ").replace("/", " "),
-            (getattr(fi, "revit_version", u"") or u"").lower(),
-        ])
+        hay = fi.name.lower()
         if q in hay:
             results.append(fi)
     results.sort(key=lambda f: f.name.lower())
