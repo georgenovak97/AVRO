@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 ### Changed
+- Family Browser family inspection now supports the Revit 2023 API and later
+  versions without relying on the removed `ParameterType` enum.
 - Removed obsolete Family Browser filter and selection plumbing after the filter UI
   was removed; search, properties, and placement paths remain unchanged.
 - Sticky session data no longer stores WPF bitmap objects, the status MessageBox

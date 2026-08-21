@@ -131,6 +131,51 @@ class FamilyInspectorTriStateTests(unittest.TestCase):
         opts = fi.collect_filter_options([Dummy('a.rfa', 'R22'), Dummy('b.rfa', 'R24')])
         self.assertEqual(opts['revit_formats'], ['R22', 'R24'])
 
+    def test_dimension_param_uses_modern_data_type(self):
+        class Spec(object):
+            def __init__(self, type_id):
+                self.TypeId = type_id
+
+        class Definition(object):
+            def GetDataType(self):
+                return Spec('length-id')
+
+        class Parameter(object):
+            def __init__(self):
+                self.Definition = Definition()
+
+        original_spec = fi.SpecTypeId
+        original_ids = fi._SPEC_TYPE_IDS
+        try:
+            fi.SpecTypeId = object()
+            fi._SPEC_TYPE_IDS = ['length-id']
+            self.assertTrue(fi._is_dimension_param(Parameter()))
+        finally:
+            fi.SpecTypeId = original_spec
+            fi._SPEC_TYPE_IDS = original_ids
+
+    def test_dimension_param_uses_legacy_type_fallback(self):
+        class LegacyType(object):
+            Length = 'length'
+            Angle = 'angle'
+            Slope = 'slope'
+
+        class Parameter(object):
+            ParameterType = 'angle'
+
+        original_spec = fi.SpecTypeId
+        original_type = fi.ParameterType
+        original_group = fi.BuiltInParameterGroup
+        try:
+            fi.SpecTypeId = None
+            fi.ParameterType = LegacyType
+            fi.BuiltInParameterGroup = None
+            self.assertTrue(fi._is_dimension_param(Parameter()))
+        finally:
+            fi.SpecTypeId = original_spec
+            fi.ParameterType = original_type
+            fi.BuiltInParameterGroup = original_group
+
 
 if __name__ == '__main__':
     unittest.main()

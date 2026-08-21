@@ -27,7 +27,6 @@ try:
         ImportInstance,
         FamilyInstance,
         ReferencePlane,
-        ParameterType,
         Material,
         OpenOptions,
         ModelPathUtils,
@@ -36,11 +35,68 @@ try:
 except Exception:
     _API_OK = False
 
+# Parameter API identifiers changed across supported Revit years. Keep these
+# imports separate so one removed enum cannot disable the whole inspector.
+try:
+    from Autodesk.Revit.DB import SpecTypeId
+except Exception:
+    SpecTypeId = None
+
+try:
+    from Autodesk.Revit.DB import ParameterType
+except Exception:
+    ParameterType = None
+
+try:
+    from Autodesk.Revit.DB import BuiltInParameterGroup
+except Exception:
+    BuiltInParameterGroup = None
+
+_SPEC_TYPE_IDS = []
+if SpecTypeId is not None:
+    for _spec_name in (u"Length", u"Angle", u"Slope"):
+        try:
+            _spec = getattr(SpecTypeId, _spec_name)
+            _spec_id = getattr(_spec, "TypeId", None)
+            if _spec_id:
+                _SPEC_TYPE_IDS.append(_spec_id)
+        except Exception:
+            pass
+
 META_DIR = os.path.join(config.CONFIG_DIR, "family_meta")
 CACHE_VERSION = 2
 
 _RE_R_LABEL = re.compile(r"^R?(\d{2})$", re.I)
 _RE_YEAR = re.compile(r"(20\d{2})")
+
+
+def _is_dimension_param(fp):
+    """Return whether a family parameter is length, angle, or slope-based."""
+    if SpecTypeId is not None:
+        try:
+            data_type = fp.Definition.GetDataType()
+            type_id = getattr(data_type, "TypeId", None)
+            if type_id is not None:
+                return type_id in _SPEC_TYPE_IDS
+        except Exception:
+            pass
+
+    if ParameterType is not None:
+        try:
+            if fp.ParameterType in (
+                    ParameterType.Length,
+                    ParameterType.Angle,
+                    ParameterType.Slope):
+                return True
+        except Exception:
+            pass
+
+    if BuiltInParameterGroup is not None:
+        try:
+            return fp.GroupType == BuiltInParameterGroup.PG_DIMENSIONS
+        except Exception:
+            pass
+    return False
 
 
 def normalize_revit_label(value):
@@ -499,14 +555,8 @@ def _inspect_document(doc, rfa_path):
                         typ += 1
                 except Exception:
                     pass
-                try:
-                    if fp.ParameterType in (
-                            ParameterType.Length,
-                            ParameterType.Angle,
-                            ParameterType.Slope):
-                        dim_group_params += 1
-                except Exception:
-                    pass
+                if _is_dimension_param(fp):
+                    dim_group_params += 1
                 # Formula presence varies by API; keep it defensive.
                 try:
                     f = fp.Formula
