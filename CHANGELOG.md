@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - Family Browser restores the previous folder scroll position after placing a
-  family and returning to the browser.
+  family and returns there without first showing the top of the folder.
 - Family Browser now stops pending timers and detaches WPF handlers when closing,
   preventing stale catalog work from keeping Revit busy after large scans.
 - Family properties now show the Revit format of the selected family file,

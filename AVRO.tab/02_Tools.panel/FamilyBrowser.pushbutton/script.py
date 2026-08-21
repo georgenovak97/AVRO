@@ -1484,7 +1484,8 @@ class FamilyBrowserDialog(object):
         def done():
             if not self._window_is_current(win, window_gen):
                 return
-            self._force_scroll_top()
+            if self._reopen_scroll_offset is None:
+                self._force_scroll_top()
             self._catalog_changing = False
             if run_virtual:
                 self._reopen_layout_pending = False
@@ -1532,6 +1533,8 @@ class FamilyBrowserDialog(object):
         try:
             panel.Width = vw
             panel.Height = canvas_h
+            if self._reopen_scroll_offset is not None:
+                sv.ScrollToVerticalOffset(self._reopen_scroll_offset)
         finally:
             self._virtual_updating = False
 
@@ -1628,10 +1631,11 @@ class FamilyBrowserDialog(object):
                 panel.Width = self._viewport_width()
             except Exception:
                 pass
-        try:
-            self.ui.FamilyScrollViewer.ScrollToVerticalOffset(0)
-        except Exception:
-            pass
+        if self._reopen_scroll_offset is None:
+            try:
+                self.ui.FamilyScrollViewer.ScrollToVerticalOffset(0)
+            except Exception:
+                pass
         self._card_views = {}
         self._card_by_path = {}
         self._fi_by_path = {}
@@ -1663,7 +1667,8 @@ class FamilyBrowserDialog(object):
             if isinstance(panel, Canvas):
                 panel.Width = self._viewport_width()
                 panel.Height = self._canvas_height_for(n)
-            self._force_scroll_top()
+            if self._reopen_scroll_offset is None:
+                self._force_scroll_top()
             self._schedule_previews(
                 families, disk_only=self._browse_disk_only)
             self._finish_family_view_layout()
