@@ -257,6 +257,7 @@ class FamilyBrowserDialog(object):
         self._pending_placement_fi = None
         self._placement_status_msg = None
         self._reopen_ui_state = None
+        self._reopen_scroll_offset = None
         self._reopen_layout_pending = False
         self._suppress_tree_events = False
         self._dark_theme = config.load().get("ui_theme", "light") == "dark"
@@ -491,6 +492,12 @@ class FamilyBrowserDialog(object):
         scope = list(state.get("scope") or [])
         label = state.get("label", u"")
         search_query = as_unicode(state.get("search_query", u"")).strip()
+        self._reopen_scroll_offset = state.get("scroll_offset")
+        try:
+            self._reopen_scroll_offset = max(
+                0.0, float(self._reopen_scroll_offset))
+        except (TypeError, ValueError):
+            self._reopen_scroll_offset = None
 
         if tag == "__recent__":
             self._folder_scope = list(self._recent_families())
@@ -1485,11 +1492,26 @@ class FamilyBrowserDialog(object):
             elif self._reopen_layout_pending:
                 self._reopen_layout_pending = False
                 self._relayout_family_grid()
+            saved_offset = self._reopen_scroll_offset
+            self._reopen_scroll_offset = None
+            if saved_offset is not None:
+                self._restore_scroll_offset(saved_offset)
 
-        from System.Windows.Threading import DispatcherPriority
         if self._window_is_current(win, window_gen):
+            from System.Windows.Threading import DispatcherPriority
             win.Dispatcher.BeginInvoke(
                 System.Action(done), DispatcherPriority.Loaded)
+
+    def _restore_scroll_offset(self, offset):
+        if self.ui is None:
+            return
+        try:
+            sv = self.ui.FamilyScrollViewer
+            sv.ScrollToVerticalOffset(max(0.0, float(offset)))
+            if self._virtual_mode:
+                self._virtual_sync_viewport()
+        except Exception:
+            pass
 
     def _virtual_sync_viewport(self):
         if not self._virtual_mode or not self._active:
@@ -1974,13 +1996,20 @@ class FamilyBrowserDialog(object):
             self._set_status(i18n.t("no_active_view"))
             return
         search_query = u""
+        scroll_offset = 0.0
         if self.ui is not None:
             search_query = as_unicode(self.ui.SearchBox.Text).strip()
+            try:
+                scroll_offset = float(
+                    self.ui.FamilyScrollViewer.VerticalOffset)
+            except (TypeError, ValueError):
+                pass
         self._reopen_ui_state = {
             "scope": list(self._folder_scope),
             "label": self._folder_scope_label,
             "tree_tag": self._current_tree_tag(),
             "search_query": search_query,
+            "scroll_offset": scroll_offset,
         }
         self._pending_placement_fi = fi
         self._pending_family_name = as_unicode(fi.name)
