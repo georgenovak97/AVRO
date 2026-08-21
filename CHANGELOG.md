@@ -144,10 +144,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Family Browser remains owned by Revit while a family from another Revit
   version is inspected, preventing it from disappearing behind Revit.
 
-### Removed
-- Unused C# `AVRO.Core` project; the extension is now Python-only
-  (see `docs/adr/0001-python-only.md`). Its stale `.gitignore` rules too.
-
 ## [1.2.0] - 2026-08-12
 
 ### Added
