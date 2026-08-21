@@ -4,30 +4,6 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-### Added
-
-### Changed
-- Family Browser restores the previous folder scroll position after placing a
-  family and returns there without first showing the top of the folder.
-- Family Browser now stops pending timers and detaches WPF handlers when closing,
-  preventing stale catalog work from keeping Revit busy after large scans.
-- Family properties now show the Revit format of the selected family file,
-  not the version of the currently running Revit application.
-- Family Browser family inspection now supports the Revit 2023 API and later
-  versions without relying on the removed `ParameterType` enum.
-- Removed obsolete Family Browser filter and selection plumbing after the filter UI
-  was removed; search, properties, and placement paths remain unchanged.
-- Sticky session data no longer stores WPF bitmap objects, the status MessageBox
-  uses the active localization, and the reference-plane quality guard treats
-  incomplete metadata as unknown.
-- Family Browser transaction names now use the `AVRO: ` prefix, repeated loads
-  are reported as already in the project, and the intentional parameter-value
-  overwrite policy is documented.
-- Family Browser README and ribbon tooltip now describe the current click actions
-  and no longer promise removed filter axes.
-
 ## [1.3] - 2026-08-20
 
 ### Added
@@ -41,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitattributes` — keeps text files normalized to LF.
 
 ### Changed
+- Family Browser restores the previous folder scroll position after placing a
+  family and returns there without first showing the top of the folder.
+- Family Browser now stops pending timers and detaches WPF handlers when closing,
+  preventing stale catalog work from keeping Revit busy after large scans.
+- Family properties now show the Revit format of the selected family file,
+  not the version of the currently running Revit application.
+- Family Browser family inspection now supports the Revit 2023 API and later
+  versions without relying on the removed `ParameterType` enum.
+- Removed obsolete Family Browser filter and selection plumbing after the filter UI
+  was removed; search, properties, and placement paths remain unchanged.
 - Removed Work Plane-based from the Properties panel.
 - Fine-tuned Properties title spacing to align its divider with the search toolbar.
 - Aligned the Properties title divider with the search toolbar divider.
