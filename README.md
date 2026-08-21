@@ -1,4 +1,4 @@
-[AVRO](https://avro.pro/en/) — BIM & IT Consulting by George Novak
+[AVRO](https://avro.pro/) — BIM & IT Consulting by George Novak
 
 #### Tools
 
