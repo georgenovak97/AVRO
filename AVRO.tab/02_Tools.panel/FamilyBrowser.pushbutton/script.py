@@ -272,6 +272,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._window_gen = 0
         self._scan_gen = 0
+        self._show_catalog_after_scan = False
 
     def _init_window(self):
         self._search_timer = None
@@ -694,7 +695,12 @@ class FamilyBrowserDialog(object):
         self._preview_miss = set()
 
         self._build_tree(self._scan)
-        self._show_recents_default()
+        if self._show_catalog_after_scan:
+            self._show_catalog_after_scan = False
+            self._open_catalog(
+                self._scan.get("all", []), i18n.t("btn_library"))
+        else:
+            self._show_recents_default()
         self._restore_window_focus()
 
     def _restore_window_focus(self):
