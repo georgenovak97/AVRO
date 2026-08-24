@@ -504,37 +504,9 @@ def _inspect_document(doc, rfa_path):
         meta["reference_plane_count"] = int(ref_planes)
         meta["reference_line_count"] = int(ref_lines)
     try:
-        used_material_ids = set()
-        for element in (FilteredElementCollector(doc)
-                        .WhereElementIsNotElementType().ToElements()):
-            try:
-                material_ids = element.GetMaterialIds(True)
-                for material_id in material_ids:
-                    if element_id_value(material_id) <= 0:
-                        continue
-                    if isinstance(doc.GetElement(material_id), Material):
-                        used_material_ids.add(element_id_value(material_id))
-            except Exception:
-                pass
-
-        for element_type in (FilteredElementCollector(doc)
-                             .WhereElementIsElementType().ToElements()):
-            try:
-                parameters = element_type.Parameters
-            except Exception:
-                continue
-            for parameter in parameters:
-                try:
-                    if not parameter.HasValue:
-                        continue
-                    material_id = parameter.AsElementId()
-                    if element_id_value(material_id) <= 0:
-                        continue
-                    if isinstance(doc.GetElement(material_id), Material):
-                        used_material_ids.add(element_id_value(material_id))
-                except Exception:
-                    pass
-        meta["material_count"] = len(used_material_ids)
+        meta["material_count"] = int(
+            FilteredElementCollector(doc).OfClass(Material).GetElementCount()
+        )
     except Exception:
         pass
     try:
