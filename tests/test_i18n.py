@@ -47,10 +47,10 @@ class I18nTests(unittest.TestCase):
 
     def test_preview_extraction_status_has_no_counter(self):
         i18n.set_language(u"ru")
-        self.assertEqual(i18n.t(u"previews_extracting"), u"Извлечение превью…")
+        self.assertEqual(i18n.t(u"previews_extracting"), u"Подготовка превью…")
         i18n.set_language(u"en")
         self.assertEqual(
-            i18n.t(u"previews_extracting"), u"Extracting previews…")
+            i18n.t(u"previews_extracting"), u"Preparing previews…")
 
     def test_missing_key_returns_key_name(self):
         i18n.set_language(u"en")
