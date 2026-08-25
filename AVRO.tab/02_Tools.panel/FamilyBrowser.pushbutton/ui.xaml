@@ -298,12 +298,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusText" Grid.Column="0" Text="Готово"
+                <TextBlock x:Name="StatusText" Grid.Column="1" Text="Готово"
+                           HorizontalAlignment="Center"
                            Foreground="{DynamicResource TextMuted}" FontSize="11"
                            VerticalAlignment="Center"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal"
-                            VerticalAlignment="Center">
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button x:Name="BtnSettings"
                             Content="Библиотека" Style="{StaticResource RevitButton}"
                             MinWidth="88" ToolTip="Выбрать папку библиотеки"/>
