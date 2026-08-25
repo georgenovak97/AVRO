@@ -750,32 +750,39 @@ class FamilyBrowserDialog(object):
         return True
 
     def _on_window_closing(self, sender, e):
-        self._window_gen += 1
-        self._stop_search_timer()
-        self._stop_grid_relayout_timer()
         try:
-            width = float(self.win.ActualWidth)
-            height = float(self.win.ActualHeight)
-            if width > 0 and height > 0:
-                self._reopen_window_geometry = {
-                    "width": width,
-                    "height": height,
-                    "left": float(self.win.Left),
-                    "top": float(self.win.Top),
-                }
-        except Exception:
-            pass
-        # Placement closes the window and reopens it; async cache save must not
-        # overwrite recent_families written right after placement.
-        is_placement = (self._pending_symbol_id
-                        or self._pending_placement_fi is not None)
-        if not is_placement:
-            ui_notify.unregister_language_listener(
-                self._on_external_language_changed)
-            ui_notify.unregister_theme_listener(
-                self._on_external_theme_changed)
-            self._persist_cache(async_save=True)
-        self._cleanup_window_resources()
+            self._window_gen += 1
+            self._stop_search_timer()
+            self._stop_grid_relayout_timer()
+            try:
+                width = float(self.win.ActualWidth)
+                height = float(self.win.ActualHeight)
+                if width > 0 and height > 0:
+                    self._reopen_window_geometry = {
+                        "width": width,
+                        "height": height,
+                        "left": float(self.win.Left),
+                        "top": float(self.win.Top),
+                    }
+            except Exception:
+                pass
+            # Placement closes the window and reopens it; async cache save must
+            # not overwrite recent_families written right after placement.
+            is_placement = (self._pending_symbol_id
+                            or self._pending_placement_fi is not None)
+            if not is_placement:
+                ui_notify.unregister_language_listener(
+                    self._on_external_language_changed)
+                ui_notify.unregister_theme_listener(
+                    self._on_external_theme_changed)
+                self._persist_cache(async_save=True)
+        except Exception as ex:
+            libcache._log(u"window closing: {}".format(as_unicode(ex)))
+        finally:
+            try:
+                self._cleanup_window_resources()
+            except Exception as ex:
+                libcache._log(u"window cleanup: {}".format(as_unicode(ex)))
 
     def _cleanup_window_resources(self):
         """Stop window work and release references before WPF teardown."""
@@ -2155,6 +2162,7 @@ class FamilyBrowserDialog(object):
 
     def _pump_ui_before_reopen(self):
         """Let Revit/WPF finish the placement command before ShowDialog again."""
+        timeout_timer = None
         try:
             from System.Windows.Threading import (
                 Dispatcher, DispatcherFrame, DispatcherPriority)
@@ -2165,13 +2173,28 @@ class FamilyBrowserDialog(object):
                 def stop_frame():
                     frame.Continue = False
 
+                def stop_frame_on_timeout(sender, args):
+                    frame.Continue = False
+
+                timeout_timer = DispatcherTimer()
+                timeout_timer.Interval = System.TimeSpan.FromSeconds(3)
+                timeout_timer.Tick += stop_frame_on_timeout
+                timeout_timer.Start()
                 app.Dispatcher.BeginInvoke(
                     DispatcherPriority.ApplicationIdle,
                     System.Action(stop_frame))
                 Dispatcher.PushFrame(frame)
+                timeout_timer.Stop()
+                timeout_timer.Tick -= stop_frame_on_timeout
                 return
         except Exception as ex:
             libcache._log(u"pump_ui: {}".format(as_unicode(ex)))
+        finally:
+            if timeout_timer is not None:
+                try:
+                    timeout_timer.Stop()
+                except Exception:
+                    pass
         try:
             System.Threading.Thread.Sleep(200)
         except Exception:
@@ -2262,7 +2285,19 @@ class FamilyBrowserDialog(object):
                     self._set_status(self._placement_status_msg)
                     self._placement_status_msg = None
 
-            self.win.ShowDialog()
+            try:
+                self.win.ShowDialog()
+            except Exception as ex:
+                libcache._log(u"show dialog: {}".format(as_unicode(ex)))
+                try:
+                    self._cleanup_window_resources()
+                except Exception as cleanup_ex:
+                    libcache._log(
+                        u"show dialog cleanup: {}".format(
+                            as_unicode(cleanup_ex)))
+                self.win = None
+                self.ui = None
+                break
 
             pending_id = self._pending_symbol_id
             pending_fi = self._pending_placement_fi
