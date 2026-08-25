@@ -180,6 +180,22 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIsInstance(value, ast.Name)
         self.assertEqual(value.id, "is_root")
 
+    def test_expander_click_does_not_open_catalog(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        selected_source = ast.get_source_segment(
+            source, methods["_on_cat_selected"])
+        bind_source = ast.get_source_segment(source, methods["_bind"])
+        self.assertIn("_expander_clicked", selected_source)
+        self.assertIn("PreviewMouseLeftButtonDown", bind_source)
+        self.assertIn("MouseLeftButtonUp", bind_source)
+
 
 if __name__ == "__main__":
     unittest.main()
