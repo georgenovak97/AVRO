@@ -821,6 +821,7 @@ class FamilyBrowserDialog(object):
                 try:
                     panel.PreviewMouseDown -= self._on_family_panel_mouse_down
                     panel.PreviewMouseMove -= self._on_family_panel_mouse_move
+                    panel.MouseLeave -= self._on_family_panel_mouse_leave
                 except Exception:
                     pass
         if win is not None:
@@ -1481,6 +1482,7 @@ class FamilyBrowserDialog(object):
         if self._family_panel_bound is not panel:
             panel.PreviewMouseDown += self._on_family_panel_mouse_down
             panel.PreviewMouseMove += self._on_family_panel_mouse_move
+            panel.MouseLeave += self._on_family_panel_mouse_leave
             self._family_panel_bound = panel
         return panel
 
@@ -1531,6 +1533,14 @@ class FamilyBrowserDialog(object):
             new_tag = getattr(card, "Tag", None)
             if new_tag is not None and new_tag.path not in self._selected_paths:
                 card.Background = COL_CARD_HOV
+
+    def _on_family_panel_mouse_leave(self, sender, e):
+        if self._hover_card is None:
+            return
+        old_tag = getattr(self._hover_card, "Tag", None)
+        if old_tag is None or old_tag.path not in self._selected_paths:
+            self._hover_card.Background = COL_CARD
+        self._hover_card = None
 
     def _force_scroll_top(self):
         """Scroll to top after canvas height changes (small folders after large)."""
