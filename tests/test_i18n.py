@@ -39,6 +39,12 @@ class I18nTests(unittest.TestCase):
         self.assertEqual(i18n.t(u"btn_load"), u"Load")
         self.assertEqual(i18n.t(u"props_unknown"), u"Unknown")
 
+    def test_opening_status_is_preparing(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"opening"), u"Подготовка…")
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"opening"), u"Preparing…")
+
     def test_missing_key_returns_key_name(self):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"__missing_key__"), u"__missing_key__")
