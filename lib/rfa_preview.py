@@ -334,7 +334,7 @@ def _extract_png_from_bytes(data):
         search_from = idx + 1
     if best:
         return best
-    return _find_png_in_buffer(data)
+    return None
 
 
 def _init_storage_api():
@@ -361,6 +361,23 @@ def _init_storage_api():
         return False
 
 
+def _close_storage(storage):
+    """Release the internal OLE storage without depending on public APIs."""
+    if storage is None or _storage_root_type is None:
+        return
+    try:
+        from System.Reflection import BindingFlags
+        flags = (BindingFlags.NonPublic | BindingFlags.Instance |
+                 BindingFlags.InvokeMethod)
+        _storage_root_type.InvokeMember(
+            "Close", flags, None, storage, None)
+    except Exception:
+        try:
+            storage.Close()
+        except Exception:
+            pass
+
+
 def _read_stream_bytes(stream_info):
     """Read entire OLE stream into a Python byte string."""
     from System import Array, Byte
@@ -373,10 +390,16 @@ def _read_stream_bytes(stream_info):
         if length <= 0:
             return None
         buf = Array.CreateInstance(Byte, length)
-        read = int(reader.Read(buf, 0, length))
-        if read <= 0:
+        total_read = 0
+        while total_read < length:
+            read = int(reader.Read(buf, total_read, length - total_read))
+            if read <= 0:
+                break
+            total_read += read
+        if total_read <= 0:
             return None
-        text = Encoding.GetEncoding("latin-1").GetString(buf, 0, read)
+        text = Encoding.GetEncoding("latin-1").GetString(
+            buf, 0, total_read)
         return text.encode("latin-1")
     finally:
         reader.Close()
@@ -387,9 +410,16 @@ def _list_preview_stream_payloads(rfa_path):
     Return raw bytes from preview-related OLE streams (priority order,
     then any stream whose name contains 'preview').
     """
+    payloads, _opened = _list_preview_stream_payloads_result(rfa_path)
+    return payloads
+
+
+def _list_preview_stream_payloads_result(rfa_path):
+    """Return preview payloads and whether OLE enumeration completed."""
     payloads = []
+    st_info = None
     if not _init_storage_api():
-        return payloads
+        return payloads, False
     try:
         from System import Array, Object
         from System.IO import FileMode, FileAccess, FileShare
@@ -401,7 +431,7 @@ def _list_preview_stream_payloads(rfa_path):
         st_info = _storage_root_type.InvokeMember(
             "Open", _storage_open_flags, None, None, args)
         if st_info is None:
-            return payloads
+            return payloads, False
 
         by_name = {}
         for stream_info in st_info.GetStreams():
@@ -434,9 +464,11 @@ def _list_preview_stream_payloads(rfa_path):
             data = _read_stream_bytes(si)
             if data and len(data) > 64:
                 payloads.append(data)
+        return payloads, True
     except Exception:
-        pass
-    return payloads
+        return payloads, False
+    finally:
+        _close_storage(st_info)
 
 
 def read_cached_png_bytes(rfa_path):
@@ -467,12 +499,13 @@ def extract_preview_png_bytes(rfa_path):
     img_bytes = None
     kind = None
 
-    for blob in _list_preview_stream_payloads(rfa_path):
+    payloads, ole_ok = _list_preview_stream_payloads_result(rfa_path)
+    for blob in payloads:
         img_bytes, kind = _extract_image_from_bytes(blob)
         if img_bytes:
             break
 
-    if img_bytes is None:
+    if img_bytes is None and not ole_ok:
         try:
             file_data = _read_file_bytes(rfa_path)
             img_bytes, kind = _extract_image_from_bytes(file_data)

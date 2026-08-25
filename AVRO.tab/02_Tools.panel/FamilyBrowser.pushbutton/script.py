@@ -1992,9 +1992,20 @@ class FamilyBrowserDialog(object):
                         with self._preview_mem_lock:
                             self._preview_miss.pop(path, None)
                     extraction_completed = False
+                    if not disk_only and gen == self._preview_gen:
+                        msg = i18n.t("previews_extracting",
+                                       current=done[0] + 1, total=total)
+                        try:
+                            win.Dispatcher.BeginInvoke(
+                                System.Action(
+                                    lambda m=msg: self._set_preview_status(
+                                        m, win, window_gen, gen)))
+                        except Exception:
+                            pass
                     try:
-                        png = rfa_preview.read_cached_png_bytes(path)
-                        if not png and not disk_only:
+                        if disk_only:
+                            png = rfa_preview.read_cached_png_bytes(path)
+                        else:
                             png = rfa_preview.extract_preview_png_bytes(path)
                             extraction_completed = True
                     except Exception as ex:
