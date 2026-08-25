@@ -42,7 +42,6 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         self.assertIn('Value="TreeRecent"', template_text)
         self.assertIn('Width="20"', template_text)
         self.assertIn('Width="24"', template_text)
-        self.assertIn('SourceName="Row" Property="IsMouseOver"', template_text)
         all_text = ElementTree.tostring(root, encoding="unicode")
         self.assertIn("PlusVertical", all_text)
 

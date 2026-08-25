@@ -123,9 +123,6 @@
                                 <Setter TargetName="ChildItems" Property="Visibility" Value="Visible"/>
                                 <Setter TargetName="NodeIcon" Property="Opacity" Value="0.85"/>
                             </Trigger>
-                            <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource TreeHoverBg}"/>
-                            </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelBg}"/>
                             </Trigger>
