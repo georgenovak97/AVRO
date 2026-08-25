@@ -19,7 +19,7 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         with open(SCRIPT, "r") as stream:
             return ast.parse(stream.read(), filename=SCRIPT)
 
-    def test_restore_window_focus_computes_cache_total(self):
+    def test_restore_window_focus_sets_done_status(self):
         tree = self._source_tree()
 
         methods = [
@@ -30,21 +30,9 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         ]
         self.assertEqual(len(methods), 1)
 
-        total_assignments = [
-            node
-            for node in ast.walk(methods[0])
-            if isinstance(node, ast.Assign)
-            and any(
-                isinstance(target, ast.Name) and target.id == "total"
-                for target in node.targets
-            )
-        ]
-        self.assertEqual(len(total_assignments), 1)
-
-        value = total_assignments[0].value
-        self.assertIsInstance(value, ast.Call)
-        self.assertIsInstance(value.func, ast.Name)
-        self.assertEqual(value.func.id, "len")
+        with open(SCRIPT, "r") as stream:
+            source = ast.get_source_segment(stream.read(), methods[0])
+        self.assertIn('i18n.t("from_cache")', source)
 
     def test_placement_flow_does_not_sleep_or_push_nested_dispatcher(self):
         tree = self._source_tree()

@@ -65,6 +65,12 @@ class I18nTests(unittest.TestCase):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"loaded_saved"), u"Done")
 
+    def test_cache_restore_status_is_done(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"from_cache"), u"Готово")
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"from_cache"), u"Done")
+
     def test_missing_key_returns_key_name(self):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"__missing_key__"), u"__missing_key__")
