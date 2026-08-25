@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Small centralized logger for AVRO extension (best-effort, never raises)."""
 import codecs
-import threading
+import os
 import time
 
 import config
@@ -11,7 +11,9 @@ try:
 except NameError:  # python3 tests
     unicode = str
 
-_LOG_LOCK = threading.RLock()
+_LOG_LOCK = config._IO_LOCK
+_MAX_LOG_BYTES = 1024 * 1024
+_LOG_BACKUP = config.LOG_FILE + u".1"
 
 
 def _u(text):
@@ -36,6 +38,14 @@ def write(scope, message):
     try:
         with _LOG_LOCK:
             config._ensure_dir()
+            try:
+                if os.path.isfile(config.LOG_FILE):
+                    if os.path.getsize(config.LOG_FILE) >= _MAX_LOG_BYTES:
+                        if os.path.isfile(_LOG_BACKUP):
+                            os.remove(_LOG_BACKUP)
+                        os.rename(config.LOG_FILE, _LOG_BACKUP)
+            except Exception:
+                pass
             line = u"[{}] [{}] {}\n".format(
                 time.strftime("%Y-%m-%d %H:%M:%S"),
                 _u(scope),
@@ -45,6 +55,14 @@ def write(scope, message):
                 f.write(line)
     except Exception:
         pass
+
+
+def event(scope, name, fields=None):
+    """Write a bounded diagnostic event; callers should pass no local paths."""
+    parts = [u"event={}".format(_u(name))]
+    for key, value in (fields or {}).items():
+        parts.append(u"{}={}".format(_u(key), _u(value)))
+    write(scope, u" ".join(parts))
 
 
 def exception(scope, ex):

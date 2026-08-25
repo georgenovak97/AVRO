@@ -53,6 +53,7 @@ import family_scanner as scanner
 import family_inspector
 import rfa_preview
 import library_cache as libcache
+import avro_log
 import ui_theme
 import i18n
 import ribbon_i18n
@@ -120,6 +121,8 @@ _TAG_FOLDER_PREFIX = u"folder:"
 # Build medium folder grids in UI batches so the window stays responsive.
 _CARD_UI_BATCH = 80
 _CARD_UI_BATCH_THRESHOLD = 100
+_CARD_UI_BUDGET_S = 0.020
+_PREVIEW_MEM_LIMIT = 512
 # Above this count only visible cards are created (virtual scroll).
 _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
@@ -229,6 +232,7 @@ class FamilyBrowserDialog(object):
         self._preview_gen = 0
         self._preview_mem = {}
         self._preview_mem_lock = threading.RLock()
+        self._preview_order = []
         self._preview_miss = set()
         self._card_views = {}
         self._preview_worker_lock = threading.Lock()
@@ -237,6 +241,7 @@ class FamilyBrowserDialog(object):
         self._preview_pending_request = None
         self._card_by_path = {}
         self._fi_by_path = {}
+        self._all_fi_by_path = {}
         self._order_paths = []
         self._path_to_index = {}
         self._selected_paths = set()
@@ -284,6 +289,7 @@ class FamilyBrowserDialog(object):
         self._show_catalog_after_scan = False
 
     def _init_window(self):
+        avro_log.event("family_browser", "window_init")
         self._search_timer = None
         self._grid_relayout_timer = None
         self._grid_relayout_gen = 0
@@ -752,13 +758,17 @@ class FamilyBrowserDialog(object):
         self.cfg = config.load()
         sticky_key, sticky_mem, sticky_miss = _load_sticky_session()
         self._scan = self._normalize_scan(scan)
+        self._all_fi_by_path = dict(
+            (fi.path, fi) for fi in self._scan.get("all", []))
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
         if sk == self._cache_key() and sticky_mem:
             with self._preview_mem_lock:
                 self._preview_mem = dict(sticky_mem)
+                self._preview_order = list(self._preview_mem.keys())
         else:
             with self._preview_mem_lock:
                 self._preview_mem = {}
+                self._preview_order = []
         # Never restore preview_miss (old disk-only sessions blocked all thumbnails).
         self._preview_miss = set()
 
@@ -900,6 +910,7 @@ class FamilyBrowserDialog(object):
 
         with self._preview_mem_lock:
             self._preview_mem.clear()
+            self._preview_order = []
         self._preview_miss.clear()
         self._card_views.clear()
         self._card_by_path.clear()
@@ -1099,6 +1110,7 @@ class FamilyBrowserDialog(object):
             return
         paths = valid
         self._scan_gen += 1
+        avro_log.event("family_browser", "scan_start", {"paths": len(paths)})
         self._set_status(i18n.t("scanning"))
         t = threading.Thread(
             target=self._do_scan,
@@ -1141,7 +1153,11 @@ class FamilyBrowserDialog(object):
                 self._pending_scan_result = (scan, scan_gen, None)
             return
         self._scan = self._normalize_scan(scan)
+        self._all_fi_by_path = dict(
+            (fi.path, fi) for fi in self._scan.get("all", []))
         self._load_state = "ready"
+        avro_log.event("family_browser", "scan_ready", {
+            "families": len(self._scan.get("all", []))})
         total = len(self._scan.get("all", []))
         n_folders = len(self._scan.get("index", {}))
         self._preview_miss = set()
@@ -1746,6 +1762,10 @@ class FamilyBrowserDialog(object):
         panel = self.ui.FamilyPanel
         with self._preview_mem_lock:
             preview = self._preview_mem.get(fi.path)
+            if preview is not None:
+                if fi.path in self._preview_order:
+                    self._preview_order.remove(fi.path)
+                self._preview_order.append(fi.path)
         if preview is not None:
             fi.preview = preview
         _cols, card_w, card_h, _gap, _vw, _pad_l, _pad_tb, _pad_r = self._layout_metrics()
@@ -1842,8 +1862,12 @@ class FamilyBrowserDialog(object):
         total = len(families)
         start = self._card_batch_index
         end = min(start + _CARD_UI_BATCH, total)
+        batch_started = time.time()
         for i in range(start, end):
             self._add_family_card(families[i], index=i)
+            if (time.time() - batch_started) >= _CARD_UI_BUDGET_S:
+                end = i + 1
+                break
         self._card_batch_index = end
         panel = self.ui.FamilyPanel
         if isinstance(panel, Canvas):
@@ -2008,6 +2032,21 @@ class FamilyBrowserDialog(object):
             return
         with self._preview_mem_lock:
             self._preview_mem[path] = bmp
+            if path in self._preview_order:
+                self._preview_order.remove(path)
+            self._preview_order.append(path)
+            if len(self._preview_mem) > _PREVIEW_MEM_LIMIT:
+                visible = set(self._card_views.keys())
+                for old_path in list(self._preview_order):
+                    if len(self._preview_mem) <= _PREVIEW_MEM_LIMIT:
+                        break
+                    if old_path in visible or old_path == path:
+                        continue
+                    del self._preview_mem[old_path]
+                    self._preview_order.remove(old_path)
+                    old_fi = self._all_fi_by_path.get(old_path)
+                    if old_fi is not None:
+                        old_fi.preview = None
         preview_img = self._card_views.get(path)
         if preview_img is None:
             return
@@ -2179,11 +2218,15 @@ class FamilyBrowserDialog(object):
             symbol.Activate()
             t.Commit()
         except Exception:
-            try:
-                t.RollBack()
-            except Exception:
-                pass
+            self._rollback_transaction(t, "activate")
             raise
+
+    def _rollback_transaction(self, transaction, operation):
+        try:
+            transaction.RollBack()
+        except Exception as ex:
+            libcache._log(u"rollback {}: {}".format(
+                operation, as_unicode(ex)))
 
     def _get_family_symbol_single(self, fi):
         """Load a family once and return an activated symbol."""
@@ -2202,10 +2245,7 @@ class FamilyBrowserDialog(object):
             self._invalidate_project_family_index()
             return symbol
         except Exception:
-            try:
-                t.RollBack()
-            except Exception:
-                pass
+            self._rollback_transaction(t, "load")
             raise
 
     def _place_family(self, fi):
@@ -2252,6 +2292,7 @@ class FamilyBrowserDialog(object):
         if uidoc is None or uidoc.ActiveView is None or fi is None:
             return u""
         last_error = None
+        avro_log.event("family_browser", "placement_start")
         try:
             symbol = self._get_family_symbol_single(fi)
             if symbol is not None:
@@ -2333,13 +2374,10 @@ class FamilyBrowserDialog(object):
                     config.add_recent(path)
                 self.cfg = config.load()
             else:
-                t.RollBack()
+                self._rollback_transaction(t, "batch_load_empty")
         except Exception as ex:
             if t is not None:
-                try:
-                    t.RollBack()
-                except Exception:
-                    pass
+                self._rollback_transaction(t, "batch_load")
             self._set_status(i18n.t("error_generic", err=as_unicode(ex)))
             return
 
@@ -2362,6 +2400,7 @@ class FamilyBrowserDialog(object):
     def show(self):
         i18n.init_from_config()
         ribbon_i18n.init_from_config()
+        avro_log.event("family_browser", "show_start")
         first_open = True
         try:
             while True:
@@ -2411,6 +2450,7 @@ class FamilyBrowserDialog(object):
             self.win = None
             self.ui = None
             self._activate_revit_window()
+            avro_log.event("family_browser", "show_end")
 
 
 # ---------------------------------------------------------------------------

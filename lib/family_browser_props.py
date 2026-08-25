@@ -31,6 +31,7 @@ class PropsPanelController(object):
         self.brushes = brushes
         self.rebuild_filters_callback = rebuild_filters_callback
         self._props_path = None
+        self._inspect_busy = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -55,26 +56,34 @@ class PropsPanelController(object):
 
     def inspect(self, fi):
         """Inspect *fi* and render its metadata in the panel."""
+        if self._inspect_busy:
+            avro_log.event("props", "inspect_busy_drop")
+            return
         if fi is None or not getattr(fi, "path", None):
             self.reset()
             return
         path = fi.path
-        meta = family_inspector.load_cached(path)
-        if meta is None:
-            self.set_loading(path)
+        self._inspect_busy = True
+        try:
+            meta = family_inspector.load_cached(path)
+            if meta is None:
+                self.set_loading(path)
+                if self._props_path != path:
+                    return
+                try:
+                    app = (self.dialog.doc.Application
+                           if self.dialog.doc is not None else None)
+                except Exception as ex:
+                    avro_log.exception("props.inspect.app", ex)
+                    app = None
+                meta = family_inspector.inspect(path, app=app, use_cache=True)
+            else:
+                self._props_path = path
             if self._props_path != path:
                 return
-            try:
-                app = self.dialog.doc.Application if self.dialog.doc is not None else None
-            except Exception as ex:
-                avro_log.exception("props.inspect.app", ex)
-                app = None
-            meta = family_inspector.inspect(path, app=app, use_cache=True)
-        else:
-            self._props_path = path
-        if self._props_path != path:
-            return
-        self.fill(fi, meta)
+            self.fill(fi, meta)
+        finally:
+            self._inspect_busy = False
 
     def fill(self, fi, meta):
         """Render metadata into the panel."""

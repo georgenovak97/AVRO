@@ -16,7 +16,7 @@ from System.IO import MemoryStream
 from System.Windows.Media.Imaging import BitmapImage, BitmapCacheOption
 
 
-def bitmap_from_png_bytes(image_bytes):
+def bitmap_from_png_bytes(image_bytes, decode_width=192):
     """Load PNG or JPEG bytes into a WPF BitmapImage (IronPython-safe via temp file)."""
     if not image_bytes:
         return None
@@ -34,6 +34,8 @@ def bitmap_from_png_bytes(image_bytes):
         bmp.BeginInit()
         bmp.UriSource = System.Uri(tmp_path)
         bmp.CacheOption = BitmapCacheOption.OnLoad
+        if decode_width:
+            bmp.DecodePixelWidth = int(decode_width)
         bmp.EndInit()
         bmp.Freeze()
         return bmp
@@ -46,6 +48,8 @@ def bitmap_from_png_bytes(image_bytes):
             bmp.BeginInit()
             bmp.StreamSource = ms
             bmp.CacheOption = BitmapCacheOption.OnLoad
+            if decode_width:
+                bmp.DecodePixelWidth = int(decode_width)
             bmp.EndInit()
             bmp.Freeze()
             return bmp
