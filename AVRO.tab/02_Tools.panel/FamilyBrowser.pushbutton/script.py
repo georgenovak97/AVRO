@@ -294,7 +294,6 @@ class FamilyBrowserDialog(object):
         self._scope_is_recent = False
         self._active_search_query = u""
         self._search_suppress = False
-        self._expander_clicked = False
         self._search_timer = None
         self._grid_relayout_gen = 0
         self._grid_relayout_timer = None
@@ -925,7 +924,6 @@ class FamilyBrowserDialog(object):
                 u.SearchBox.KeyDown -= self._on_search_box_keydown
                 u.CategoryTree.SelectedItemChanged -= self._on_cat_selected
                 u.CategoryTree.PreviewMouseLeftButtonDown -= self._on_tree_preview_mouse_down
-                u.CategoryTree.MouseLeftButtonUp -= self._on_tree_mouse_left_button_up
                 u.FamilyScrollViewer.ScrollChanged -= self._on_family_scroll
                 u.FamilyScrollViewer.SizeChanged -= self._on_family_panel_resize
                 u.BtnSettings.Click -= self._library_controller.on_settings
@@ -1004,7 +1002,6 @@ class FamilyBrowserDialog(object):
         u.SearchBox.TextChanged            += self._on_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
         u.CategoryTree.PreviewMouseLeftButtonDown += self._on_tree_preview_mouse_down
-        u.CategoryTree.MouseLeftButtonUp += self._on_tree_mouse_left_button_up
         u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._library_controller.on_settings
@@ -1391,12 +1388,11 @@ class FamilyBrowserDialog(object):
         self._refresh_catalog_view()
 
     def _on_cat_selected(self, sender, e):
-        if self._expander_clicked:
-            self._expander_clicked = False
-            return
         if self._suppress_tree_events:
             return
-        item = self.ui.CategoryTree.SelectedItem
+        self._open_tree_item(self.ui.CategoryTree.SelectedItem)
+
+    def _open_tree_item(self, item):
         if item is None:
             return
         tag = item.Tag
@@ -1413,17 +1409,27 @@ class FamilyBrowserDialog(object):
 
     def _on_tree_preview_mouse_down(self, sender, e):
         source = e.OriginalSource
+        expander = None
+        item = None
         while source is not None:
-            if isinstance(source, ToggleButton):
-                self._expander_clicked = True
-                return
+            if (expander is None and isinstance(source, ToggleButton)
+                    and getattr(source, "Name", None) == "Expander"):
+                expander = source
+            if isinstance(source, TreeViewItem):
+                item = source
+                break
             try:
                 source = VisualTreeHelper.GetParent(source)
             except Exception:
                 source = None
 
-    def _on_tree_mouse_left_button_up(self, sender, e):
-        self._expander_clicked = False
+        if expander is not None and item is not None:
+            item.IsExpanded = not item.IsExpanded
+            e.Handled = True
+        elif (item is not None and item.IsSelected
+              and not self._suppress_tree_events):
+            self._open_tree_item(item)
+            e.Handled = True
 
     def _show_folder(self, node):
         breadcrumb = self._folder_breadcrumb(node)

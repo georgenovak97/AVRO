@@ -192,9 +192,14 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         selected_source = ast.get_source_segment(
             source, methods["_on_cat_selected"])
         bind_source = ast.get_source_segment(source, methods["_bind"])
-        self.assertIn("_expander_clicked", selected_source)
+        preview_source = ast.get_source_segment(
+            source, methods["_on_tree_preview_mouse_down"])
+        self.assertIn("_open_tree_item", selected_source)
         self.assertIn("PreviewMouseLeftButtonDown", bind_source)
-        self.assertIn("MouseLeftButtonUp", bind_source)
+        self.assertIn("IsExpanded", preview_source)
+        self.assertIn("e.Handled", preview_source)
+        self.assertNotIn("_expander_clicked", source)
+        self.assertNotIn("MouseLeftButtonUp", bind_source)
 
 
 if __name__ == "__main__":
