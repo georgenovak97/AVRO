@@ -1259,7 +1259,7 @@ class FamilyBrowserDialog(object):
         recent_item = TreeViewItem()
         recent_item.Header = i18n.t("recent")
         recent_item.Tag = "__recent__"
-        recent_item.Uid = "TreeRoot"
+        recent_item.Uid = "TreeRecent"
         recent_item.FontWeight = FontWeights.SemiBold
         tree.Items.Add(recent_item)
 
@@ -1276,6 +1276,7 @@ class FamilyBrowserDialog(object):
         item.Header = header
         item.Tag = _TAG_FOLDER_PREFIX + node.path
         item.Uid = "TreeRoot" if is_root else ("TreeLast" if is_last else "")
+        item.IsExpanded = is_root
         parent_items.Add(item)
 
         names = sorted(node.children.keys(), key=lambda s: s.lower())

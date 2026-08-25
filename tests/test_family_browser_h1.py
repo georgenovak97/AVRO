@@ -156,7 +156,7 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             and value.operand.id == "loaded"
             for value in skipped_conditions[0].values))
 
-    def test_folder_roots_are_collapsed_by_default(self):
+    def test_library_roots_are_expanded_but_nested_folders_are_collapsed(self):
         with open(SCRIPT, "r") as stream:
             source = stream.read()
         tree = ast.parse(source, filename=SCRIPT)
@@ -167,13 +167,18 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             and node.name == "_add_folder_node"
         ]
         self.assertEqual(len(methods), 1)
-        self.assertFalse(any(
-            isinstance(node, ast.Assign)
+        expanded_assignments = [
+            node
+            for node in ast.walk(methods[0])
+            if isinstance(node, ast.Assign)
             and any(isinstance(target, ast.Attribute)
                     and target.attr == "IsExpanded"
                     for target in node.targets)
-            for node in ast.walk(methods[0])
-        ))
+        ]
+        self.assertEqual(len(expanded_assignments), 1)
+        value = expanded_assignments[0].value
+        self.assertIsInstance(value, ast.Name)
+        self.assertEqual(value.id, "is_root")
 
 
 if __name__ == "__main__":
