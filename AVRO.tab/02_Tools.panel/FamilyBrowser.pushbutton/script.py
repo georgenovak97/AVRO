@@ -2415,7 +2415,8 @@ class FamilyBrowserDialog(object):
             if not handle:
                 return
             user32 = ctypes.windll.user32
-            user32.ShowWindow(handle, 9)  # SW_RESTORE
+            if user32.IsIconic(handle):
+                user32.ShowWindow(handle, 9)  # SW_RESTORE
             user32.BringWindowToTop(handle)
             user32.SetForegroundWindow(handle)
         except Exception as ex:

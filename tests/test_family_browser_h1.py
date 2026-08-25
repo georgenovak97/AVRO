@@ -77,6 +77,39 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source, methods["show"])
         self.assertIn("_activate_revit_window", show_source)
 
+    def test_revit_activation_restores_only_minimized_window(self):
+        tree = self._source_tree()
+        methods = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_activate_revit_window"
+        ]
+        self.assertEqual(len(methods), 1)
+        method = methods[0]
+        iconic_calls = [
+            node
+            for node in ast.walk(method)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "IsIconic"
+        ]
+        restore_calls = [
+            node
+            for node in ast.walk(method)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "ShowWindow"
+        ]
+        self.assertEqual(len(iconic_calls), 1)
+        self.assertEqual(len(restore_calls), 1)
+        self.assertTrue(any(
+            isinstance(parent, ast.If)
+            and parent.test is iconic_calls[0]
+            and restore_calls[0] in ast.walk(parent)
+            for parent in ast.walk(method)
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()
