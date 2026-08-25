@@ -47,6 +47,12 @@ class I18nTests(unittest.TestCase):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"loaded_n", n=3), u"Loaded: 3")
 
+    def test_preview_completion_is_short(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"previews_done", n=80), u"Готово")
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"previews_done", n=80), u"Done")
+
     def test_transaction_names_have_avro_prefix(self):
         for lang in (u"ru", u"en"):
             i18n.set_language(lang)

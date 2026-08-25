@@ -110,6 +110,23 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             for parent in ast.walk(method)
         ))
 
+    def test_catalog_batches_are_limited_to_fifty(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        values = {}
+        for node in tree.body:
+            if (isinstance(node, ast.Assign)
+                    and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id in (
+                        "_CARD_UI_BATCH", "_CARD_UI_BATCH_THRESHOLD",
+                        "_VIRTUAL_ITEM_LIMIT")):
+                values[node.targets[0].id] = node.value
+        for name in ("_CARD_UI_BATCH", "_CARD_UI_BATCH_THRESHOLD",
+                     "_VIRTUAL_ITEM_LIMIT"):
+            self.assertEqual(ast.literal_eval(values[name]), 50)
+
 
 if __name__ == "__main__":
     unittest.main()

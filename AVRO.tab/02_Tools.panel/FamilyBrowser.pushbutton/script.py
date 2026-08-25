@@ -119,8 +119,8 @@ _UI_CONTROL_NAMES = [
 # ---------------------------------------------------------------------------
 _TAG_FOLDER_PREFIX = u"folder:"
 # Build medium folder grids in UI batches so the window stays responsive.
-_CARD_UI_BATCH = 80
-_CARD_UI_BATCH_THRESHOLD = 100
+_CARD_UI_BATCH = 50
+_CARD_UI_BATCH_THRESHOLD = 50
 _CARD_UI_BUDGET_S = 0.020
 _PREVIEW_MEM_LIMIT = 512
 _PREVIEW_FLUSH_BATCH = 5
@@ -128,6 +128,7 @@ _PREVIEW_STATUS_INTERVAL_S = 0.15
 # Above this count only visible cards are created (virtual scroll).
 _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
+_VIRTUAL_ITEM_LIMIT = 50
 _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
 _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
@@ -530,7 +531,7 @@ class FamilyBrowserDialog(object):
         if self._virtual_mode:
             self._set_status(i18n.t("virtual_scroll_hint", n=n))
         else:
-            self._set_status(i18n.t("previews_done", n=n))
+            self._set_status(i18n.t("previews_done"))
 
     def _refresh_card_size_labels(self):
         for card in self._card_by_path.values():
@@ -1770,6 +1771,19 @@ class FamilyBrowserDialog(object):
             if last_i <= 0:
                 last_i = min(n, cols)
 
+        if last_i - first_i > _VIRTUAL_ITEM_LIMIT:
+            visible_first = max(0, int(y0 / row_h) * cols)
+            visible_last = min(
+                n, (int(y1 / row_h) + 1) * cols)
+            visible_count = visible_last - visible_first
+            if visible_count > _VIRTUAL_ITEM_LIMIT:
+                first_i = visible_first
+                last_i = visible_last
+            else:
+                first_i = max(
+                    0, min(visible_first, n - _VIRTUAL_ITEM_LIMIT))
+                last_i = min(n, first_i + _VIRTUAL_ITEM_LIMIT)
+
         wanted = set()
         for i in range(first_i, last_i):
             wanted.add(families[i].path)
@@ -2057,7 +2071,7 @@ class FamilyBrowserDialog(object):
                 if (gen == self._preview_gen
                         and self.win is win
                         and window_gen == self._window_gen):
-                    msg = i18n.t("previews_done", n=total)
+                    msg = i18n.t("previews_done")
                     try:
                         win.Dispatcher.BeginInvoke(
                             System.Action(
