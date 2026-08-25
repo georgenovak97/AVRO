@@ -11,6 +11,8 @@ clr.AddReference("WindowsBase")
 
 from System.Windows import Thickness, Visibility, TextWrapping, FontStyles
 from System.Windows.Controls import Border, TextBlock, StackPanel
+from System import Action
+from System.Windows.Threading import DispatcherPriority
 
 import family_inspector
 import i18n
@@ -65,9 +67,9 @@ class PropsPanelController(object):
         path = fi.path
         self._inspect_busy = True
         try:
+            self.set_loading(path)
             meta = family_inspector.load_cached(path)
             if meta is None:
-                self.set_loading(path)
                 if self._props_path != path:
                     return
                 try:
@@ -84,6 +86,33 @@ class PropsPanelController(object):
             self.fill(fi, meta)
         finally:
             self._inspect_busy = False
+
+    def begin_inspect(self, fi):
+        """Show preparation state, then inspect after WPF can render it."""
+        if fi is None or not getattr(fi, "path", None):
+            self.reset()
+            return
+        if self._inspect_busy:
+            avro_log.event("props", "inspect_busy_drop")
+            return
+        path = fi.path
+        self.set_loading(path)
+        win = self.dialog.win
+        window_gen = self.dialog._window_gen
+        try:
+            win.Dispatcher.BeginInvoke(
+                Action(lambda: self._inspect_if_current(fi, path, window_gen)),
+                DispatcherPriority.Loaded)
+        except Exception as ex:
+            avro_log.exception("props.inspect.dispatch", ex)
+
+    def _inspect_if_current(self, fi, path, window_gen):
+        if (self.dialog._window_closing
+                or not self.dialog._window_is_current(
+                    self.dialog.win, window_gen)
+                or self._props_path != path):
+            return
+        self.inspect(fi)
 
     def fill(self, fi, meta):
         """Render metadata into the panel."""

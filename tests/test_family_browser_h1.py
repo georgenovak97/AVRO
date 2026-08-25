@@ -90,6 +90,31 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("preview_thread.join", show_source)
         self.assertNotIn("async_save=True", source)
 
+    def test_right_click_defers_and_always_shows_properties_preparation(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        method = next(node for node in ast.walk(tree)
+                      if isinstance(node, ast.FunctionDef)
+                      and node.name == "_on_card_right_click")
+        method_source = ast.get_source_segment(source, method)
+        self.assertIn("begin_inspect", method_source)
+
+        props_path = os.path.join(ROOT, "lib", "family_browser_props.py")
+        with open(props_path, "r") as stream:
+            props_source = stream.read()
+        props_tree = ast.parse(props_source, filename=props_path)
+        inspect = next(node for node in ast.walk(props_tree)
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == "inspect")
+        inspect_source = ast.get_source_segment(props_source, inspect)
+        begin = next(node for node in ast.walk(props_tree)
+                     if isinstance(node, ast.FunctionDef)
+                     and node.name == "begin_inspect")
+        begin_source = ast.get_source_segment(props_source, begin)
+        self.assertIn("self.set_loading(path)", inspect_source)
+        self.assertIn("BeginInvoke", begin_source)
+
     def test_catalog_batches_are_limited_to_fifty(self):
         with open(SCRIPT, "r") as stream:
             source = stream.read()

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import builtins
 import os
+import tempfile
 import sys
 import unittest
 
@@ -28,6 +29,27 @@ class FakeFamilyInfo(object):
 
 
 class FamilyScannerTests(unittest.TestCase):
+    def test_scan_ignores_non_rfa_only_folders(self):
+        root = tempfile.mkdtemp(prefix="avro-scan-")
+        try:
+            os.makedirs(os.path.join(root, "Docs", "Empty"))
+            with open(os.path.join(root, "Docs", "notes.txt"), "w") as stream:
+                stream.write("not a family")
+            os.makedirs(os.path.join(root, "Content", "Doors"))
+            path = os.path.join(root, "Content", "Doors", "Door.rfa")
+            with open(path, "wb") as stream:
+                stream.write(b"not a real family")
+            result = family_scanner.scan_library([root])
+            self.assertEqual([fi.name for fi in result["all"]], ["Door"])
+            self.assertEqual(
+                sorted(result["index"].keys()),
+                [os.path.normpath(root),
+                 os.path.normpath(os.path.join(root, "Content")),
+                 os.path.normpath(os.path.join(root, "Content", "Doors"))])
+        finally:
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+
     def test_category_from_path_under_library_root(self):
         rfa = "/lib/root/Doors/Single/Door_A.rfa"
         root = "/lib/root"

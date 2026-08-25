@@ -2264,7 +2264,7 @@ class FamilyBrowserDialog(object):
     def _on_card_right_click(self, card, fi, e):
         if not self._load_mode:
             self._select_paths([fi.path], replace=True)
-        self._props_controller.inspect(fi)
+        self._props_controller.begin_inspect(fi)
         e.Handled = True
 
     def _on_card_middle_click(self, card, fi, e):

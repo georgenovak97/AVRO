@@ -116,6 +116,7 @@ class LibraryCacheTests(unittest.TestCase):
         self.assertIsNotNone(loaded)
         self.assertEqual(len(loaded["all"]), 1)
         self.assertEqual(loaded["all"][0].name, fi.name)
+        self.assertEqual(loaded["all"][0].revit_version, fi.revit_version)
         self.assertIn(lc._norm_path(fi.path), miss)
 
     def test_preview_miss_sidecar_roundtrip(self):

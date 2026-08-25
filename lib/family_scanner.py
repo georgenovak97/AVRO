@@ -248,10 +248,13 @@ def scan_library(root_paths, progress_cb=None):
         nodes = {library_root: root_node}
 
         for dirpath, _dirs, files in os.walk(library_root):
+            rfa_files = [fname for fname in files
+                         if fname.lower().endswith(".rfa")]
+            if not rfa_files:
+                continue
             node = _node_for_dir(nodes, library_root, dirpath)
-            for fname in files:
-                if not fname.lower().endswith(".rfa"):
-                    continue
+            nodes[os.path.normpath(os.path.abspath(dirpath))] = node
+            for fname in rfa_files:
                 fpath = os.path.join(dirpath, fname)
                 try:
                     fi = FamilyInfo(fpath, library_root=library_root)

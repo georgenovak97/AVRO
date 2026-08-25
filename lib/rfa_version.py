@@ -8,6 +8,7 @@ _RE_YEAR = re.compile(
     r"Autodesk Revit\s+(\d{4})|Revit\s+(\d{4})|Format:\s*(\d{4})",
     re.I,
 )
+_RE_MODERN_YEAR = re.compile(r"\b(20(?:19|2[0-9]))\x12")
 
 _READ_CHUNK = 512 * 1024
 
@@ -48,19 +49,24 @@ def _label_via_file_bytes(path):
             data = f.read(_READ_CHUNK)
     except Exception:
         return u""
-    try:
-        text = data.decode("latin-1")
-    except Exception:
+    texts = []
+    for encoding in ("utf-16", "utf-16-le", "utf-16-be", "latin-1"):
         try:
-            text = unicode(data, "latin-1", "ignore")
+            texts.append(data.decode(encoding, "ignore"))
         except Exception:
-            return u""
-    m = _RE_YEAR.search(text)
-    if not m:
-        return u""
-    year = m.group(1) or m.group(2) or m.group(3)
-    if year:
-        return year_to_label(year)
+            try:
+                texts.append(unicode(data, encoding, "ignore"))
+            except Exception:
+                pass
+    for text in texts:
+        m = _RE_YEAR.search(text)
+        if m:
+            year = m.group(1) or m.group(2) or m.group(3)
+            if year:
+                return year_to_label(year)
+        m = _RE_MODERN_YEAR.search(text)
+        if m:
+            return year_to_label(m.group(1))
     return u""
 
 

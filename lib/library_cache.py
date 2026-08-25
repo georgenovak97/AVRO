@@ -23,7 +23,7 @@ try:
 except ImportError:
     import pickle
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 META_FILE = os.path.join(config.CONFIG_DIR, "library_meta.json")
 PICKLE_FILE = os.path.join(config.CONFIG_DIR, "library_index.pkl")
 INDEX_FILE = os.path.join(config.CONFIG_DIR, "library_index.json")
