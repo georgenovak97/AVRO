@@ -21,6 +21,10 @@ DARK = {
     "BtnPressed": "#2E4460",
     "BtnPrimary": "#3B4254",
     "TreeHoverBg": "#434C5E",
+    "TreeBackground": "#222836",
+    "TreeText": "#ECEFF4",
+    "TreeIcon": "#C4CBD8",
+    "TreeConnector": "#68758A",
     "ClearBtnHover": "#434C5E",
     "ClearBtnPressed": "#4C566A",
     "Card": "#323A4D",
@@ -48,6 +52,10 @@ LIGHT = {
     "BtnPressed": "#B9D7F5",
     "BtnPrimary": "#E1E1E1",
     "TreeHoverBg": "#EDEDED",
+    "TreeBackground": "#FAFAFA",
+    "TreeText": "#424242",
+    "TreeIcon": "#4B4B4B",
+    "TreeConnector": "#D2D2D2",
     "ClearBtnHover": "#E8E8E8",
     "ClearBtnPressed": "#D0D0D0",
     "Card": "#FFFFFF",
@@ -62,7 +70,8 @@ _RESOURCE_KEYS = (
     "BorderMain", "BorderLight", "TextMain", "TextMuted",
     "SelBg", "SelBorder", "BtnFace", "BtnFaceHov", "BtnBorder",
     "BtnPressed", "BtnPrimary", "TreeHoverBg",
-    "ClearBtnHover", "ClearBtnPressed",
+    "ClearBtnHover", "ClearBtnPressed", "TreeBackground", "TreeText",
+    "TreeIcon", "TreeConnector",
 )
 
 
