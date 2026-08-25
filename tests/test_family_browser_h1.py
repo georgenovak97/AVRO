@@ -61,7 +61,7 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source = stream.read()
         self.assertNotIn("Dispatcher.PushFrame", source)
 
-    def test_reopen_has_loading_fallback_and_final_revit_activation(self):
+    def test_reopen_has_loading_fallback_without_native_focus_workaround(self):
         tree = self._source_tree()
         methods = {
             node.name: node
@@ -75,40 +75,32 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("_publish_pending_loads", reopen_source)
         show_source = ast.get_source_segment(
             source, methods["show"])
-        self.assertIn("_activate_revit_window", show_source)
+        self.assertNotIn("_activate_revit_window", show_source)
 
-    def test_revit_activation_restores_only_minimized_window(self):
+    def test_close_invalidates_background_work_and_guards_dispatch(self):
         tree = self._source_tree()
-        methods = [
-            node
+        methods = {
+            node.name: node
             for node in ast.walk(tree)
             if isinstance(node, ast.FunctionDef)
-            and node.name == "_activate_revit_window"
-        ]
-        self.assertEqual(len(methods), 1)
-        method = methods[0]
-        iconic_calls = [
-            node
-            for node in ast.walk(method)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "IsIconic"
-        ]
-        restore_calls = [
-            node
-            for node in ast.walk(method)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "ShowWindow"
-        ]
-        self.assertEqual(len(iconic_calls), 1)
-        self.assertEqual(len(restore_calls), 1)
-        self.assertTrue(any(
-            isinstance(parent, ast.If)
-            and parent.test is iconic_calls[0]
-            and restore_calls[0] in ast.walk(parent)
-            for parent in ast.walk(method)
-        ))
+        }
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        dispatch_source = ast.get_source_segment(
+            source, methods["_dispatch_current_window"])
+        cleanup_source = ast.get_source_segment(
+            source, methods["_cleanup_window_resources"])
+        preview_source = ast.get_source_segment(
+            source, methods["_schedule_previews"])
+        show_source = ast.get_source_segment(source, methods["show"])
+        self.assertIn("_window_closing", dispatch_source)
+        self.assertIn("_window_is_current", dispatch_source)
+        self.assertIn("_preview_worker_lock", cleanup_source)
+        self.assertIn("_scan_gen += 1", cleanup_source)
+        self.assertIn("not self._window_closing", preview_source)
+        self.assertIn("pending_request is not None", preview_source)
+        self.assertIn("preview_thread.join", show_source)
+        self.assertNotIn("async_save=True", source)
 
     def test_catalog_batches_are_limited_to_fifty(self):
         with open(SCRIPT, "r") as stream:

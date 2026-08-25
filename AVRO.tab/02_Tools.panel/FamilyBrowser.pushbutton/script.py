@@ -278,6 +278,7 @@ class FamilyBrowserDialog(object):
         self._preview_worker_lock = threading.Lock()
         self._state_lock = threading.RLock()
         self._preview_worker_running = False
+        self._preview_worker_thread = None
         self._preview_pending_request = None
         self._card_by_path = {}
         self._fi_by_path = {}
@@ -336,6 +337,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._load_mode = False
         self._window_closing = False
+        self._cleanup_done = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self._restore_window_geometry()
@@ -388,10 +390,16 @@ class FamilyBrowserDialog(object):
     def _dispatch_current_window(self, callback):
         """Queue a UI callback only for the currently live WPF window."""
         win = self.win
+        window_gen = self._window_gen
         if win is None:
             return False
         try:
-            win.Dispatcher.BeginInvoke(System.Action(callback))
+            def guarded_callback():
+                if (self._window_closing
+                        or not self._window_is_current(win, window_gen)):
+                    return
+                callback()
+            win.Dispatcher.BeginInvoke(System.Action(guarded_callback))
             return True
         except Exception as ex:
             libcache._log(u"ui callback: {}".format(as_unicode(ex)))
@@ -884,7 +892,7 @@ class FamilyBrowserDialog(object):
                     self._on_external_language_changed)
                 ui_notify.unregister_theme_listener(
                     self._on_external_theme_changed)
-                self._persist_cache(async_save=True)
+                self._persist_cache(async_save=False)
         except Exception as ex:
             libcache._log(u"window closing: {}".format(as_unicode(ex)))
         finally:
@@ -895,14 +903,22 @@ class FamilyBrowserDialog(object):
 
     def _cleanup_window_resources(self):
         """Stop window work and release references before WPF teardown."""
+        if self._cleanup_done:
+            return
+        self._cleanup_done = True
         self._preview_gen += 1
+        self._scan_gen += 1
         self._grid_relayout_gen += 1
         self._virtual_scroll_gen += 1
         self._card_build_gen += 1
         self._card_batch_families = None
         self._card_batch_index = 0
         self._hover_card = None
-        self._preview_pending_request = None
+        self._preview_worker_lock.acquire()
+        try:
+            self._preview_pending_request = None
+        finally:
+            self._preview_worker_lock.release()
 
         if self._search_timer is not None:
             try:
@@ -920,23 +936,27 @@ class FamilyBrowserDialog(object):
         u = self.ui
         win = self.win
         if u is not None:
-            try:
-                u.SearchBox.KeyDown -= self._on_search_box_keydown
-                u.CategoryTree.SelectedItemChanged -= self._on_cat_selected
-                u.CategoryTree.PreviewMouseLeftButtonDown -= self._on_tree_preview_mouse_down
-                u.FamilyScrollViewer.ScrollChanged -= self._on_family_scroll
-                u.FamilyScrollViewer.SizeChanged -= self._on_family_panel_resize
-                u.BtnSettings.Click -= self._library_controller.on_settings
-                u.BtnReload.Click -= self._library_controller.on_reload
-                u.SearchBox.TextChanged -= self._on_search
-                btn_load = getattr(u, "BtnLoad", None)
-                if btn_load is not None:
-                    btn_load.Click -= self._on_btn_load
-                btn_clear = getattr(u, "BtnClearSearch", None)
-                if btn_clear is not None:
-                    btn_clear.Click -= self._on_reset_search
-            except Exception:
-                pass
+            for control, event_name, handler in (
+                    (u.SearchBox, "KeyDown", self._on_search_box_keydown),
+                    (u.CategoryTree, "SelectedItemChanged", self._on_cat_selected),
+                    (u.CategoryTree, "PreviewMouseLeftButtonDown",
+                     self._on_tree_preview_mouse_down),
+                    (u.FamilyScrollViewer, "ScrollChanged", self._on_family_scroll),
+                    (u.FamilyScrollViewer, "SizeChanged",
+                     self._on_family_panel_resize),
+                    (u.BtnSettings, "Click", self._library_controller.on_settings),
+                    (u.BtnReload, "Click", self._library_controller.on_reload),
+                    (u.SearchBox, "TextChanged", self._on_search),
+                    (getattr(u, "BtnLoad", None), "Click", self._on_btn_load),
+                    (getattr(u, "BtnClearSearch", None), "Click",
+                     self._on_reset_search)):
+                if control is None:
+                    continue
+                try:
+                    event = getattr(control, event_name)
+                    event -= handler
+                except Exception:
+                    pass
             panel = self._family_panel_bound
             if panel is not None:
                 try:
@@ -946,12 +966,15 @@ class FamilyBrowserDialog(object):
                 except Exception:
                     pass
         if win is not None:
-            try:
-                win.PreviewKeyDown -= self._on_window_preview_keydown
-                win.SizeChanged -= self._on_window_resize
-                win.Closing -= self._on_window_closing
-            except Exception:
-                pass
+            for event_name, handler in (
+                    ("PreviewKeyDown", self._on_window_preview_keydown),
+                    ("SizeChanged", self._on_window_resize),
+                    ("Closing", self._on_window_closing)):
+                try:
+                    event = getattr(win, event_name)
+                    event -= handler
+                except Exception:
+                    pass
 
         with self._preview_mem_lock:
             self._preview_mem.clear()
@@ -1976,6 +1999,8 @@ class FamilyBrowserDialog(object):
         self._finish_family_view_layout()
 
     def _schedule_previews(self, families, disk_only=False):
+        if self._window_closing or self.win is None:
+            return
         self._preview_gen += 1
         gen = self._preview_gen
         win = self.win
@@ -2121,15 +2146,19 @@ class FamilyBrowserDialog(object):
                 self._preview_worker_lock.acquire()
                 try:
                     self._preview_worker_running = False
+                    self._preview_worker_thread = None
                     pending_request = self._preview_pending_request
                     self._preview_pending_request = None
                 finally:
                     self._preview_worker_lock.release()
-                if pending_request is not None:
+                if (pending_request is not None and not self._window_closing
+                        and self.win is win
+                        and window_gen == self._window_gen):
                     self._schedule_previews(*pending_request)
 
         t = threading.Thread(target=worker)
         t.setDaemon(True)
+        self._preview_worker_thread = t
         t.start()
 
     def _set_preview_status(self, message, win, window_gen,
@@ -2455,21 +2484,6 @@ class FamilyBrowserDialog(object):
             return i18n.t("placement_cancelled")
         return i18n.t("placed", name=fi.name)
 
-    def _activate_revit_window(self):
-        """Best-effort foreground restore after the modal WPF window exits."""
-        try:
-            import ctypes
-            handle = int(revit.uidoc.Application.MainWindowHandle)
-            if not handle:
-                return
-            user32 = ctypes.windll.user32
-            if user32.IsIconic(handle):
-                user32.ShowWindow(handle, 9)  # SW_RESTORE
-            user32.BringWindowToTop(handle)
-            user32.SetForegroundWindow(handle)
-        except Exception as ex:
-            libcache._log(u"revit activate: {}".format(as_unicode(ex)))
-
     def _load_families(self, paths):
         t = None
         loaded = []
@@ -2560,6 +2574,12 @@ class FamilyBrowserDialog(object):
                     libcache._log(u"show dialog: {}".format(as_unicode(ex)))
                     break
 
+                # Closing invalidates the preview generation. Let an in-flight
+                # extraction leave before returning control to Revit's ribbon.
+                preview_thread = self._preview_worker_thread
+                if preview_thread is not None and preview_thread is not threading.currentThread():
+                    preview_thread.join(10.0)
+
                 pending_id = self._pending_symbol_id
                 pending_fi = self._pending_placement_fi
                 self._pending_symbol_id = None
@@ -2579,6 +2599,10 @@ class FamilyBrowserDialog(object):
                 # PromptForFamilyInstancePlacement has returned; reopen directly.
         finally:
             self._window_closing = True
+            ui_notify.unregister_language_listener(
+                self._on_external_language_changed)
+            ui_notify.unregister_theme_listener(
+                self._on_external_theme_changed)
             try:
                 if self.win is not None:
                     self._cleanup_window_resources()
@@ -2586,7 +2610,6 @@ class FamilyBrowserDialog(object):
                 libcache._log(u"show cleanup: {}".format(as_unicode(ex)))
             self.win = None
             self.ui = None
-            self._activate_revit_window()
             avro_log.event("family_browser", "show_end")
 
 
