@@ -33,6 +33,11 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         self.assertIn("Expander", template_text)
         self.assertIn("Uid", template_text)
         self.assertIn("TreeLast", template_text)
+        self.assertIn("ChildItems", template_text)
+        self.assertIn('Visibility="Collapsed"', template_text)
+        self.assertIn('TargetName="ChildItems"', template_text)
+        self.assertIn('Value="Visible"', template_text)
+        self.assertIn('Stretch="Uniform"', template_text)
         all_text = ElementTree.tostring(root, encoding="unicode")
         self.assertIn("PlusVertical", all_text)
 
