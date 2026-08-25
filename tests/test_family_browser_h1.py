@@ -127,6 +127,35 @@ class FamilyBrowserH1Tests(unittest.TestCase):
                      "_VIRTUAL_ITEM_LIMIT"):
             self.assertEqual(ast.literal_eval(values[name]), 50)
 
+    def test_load_status_hides_already_loaded_count_when_new_families_loaded(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_load_families"
+        ]
+        self.assertEqual(len(methods), 1)
+        skipped_conditions = [
+            node.test
+            for node in ast.walk(methods[0])
+            if isinstance(node, ast.If)
+            and isinstance(node.test, ast.BoolOp)
+            and isinstance(node.test.op, ast.And)
+            and any(
+                isinstance(value, ast.Name) and value.id == "skipped"
+                for value in node.test.values)
+        ]
+        self.assertEqual(len(skipped_conditions), 1)
+        self.assertTrue(any(
+            isinstance(value, ast.UnaryOp)
+            and isinstance(value.op, ast.Not)
+            and isinstance(value.operand, ast.Name)
+            and value.operand.id == "loaded"
+            for value in skipped_conditions[0].values))
+
 
 if __name__ == "__main__":
     unittest.main()

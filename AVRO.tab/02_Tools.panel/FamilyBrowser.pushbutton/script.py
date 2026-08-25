@@ -2487,7 +2487,7 @@ class FamilyBrowserDialog(object):
         parts = []
         if loaded:
             parts.append(i18n.t("loaded_n", n=len(loaded)))
-        if skipped:
+        if skipped and not loaded:
             parts.append(i18n.t("already_in_project", n=len(skipped)))
         if errors:
             parts.append(i18n.t("not_loaded", n=len(errors)))
