@@ -230,6 +230,9 @@ class FamilyBrowserDialog(object):
         self._preview_mem = {}
         self._preview_miss = set()
         self._card_views = {}
+        self._preview_worker_lock = threading.Lock()
+        self._preview_worker_running = False
+        self._preview_pending_request = None
         self._card_by_path = {}
         self._fi_by_path = {}
         self._order_paths = []
@@ -793,6 +796,7 @@ class FamilyBrowserDialog(object):
         self._card_batch_families = None
         self._card_batch_index = 0
         self._hover_card = None
+        self._preview_pending_request = None
 
         if self._search_timer is not None:
             try:
@@ -1732,6 +1736,7 @@ class FamilyBrowserDialog(object):
         self._card_views = {}
         self._card_by_path = {}
         self._fi_by_path = {}
+        self._preview_miss.clear()
         self._order_paths = [fi.path for fi in families]
         self._path_to_index = dict(
             (fi.path, i) for i, fi in enumerate(families))
@@ -1812,6 +1817,15 @@ class FamilyBrowserDialog(object):
         window_gen = self._window_gen
         if not families:
             return
+        request = (list(families), disk_only)
+        self._preview_worker_lock.acquire()
+        try:
+            if self._preview_worker_running:
+                self._preview_pending_request = request
+                return
+            self._preview_worker_running = True
+        finally:
+            self._preview_worker_lock.release()
         paths = [fi.path for fi in families]
         total = len(paths)
         done = [0]
@@ -1826,59 +1840,109 @@ class FamilyBrowserDialog(object):
                 return
             batch = list(pending)
             pending[:] = []
-            win.Dispatcher.Invoke(
-                System.Action(
-                    lambda items=batch: self._apply_preview_batch(items, gen)))
+            try:
+                win.Dispatcher.BeginInvoke(
+                    System.Action(
+                        lambda items=batch: self._apply_preview_batch(
+                            items, gen, win, window_gen)))
+            except Exception as ex:
+                libcache._log(u"preview dispatch: {}".format(as_unicode(ex)))
 
         def worker():
-            for path in paths:
-                if (gen != self._preview_gen
-                        or self.win is not win
-                        or window_gen != self._window_gen):
-                    return
-                if path in self._preview_mem or path in self._preview_miss:
+            try:
+                for path in paths:
+                    if (gen != self._preview_gen
+                            or self.win is not win
+                            or window_gen != self._window_gen):
+                        return
+                    if path in self._preview_mem:
+                        done[0] += 1
+                        continue
+                    png = rfa_preview.read_cached_png_bytes(path)
+                    if not png and not disk_only:
+                        png = rfa_preview.extract_preview_png_bytes(path)
                     done[0] += 1
-                    continue
-                png = rfa_preview.read_cached_png_bytes(path)
-                if not png and not disk_only:
-                    png = rfa_preview.extract_preview_png_bytes(path)
-                done[0] += 1
-                if not png and not disk_only:
-                    self._preview_miss.add(path)
-                elif gen == self._preview_gen:
-                    loaded[0] += 1
-                    pending.append((path, png))
-                    if len(pending) >= 20:
+                    if png and gen == self._preview_gen:
+                        loaded[0] += 1
+                        pending.append((path, png))
+                        if len(pending) >= 20:
+                            flush_pending()
+                    if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
                         flush_pending()
-                if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
-                    flush_pending()
                     if (gen == self._preview_gen and not self._virtual_mode
                             and self.win is win
                             and window_gen == self._window_gen):
                         msg = i18n.t("previews_progress",
                                        done=done[0], total=total)
-                        win.Dispatcher.Invoke(
-                            System.Action(lambda m=msg: self._set_status(m)))
-            flush_pending()
-            if (gen == self._preview_gen and not self._virtual_mode
-                    and self.win is win
-                    and window_gen == self._window_gen):
-                msg = i18n.t("previews_done", n=total)
-                win.Dispatcher.Invoke(
-                    System.Action(lambda m=msg: self._set_status(m)))
+                        try:
+                            win.Dispatcher.BeginInvoke(
+                                System.Action(
+                                    lambda m=msg: self._set_preview_status(
+                                        m, win, window_gen)))
+                        except Exception as ex:
+                            libcache._log(
+                                u"preview progress dispatch: {}".format(
+                                    as_unicode(ex)))
+                flush_pending()
+                if (gen == self._preview_gen and not self._virtual_mode
+                        and self.win is win
+                        and window_gen == self._window_gen):
+                    msg = i18n.t("previews_done", n=total)
+                    try:
+                        win.Dispatcher.BeginInvoke(
+                            System.Action(
+                                lambda m=msg: self._set_preview_status(
+                                    m, win, window_gen)))
+                    except Exception as ex:
+                        libcache._log(
+                            u"preview completion dispatch: {}".format(
+                                as_unicode(ex)))
+            except Exception as ex:
+                libcache._log(u"preview worker: {}".format(as_unicode(ex)))
+            finally:
+                self._preview_worker_lock.acquire()
+                try:
+                    self._preview_worker_running = False
+                    pending_request = self._preview_pending_request
+                    self._preview_pending_request = None
+                finally:
+                    self._preview_worker_lock.release()
+                if pending_request is not None:
+                    self._schedule_previews(*pending_request)
 
         t = threading.Thread(target=worker)
         t.setDaemon(True)
         t.start()
 
-    def _apply_preview_batch(self, items, gen):
+    def _set_preview_status(self, message, win, window_gen):
+        if (self.win is not win or window_gen != self._window_gen
+                or self.ui is None):
+            return
+        try:
+            self._set_status(message)
+        except Exception as ex:
+            libcache._log(u"preview status: {}".format(as_unicode(ex)))
+
+    def _apply_preview_batch(self, items, gen, win=None, window_gen=None):
+        if (win is not None
+                and (self.win is not win
+                     or window_gen != self._window_gen
+                     or self.ui is None)):
+            return
         for path, png_bytes in items:
-            self._apply_preview_png(path, png_bytes, gen)
+            try:
+                self._apply_preview_png(path, png_bytes, gen)
+            except Exception as ex:
+                libcache._log(u"preview apply: {}".format(as_unicode(ex)))
 
     def _apply_preview_png(self, path, png_bytes, gen):
         if gen != self._preview_gen:
             return
-        bmp = image_utils.bitmap_from_png_bytes(png_bytes)
+        try:
+            bmp = image_utils.bitmap_from_png_bytes(png_bytes)
+        except Exception as ex:
+            libcache._log(u"preview bitmap: {}".format(as_unicode(ex)))
+            return
         if bmp is None:
             return
         self._preview_mem[path] = bmp
@@ -1888,8 +1952,11 @@ class FamilyBrowserDialog(object):
         fi = self._fi_by_path.get(path)
         if fi is not None:
             fi.preview = bmp
-        preview_img.Source     = bmp
-        preview_img.Visibility = Visibility.Visible
+        try:
+            preview_img.Source     = bmp
+            preview_img.Visibility = Visibility.Visible
+        except Exception as ex:
+            libcache._log(u"preview image: {}".format(as_unicode(ex)))
 
     def _set_card_selected(self, path, selected):
         card = self._card_by_path.get(path)
