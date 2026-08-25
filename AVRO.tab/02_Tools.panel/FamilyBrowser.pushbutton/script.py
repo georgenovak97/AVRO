@@ -2008,8 +2008,7 @@ class FamilyBrowserDialog(object):
         if not families:
             return
         try:
-            self._set_status(i18n.t("previews_progress", done=0,
-                                    total=len(families)))
+            self._set_status(i18n.t("previews_progress"))
         except Exception:
             pass
         request = (list(families), disk_only)
@@ -2113,8 +2112,7 @@ class FamilyBrowserDialog(object):
                             and window_gen == self._window_gen
                             and now - last_status_at[0]
                             >= _PREVIEW_STATUS_INTERVAL_S):
-                        msg = i18n.t("previews_progress",
-                                       done=done[0], total=total)
+                        msg = i18n.t("previews_progress")
                         last_status_at[0] = now
                         try:
                             win.Dispatcher.BeginInvoke(

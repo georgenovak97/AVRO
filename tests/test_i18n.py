@@ -52,6 +52,13 @@ class I18nTests(unittest.TestCase):
         self.assertEqual(
             i18n.t(u"previews_extracting"), u"Preparing previews…")
 
+    def test_preview_processing_status_has_no_counter(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"previews_progress"), u"Обработка семейств…")
+        i18n.set_language(u"en")
+        self.assertEqual(
+            i18n.t(u"previews_progress"), u"Processing families…")
+
     def test_missing_key_returns_key_name(self):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"__missing_key__"), u"__missing_key__")
