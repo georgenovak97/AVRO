@@ -192,47 +192,46 @@
                     </Grid>
                 </Border>
 
-                <!-- Search | Search | Reset -->
+                <!-- Search with automatic filtering and inline clear button -->
                 <Border Grid.Row="1" Background="{DynamicResource BgToolbar}"
                         BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1"
                         Padding="8,6">
                     <Grid VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Grid Grid.Column="0" Margin="0,0,8,0">
-                            <TextBox x:Name="SearchBox" Padding="6,4"
-                                     Height="26"
-                                     VerticalContentAlignment="Center"/>
-                            <TextBlock x:Name="SearchHint" Text="Поиск семейств…"
-                                       IsHitTestVisible="False"
-                                       VerticalAlignment="Center" Margin="8,0,0,0"
-                                       Foreground="{DynamicResource TextMuted}" FontSize="11">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-
-                        <Button x:Name="BtnRunSearch" Grid.Column="1"
-                                Content="Поиск"
-                                Style="{StaticResource RevitButton}"
-                                MinWidth="72" Height="26" Padding="10,2"
-                                Margin="0,0,6,0"/>
-                        <Button x:Name="BtnResetSearch" Grid.Column="2"
-                                Content="Сброс"
-                                Style="{StaticResource RevitButton}"
-                                MinWidth="72" Height="26" Padding="10,2"/>
+                        <TextBox x:Name="SearchBox" Padding="6,4,30,4"
+                                 Height="26"
+                                 VerticalContentAlignment="Center"/>
+                        <TextBlock x:Name="SearchHint" Text="Поиск семейств…"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                   Foreground="{DynamicResource TextMuted}" FontSize="11">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button x:Name="BtnClearSearch"
+                                Content="✕"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Width="24" Height="24" Margin="0,0,4,0">
+                            <Button.Style>
+                                <Style TargetType="Button"
+                                       BasedOn="{StaticResource ClearSearchButton}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </Grid>
                 </Border>
 

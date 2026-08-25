@@ -105,8 +105,7 @@ def _sync_card_colors(palette):
 _sync_card_colors(ui_theme.LIGHT)
 
 _UI_CONTROL_NAMES = [
-    "SearchBox", "SearchHint", "LblFolder",
-    "BtnRunSearch", "BtnResetSearch",
+    "SearchBox", "SearchHint", "LblFolder", "BtnClearSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
     "CategoryTree", "BtnSettings", "BtnReload", "BtnLoad",
     "FamilyPanel", "FamilyScrollViewer",
@@ -359,12 +358,9 @@ class FamilyBrowserDialog(object):
         filters_title = getattr(self.ui, "FiltersTitle", None)
         if filters_title is not None:
             filters_title.Text = i18n.t("filters_title")
-        btn_run = getattr(self.ui, "BtnRunSearch", None)
-        if btn_run is not None:
-            btn_run.Content = i18n.t("btn_run_search")
-        btn_reset = getattr(self.ui, "BtnResetSearch", None)
-        if btn_reset is not None:
-            btn_reset.Content = i18n.t("btn_reset_search")
+        btn_clear = getattr(self.ui, "BtnClearSearch", None)
+        if btn_clear is not None:
+            btn_clear.ToolTip = i18n.t("clear_search_tooltip")
         props_title = getattr(self.ui, "PropsTitle", None)
         if props_title is not None:
             props_title.Text = i18n.t("props_title")
@@ -814,12 +810,10 @@ class FamilyBrowserDialog(object):
                 u.FamilyScrollViewer.SizeChanged -= self._on_family_panel_resize
                 u.BtnSettings.Click -= self._library_controller.on_settings
                 u.BtnReload.Click -= self._library_controller.on_reload
-                btn_run = getattr(u, "BtnRunSearch", None)
-                if btn_run is not None:
-                    btn_run.Click -= self._on_run_search
-                btn_reset = getattr(u, "BtnResetSearch", None)
-                if btn_reset is not None:
-                    btn_reset.Click -= self._on_reset_search
+                u.SearchBox.TextChanged -= self._on_search
+                btn_clear = getattr(u, "BtnClearSearch", None)
+                if btn_clear is not None:
+                    btn_clear.Click -= self._on_reset_search
             except Exception:
                 pass
             panel = self._family_panel_bound
@@ -881,18 +875,16 @@ class FamilyBrowserDialog(object):
         u = self.ui
         self.win.PreviewKeyDown            += self._on_window_preview_keydown
         u.SearchBox.KeyDown                += self._on_search_box_keydown
+        u.SearchBox.TextChanged            += self._on_search
         u.CategoryTree.SelectedItemChanged += self._on_cat_selected
         u.FamilyScrollViewer.ScrollChanged += self._on_family_scroll
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._library_controller.on_settings
         u.BtnReload.Click                  += self._library_controller.on_reload
         u.BtnLoad.Click                    += self._on_btn_load
-        btn_run = getattr(u, "BtnRunSearch", None)
-        if btn_run is not None:
-            btn_run.Click += self._on_run_search
-        btn_reset = getattr(u, "BtnResetSearch", None)
-        if btn_reset is not None:
-            btn_reset.Click += self._on_reset_search
+        btn_clear = getattr(u, "BtnClearSearch", None)
+        if btn_clear is not None:
+            btn_clear.Click += self._on_reset_search
         self._props_controller.reset()
 
 
@@ -996,14 +988,6 @@ class FamilyBrowserDialog(object):
             pass
         return k
 
-    def _on_run_search(self, sender, e):
-        query = u""
-        try:
-            query = as_unicode(self.ui.SearchBox.Text)
-        except Exception:
-            query = u""
-        self._apply_search(query)
-
     def _on_reset_search(self, sender, e):
         self._stop_search_timer()
         self._active_search_query = u""
@@ -1018,7 +1002,8 @@ class FamilyBrowserDialog(object):
         try:
             if e.Key == Key.Enter:
                 e.Handled = True
-                self._on_run_search(sender, e)
+                self._stop_search_timer()
+                self._apply_search(self.ui.SearchBox.Text)
         except Exception:
             pass
 
