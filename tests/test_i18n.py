@@ -59,13 +59,11 @@ class I18nTests(unittest.TestCase):
         self.assertEqual(
             i18n.t(u"previews_progress"), u"Processing families…")
 
-    def test_scan_status_has_only_family_count(self):
+    def test_scan_status_is_done(self):
         i18n.set_language(u"ru")
-        self.assertEqual(i18n.t(u"loaded_saved", n=2763),
-                         u"Просканировано: 2763 семейств")
+        self.assertEqual(i18n.t(u"loaded_saved"), u"Готово")
         i18n.set_language(u"en")
-        self.assertEqual(i18n.t(u"loaded_saved", n=2763),
-                         u"Scanned: 2763 families")
+        self.assertEqual(i18n.t(u"loaded_saved"), u"Done")
 
     def test_missing_key_returns_key_name(self):
         i18n.set_language(u"en")

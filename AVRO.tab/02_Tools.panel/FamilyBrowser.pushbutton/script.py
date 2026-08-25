@@ -1262,7 +1262,7 @@ class FamilyBrowserDialog(object):
     def _cache_save_done(self, saved, save_msg, total):
         if saved:
             self._set_status(
-                i18n.t("loaded_saved", n=total))
+                i18n.t("loaded_saved"))
         else:
             self._set_status(i18n.t("loaded_no_cache", n=total))
 
