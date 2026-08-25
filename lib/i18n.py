@@ -167,7 +167,7 @@ _STRINGS = {
         u"btn_library_tooltip": u"Выбрать папку библиотеки",
         u"btn_reload": u"Обновить",
         u"btn_reload_tooltip": u"Пересканировать библиотеку и очистить «Недавние»",
-        u"btn_load": u"Загрузить",
+        u"btn_load": u"Загрузка",
         u"btn_load_tooltip": u"Выбрать семейства для загрузки",
         u"btn_load_tooltip_sel": u"Загрузить выбранные семейства в проект",
         u"size_mb": u"{:.2f} МБ",

@@ -31,7 +31,7 @@ class I18nTests(unittest.TestCase):
 
     def test_translate_known_key_in_ru(self):
         i18n.set_language(u"ru")
-        self.assertEqual(i18n.t(u"btn_load"), u"Загрузить")
+        self.assertEqual(i18n.t(u"btn_load"), u"Загрузка")
         self.assertEqual(i18n.t(u"props_unknown"), u"Неизвестно")
 
     def test_translate_known_key_in_en(self):
