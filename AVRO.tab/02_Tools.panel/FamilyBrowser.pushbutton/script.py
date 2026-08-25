@@ -2066,8 +2066,7 @@ class FamilyBrowserDialog(object):
                             self._preview_miss.pop(path, None)
                     extraction_completed = False
                     if not disk_only and gen == self._preview_gen:
-                        msg = i18n.t("previews_extracting",
-                                       current=done[0] + 1, total=total)
+                        msg = i18n.t("previews_extracting")
                         try:
                             win.Dispatcher.BeginInvoke(
                                 System.Action(
