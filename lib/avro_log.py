@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Small centralized logger for AVRO extension (best-effort, never raises)."""
 import codecs
+import threading
 import time
 
 import config
@@ -9,6 +10,8 @@ try:
     unicode
 except NameError:  # python3 tests
     unicode = str
+
+_LOG_LOCK = threading.RLock()
 
 
 def _u(text):
@@ -31,14 +34,15 @@ def _u(text):
 def write(scope, message):
     """Write one structured line into tmp/cache.log."""
     try:
-        config._ensure_dir()
-        line = u"[{}] [{}] {}\n".format(
-            time.strftime("%Y-%m-%d %H:%M:%S"),
-            _u(scope),
-            _u(message),
-        )
-        with codecs.open(config.LOG_FILE, "a", "utf-8") as f:
-            f.write(line)
+        with _LOG_LOCK:
+            config._ensure_dir()
+            line = u"[{}] [{}] {}\n".format(
+                time.strftime("%Y-%m-%d %H:%M:%S"),
+                _u(scope),
+                _u(message),
+            )
+            with codecs.open(config.LOG_FILE, "a", "utf-8") as f:
+                f.write(line)
     except Exception:
         pass
 

@@ -42,11 +42,12 @@ def _ensure_dir(path=None):
 
 def _log(msg):
     try:
-        _ensure_dir()
-        line = u"[{}] {}\n".format(
-            time.strftime("%Y-%m-%d %H:%M:%S"), _u(msg))
-        with codecs.open(LOG_FILE, "a", "utf-8") as f:
-            f.write(line)
+        with _IO_LOCK:
+            _ensure_dir()
+            line = u"[{}] {}\n".format(
+                time.strftime("%Y-%m-%d %H:%M:%S"), _u(msg))
+            with codecs.open(LOG_FILE, "a", "utf-8") as f:
+                f.write(line)
     except Exception:
         pass
 

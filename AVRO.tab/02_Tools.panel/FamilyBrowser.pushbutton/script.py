@@ -116,7 +116,7 @@ _UI_CONTROL_NAMES = [
 # ---------------------------------------------------------------------------
 # Load XAML
 # ---------------------------------------------------------------------------
-_TAG_FOLDER_PREFIX = "folder:"
+_TAG_FOLDER_PREFIX = u"folder:"
 # Build medium folder grids in UI batches so the window stays responsive.
 _CARD_UI_BATCH = 80
 _CARD_UI_BATCH_THRESHOLD = 100
@@ -228,9 +228,11 @@ class FamilyBrowserDialog(object):
         self._active = []
         self._preview_gen = 0
         self._preview_mem = {}
+        self._preview_mem_lock = threading.RLock()
         self._preview_miss = set()
         self._card_views = {}
         self._preview_worker_lock = threading.Lock()
+        self._state_lock = threading.RLock()
         self._preview_worker_running = False
         self._preview_pending_request = None
         self._card_by_path = {}
@@ -254,6 +256,9 @@ class FamilyBrowserDialog(object):
         self._browse_disk_only = False
         self._card_build_gen = 0
         self._initial_load_started = False
+        self._load_state = "idle"
+        self._initial_load_result = None
+        self._pending_scan_result = None
         self._pending_symbol_id = None
         self._pending_family_name = u""
         self._pending_family_path = None
@@ -274,6 +279,7 @@ class FamilyBrowserDialog(object):
         self._project_family_index_doc = None
         self._last_escape_press_at = 0.0
         self._window_gen = 0
+        self._window_closing = False
         self._scan_gen = 0
         self._show_catalog_after_scan = False
 
@@ -283,6 +289,7 @@ class FamilyBrowserDialog(object):
         self._grid_relayout_gen = 0
         self._last_escape_press_at = 0.0
         self._load_mode = False
+        self._window_closing = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self._restore_window_geometry()
@@ -305,6 +312,44 @@ class FamilyBrowserDialog(object):
         self.win.SizeChanged += self._on_window_resize
         self.win.Closing += self._on_window_closing
         self._start_project_family_index_build()
+        self._publish_pending_loads()
+
+    def _publish_pending_loads(self):
+        """Publish data completed while no Family Browser window existed."""
+        with self._state_lock:
+            initial = self._initial_load_result
+            scan_result = self._pending_scan_result
+            self._initial_load_result = None
+            self._pending_scan_result = None
+        if initial is not None:
+            if not self._dispatch_current_window(
+                    lambda: self._on_initial_load_done(*initial)):
+                with self._state_lock:
+                    self._initial_load_result = initial
+        if scan_result is not None:
+            scan, scan_gen, error = scan_result
+            if error:
+                published = self._dispatch_current_window(
+                    lambda msg=error: self._set_status(msg))
+            else:
+                published = self._dispatch_current_window(
+                    lambda value=scan, gen=scan_gen:
+                    self._scan_done(value, gen))
+            if not published:
+                with self._state_lock:
+                    self._pending_scan_result = scan_result
+
+    def _dispatch_current_window(self, callback):
+        """Queue a UI callback only for the currently live WPF window."""
+        win = self.win
+        if win is None:
+            return False
+        try:
+            win.Dispatcher.BeginInvoke(System.Action(callback))
+            return True
+        except Exception as ex:
+            libcache._log(u"ui callback: {}".format(as_unicode(ex)))
+            return False
 
     def _restore_window_geometry(self):
         """Restore the user's window bounds before rebuilding the catalog."""
@@ -475,6 +520,8 @@ class FamilyBrowserDialog(object):
 
     def _restore_ui_after_reopen(self):
         if not self._scan.get("all"):
+            self._set_status(i18n.t("loading_cache"))
+            self._publish_pending_loads()
             return
         self._reopen_layout_pending = True
         self._build_tree(self._scan)
@@ -617,20 +664,22 @@ class FamilyBrowserDialog(object):
         key = self._cache_key()
         if not key or not self._scan.get("all"):
             return
-        _save_sticky_session(key, self._preview_mem, self._preview_miss)
+        preview_miss = set(self._preview_miss)
         if async_save:
             scan = self._scan
             t = threading.Thread(
-                target=self._persist_cache_worker, args=(key, scan))
+                target=self._persist_cache_worker,
+                args=(key, scan, preview_miss))
             t.setDaemon(True)
             t.start()
             return
-        self._persist_cache_worker(key, self._scan)
+        self._persist_cache_worker(key, self._scan, preview_miss)
 
-    def _persist_cache_worker(self, key, scan):
+    def _persist_cache_worker(self, key, scan, preview_miss=None):
         try:
             saved, msg = libcache.save(
                 key, scan, None)
+            _save_sticky_session(key, {}, preview_miss or set())
             if saved:
                 config.patch_fields({
                     "library_cache_hash": libcache.key_hash(key),
@@ -642,25 +691,18 @@ class FamilyBrowserDialog(object):
             libcache._log(u"persist worker: {}".format(as_unicode(ex)))
 
     def _start_initial_load(self):
-        if self._initial_load_started:
+        if self._initial_load_started or self._load_state not in ("idle", "error"):
             return
         self._initial_load_started = True
+        self._load_state = "loading_cache"
         paths = self._library_paths()
         key = libcache.cache_key(paths)
-        win = self.win
-        gen = self._window_gen
         libcache._log(u"startup paths={} key={}".format(paths, key))
 
         def worker():
             scan, disk_miss, err = None, set(), u"no_key"
             try:
                 if key and libcache.cache_available(key):
-                    if self.win is not win or gen != self._window_gen:
-                        return
-                    win.Dispatcher.Invoke(
-                        System.Action(
-                            lambda: self._set_status(
-                                i18n.t("loading_cache"))))
                     scan, disk_miss, err = libcache.load(key)
                     if scan is None:
                         err = err or u"load_failed"
@@ -669,18 +711,27 @@ class FamilyBrowserDialog(object):
             except Exception as ex:
                 err = unicode(ex)
                 libcache._log(u"startup worker error: {}".format(err))
-            if self.win is not win or gen != self._window_gen:
-                return
-            win.Dispatcher.Invoke(
-                System.Action(
-                    lambda: self._on_initial_load_done(scan, disk_miss, err)))
+            result = (scan, disk_miss, err)
+            with self._state_lock:
+                if self.win is None or self._window_closing:
+                    self._initial_load_result = result
+                    return
+            if not self._dispatch_current_window(
+                    lambda: self._on_initial_load_done(*result)):
+                with self._state_lock:
+                    self._initial_load_result = result
 
         t = threading.Thread(target=worker)
         t.setDaemon(True)
         t.start()
 
     def _on_initial_load_done(self, scan, disk_miss, err):
+        if self.ui is None or self.win is None:
+            with self._state_lock:
+                self._initial_load_result = (scan, disk_miss, err)
+            return
         if scan is not None:
+            self._load_state = "ready"
             libcache._log(u"startup using cache (not scanning folders)")
             self._apply_cache(scan, disk_miss)
             return
@@ -689,9 +740,11 @@ class FamilyBrowserDialog(object):
         self._build_tree({"roots": [], "all": [], "index": {}})
         self._show_recents_default()
         if self._library_path():
+            self._load_state = "scanning"
             self._set_status(i18n.t("scanning"))
             self._schedule_scan()
             return
+        self._load_state = "error"
         self._set_status(i18n.t("cache_not_found"))
 
     def _apply_cache(self, scan, disk_miss):
@@ -701,9 +754,11 @@ class FamilyBrowserDialog(object):
         self._scan = self._normalize_scan(scan)
         sk = libcache.cache_key(list(sticky_key)) if sticky_key else None
         if sk == self._cache_key() and sticky_mem:
-            self._preview_mem = dict(sticky_mem)
+            with self._preview_mem_lock:
+                self._preview_mem = dict(sticky_mem)
         else:
-            self._preview_mem = {}
+            with self._preview_mem_lock:
+                self._preview_mem = {}
         # Never restore preview_miss (old disk-only sessions blocked all thumbnails).
         self._preview_miss = set()
 
@@ -723,10 +778,6 @@ class FamilyBrowserDialog(object):
         try:
             if self.win.WindowState == System.Windows.WindowState.Minimized:
                 self.win.WindowState = System.Windows.WindowState.Normal
-        except Exception:
-            pass
-        try:
-            self.win.Show()
         except Exception:
             pass
         try:
@@ -754,6 +805,7 @@ class FamilyBrowserDialog(object):
 
     def _on_window_closing(self, sender, e):
         try:
+            self._window_closing = True
             self._window_gen += 1
             self._stop_search_timer()
             self._stop_grid_relayout_timer()
@@ -822,6 +874,9 @@ class FamilyBrowserDialog(object):
                 u.BtnSettings.Click -= self._library_controller.on_settings
                 u.BtnReload.Click -= self._library_controller.on_reload
                 u.SearchBox.TextChanged -= self._on_search
+                btn_load = getattr(u, "BtnLoad", None)
+                if btn_load is not None:
+                    btn_load.Click -= self._on_btn_load
                 btn_clear = getattr(u, "BtnClearSearch", None)
                 if btn_clear is not None:
                     btn_clear.Click -= self._on_reset_search
@@ -843,7 +898,8 @@ class FamilyBrowserDialog(object):
             except Exception:
                 pass
 
-        self._preview_mem.clear()
+        with self._preview_mem_lock:
+            self._preview_mem.clear()
         self._preview_miss.clear()
         self._card_views.clear()
         self._card_by_path.clear()
@@ -1053,36 +1109,39 @@ class FamilyBrowserDialog(object):
     def _do_scan(self, paths, scan_gen, win, window_gen):
         try:
             def progress(n):
-                if self.win is not win or window_gen != self._window_gen:
-                    return
                 if scan_gen != self._scan_gen:
                     return
-                win.Dispatcher.BeginInvoke(
-                    System.Action(
-                        lambda c=n: self._set_status(
-                            i18n.t("scanning_progress", n=c))))
+                self._dispatch_current_window(
+                    lambda c=n: self._set_status(
+                        i18n.t("scanning_progress", n=c)))
 
             scan = scanner.scan_library(paths, progress_cb=progress)
         except Exception as ex:
             msg = i18n.t("scan_error", err=as_unicode(ex))
-            if self.win is not win or window_gen != self._window_gen:
-                return
             if scan_gen != self._scan_gen:
                 return
-            win.Dispatcher.BeginInvoke(
-                System.Action(lambda: self._set_status(msg)))
-            return
-        if self.win is not win or window_gen != self._window_gen:
+            self._load_state = "error"
+            if self._window_closing or not self._dispatch_current_window(
+                    lambda: self._set_status(msg)):
+                with self._state_lock:
+                    self._pending_scan_result = (None, scan_gen, msg)
             return
         if scan_gen != self._scan_gen:
             return
-        win.Dispatcher.BeginInvoke(
-            System.Action(lambda: self._scan_done(scan, scan_gen)))
+        if self._window_closing or not self._dispatch_current_window(
+                lambda: self._scan_done(scan, scan_gen)):
+            with self._state_lock:
+                self._pending_scan_result = (scan, scan_gen, None)
 
     def _scan_done(self, scan, scan_gen=None):
         if scan_gen is not None and scan_gen != self._scan_gen:
             return
+        if self.ui is None or self.win is None:
+            with self._state_lock:
+                self._pending_scan_result = (scan, scan_gen, None)
+            return
         self._scan = self._normalize_scan(scan)
+        self._load_state = "ready"
         total = len(self._scan.get("all", []))
         n_folders = len(self._scan.get("index", {}))
         self._preview_miss = set()
@@ -1099,30 +1158,24 @@ class FamilyBrowserDialog(object):
         t = threading.Thread(
             target=self._save_scan_cache,
             args=(self._scan, scan_gen, self.win, self._window_gen,
-                  total, n_folders))
+                  total, n_folders, set(self._preview_miss)))
         t.setDaemon(True)
         t.start()
 
     def _save_scan_cache(self, scan, scan_gen, win, window_gen,
-                         total, n_folders):
+                         total, n_folders, preview_miss=None):
         key = self._cache_key()
         saved, save_msg = libcache.save(key, scan, None)
-        self.cfg = config.load()
         if saved:
             config.patch_fields({
                 "library_cache_hash": libcache.key_hash(key),
                 "library_cache_count": total,
             })
-            self.cfg = config.load()
-        _save_sticky_session(key, self._preview_mem, self._preview_miss)
-        if self.win is not win or window_gen != self._window_gen:
-            return
+        _save_sticky_session(key, {}, preview_miss or set())
         if scan_gen != self._scan_gen:
             return
-        win.Dispatcher.BeginInvoke(
-            System.Action(
-                lambda: self._cache_save_done(
-                    saved, save_msg, total, n_folders)))
+        self._dispatch_current_window(
+            lambda: self._cache_save_done(saved, save_msg, total, n_folders))
 
     def _cache_save_done(self, saved, save_msg, total, n_folders):
         if saved:
@@ -1278,7 +1331,7 @@ class FamilyBrowserDialog(object):
         if tag == "__recent__":
             self._open_catalog(
                 self._recent_families(), i18n.t("recent"), is_recent=True)
-        elif isinstance(tag, str) and tag.startswith(_TAG_FOLDER_PREFIX):
+        elif tag and tag.startswith(_TAG_FOLDER_PREFIX):
             folder_path = os.path.normpath(tag[len(_TAG_FOLDER_PREFIX):])
             node = self._scan.get("index", {}).get(folder_path)
             if node:
@@ -1523,7 +1576,6 @@ class FamilyBrowserDialog(object):
                 self._on_load_mode_card_click(fi, e)
                 return
             self._select_paths([fi.path], replace=True)
-            family_browser_props._yield_ui()
             self._on_card_click(card, fi, e)
         elif e.ChangedButton == MouseButton.Right:
             self._on_card_right_click(card, fi, e)
@@ -1692,8 +1744,10 @@ class FamilyBrowserDialog(object):
 
     def _add_family_card(self, fi, index=None):
         panel = self.ui.FamilyPanel
-        if fi.path in self._preview_mem:
-            fi.preview = self._preview_mem[fi.path]
+        with self._preview_mem_lock:
+            preview = self._preview_mem.get(fi.path)
+        if preview is not None:
+            fi.preview = preview
         _cols, card_w, card_h, _gap, _vw, _pad_l, _pad_tb, _pad_r = self._layout_metrics()
         card, preview_img = _make_card(fi, self, card_w=card_w, card_h=card_h)
         self._fi_by_path[fi.path] = fi
@@ -1855,12 +1909,19 @@ class FamilyBrowserDialog(object):
                             or self.win is not win
                             or window_gen != self._window_gen):
                         return
-                    if path in self._preview_mem:
+                    with self._preview_mem_lock:
+                        preview_loaded = path in self._preview_mem
+                    if preview_loaded:
                         done[0] += 1
                         continue
-                    png = rfa_preview.read_cached_png_bytes(path)
-                    if not png and not disk_only:
-                        png = rfa_preview.extract_preview_png_bytes(path)
+                    try:
+                        png = rfa_preview.read_cached_png_bytes(path)
+                        if not png and not disk_only:
+                            png = rfa_preview.extract_preview_png_bytes(path)
+                    except Exception as ex:
+                        png = None
+                        libcache._log(u"preview file {}: {}".format(
+                            path, as_unicode(ex)))
                     done[0] += 1
                     if png and gen == self._preview_gen:
                         loaded[0] += 1
@@ -1945,7 +2006,8 @@ class FamilyBrowserDialog(object):
             return
         if bmp is None:
             return
-        self._preview_mem[path] = bmp
+        with self._preview_mem_lock:
+            self._preview_mem[path] = bmp
         preview_img = self._card_views.get(path)
         if preview_img is None:
             return
@@ -2197,26 +2259,15 @@ class FamilyBrowserDialog(object):
         except Exception as ex:
             last_error = ex
 
-        for index in range(30):
-            time.sleep(0.5)
-            self._pump_ui_before_reopen()
-            try:
-                fam = self._find_family_in_project(fi)
-                if fam is not None:
-                    symbol = self._get_placeable_symbol(fam, fi)
-                    if symbol is not None:
-                        self._activate_symbol(symbol)
-                        return self._prompt_place_family(uidoc, symbol, fi)
-            except Exception as ex:
-                last_error = ex
-
-            if index > 0 and index % 10 == 0:
-                try:
-                    symbol = self._get_family_symbol_single(fi)
-                    if symbol is not None:
-                        return self._prompt_place_family(uidoc, symbol, fi)
-                except Exception as ex:
-                    last_error = ex
+        try:
+            fam = self._find_family_in_project(fi)
+            if fam is not None:
+                symbol = self._get_placeable_symbol(fam, fi)
+                if symbol is not None:
+                    self._activate_symbol(symbol)
+                    return self._prompt_place_family(uidoc, symbol, fi)
+        except Exception as ex:
+            last_error = ex
 
         return i18n.t("placement_error", err=as_unicode(last_error))
 
@@ -2227,45 +2278,19 @@ class FamilyBrowserDialog(object):
             return i18n.t("placement_cancelled")
         return i18n.t("placed", name=fi.name)
 
-    def _pump_ui_before_reopen(self):
-        """Let Revit/WPF finish the placement command before ShowDialog again."""
-        timeout_timer = None
+    def _activate_revit_window(self):
+        """Best-effort foreground restore after the modal WPF window exits."""
         try:
-            from System.Windows.Threading import (
-                Dispatcher, DispatcherFrame, DispatcherPriority)
-            app = System.Windows.Application.Current
-            if app is not None:
-                frame = DispatcherFrame()
-
-                def stop_frame():
-                    frame.Continue = False
-
-                def stop_frame_on_timeout(sender, args):
-                    frame.Continue = False
-
-                timeout_timer = DispatcherTimer()
-                timeout_timer.Interval = System.TimeSpan.FromSeconds(3)
-                timeout_timer.Tick += stop_frame_on_timeout
-                timeout_timer.Start()
-                app.Dispatcher.BeginInvoke(
-                    DispatcherPriority.ApplicationIdle,
-                    System.Action(stop_frame))
-                Dispatcher.PushFrame(frame)
-                timeout_timer.Stop()
-                timeout_timer.Tick -= stop_frame_on_timeout
+            import ctypes
+            handle = int(revit.uidoc.Application.MainWindowHandle)
+            if not handle:
                 return
+            user32 = ctypes.windll.user32
+            user32.ShowWindow(handle, 9)  # SW_RESTORE
+            user32.BringWindowToTop(handle)
+            user32.SetForegroundWindow(handle)
         except Exception as ex:
-            libcache._log(u"pump_ui: {}".format(as_unicode(ex)))
-        finally:
-            if timeout_timer is not None:
-                try:
-                    timeout_timer.Stop()
-                except Exception:
-                    pass
-        try:
-            System.Threading.Thread.Sleep(200)
-        except Exception:
-            pass
+            libcache._log(u"revit activate: {}".format(as_unicode(ex)))
 
     def _load_families(self, paths):
         t = None
@@ -2338,51 +2363,54 @@ class FamilyBrowserDialog(object):
         i18n.init_from_config()
         ribbon_i18n.init_from_config()
         first_open = True
-        while True:
-            self._init_window()
-            if first_open:
-                self._set_status(i18n.t("opening"))
-                self._start_initial_load()
-                first_open = False
-            else:
-                i18n.init_from_config()
-                self._apply_language()
-                self._restore_ui_after_reopen()
-                if self._placement_status_msg:
-                    self._set_status(self._placement_status_msg)
-                    self._placement_status_msg = None
+        try:
+            while True:
+                self._init_window()
+                if first_open:
+                    self._set_status(i18n.t("opening"))
+                    self._start_initial_load()
+                    first_open = False
+                else:
+                    i18n.init_from_config()
+                    self._apply_language()
+                    self._restore_ui_after_reopen()
+                    if self._placement_status_msg:
+                        self._set_status(self._placement_status_msg)
+                        self._placement_status_msg = None
 
-            try:
-                self.win.ShowDialog()
-            except Exception as ex:
-                libcache._log(u"show dialog: {}".format(as_unicode(ex)))
                 try:
-                    self._cleanup_window_resources()
-                except Exception as cleanup_ex:
-                    libcache._log(
-                        u"show dialog cleanup: {}".format(
-                            as_unicode(cleanup_ex)))
+                    self.win.ShowDialog()
+                except Exception as ex:
+                    libcache._log(u"show dialog: {}".format(as_unicode(ex)))
+                    break
+
+                pending_id = self._pending_symbol_id
+                pending_fi = self._pending_placement_fi
+                self._pending_symbol_id = None
+                self._pending_placement_fi = None
+                self._pending_family_name = u""
+                self._pending_family_path = None
                 self.win = None
                 self.ui = None
-                break
 
-            pending_id = self._pending_symbol_id
-            pending_fi = self._pending_placement_fi
-            self._pending_symbol_id = None
-            self._pending_placement_fi = None
-            self._pending_family_name = u""
-            self._pending_family_path = None
+                if pending_fi is None and not pending_id:
+                    break
+
+                if pending_fi is not None:
+                    self._placement_status_msg = self._run_pending_placement(pending_fi)
+                else:
+                    self._placement_status_msg = self._run_pending_placement(None)
+                # PromptForFamilyInstancePlacement has returned; reopen directly.
+        finally:
+            self._window_closing = True
+            try:
+                if self.win is not None:
+                    self._cleanup_window_resources()
+            except Exception as ex:
+                libcache._log(u"show cleanup: {}".format(as_unicode(ex)))
             self.win = None
             self.ui = None
-
-            if pending_fi is None and not pending_id:
-                break
-
-            if pending_fi is not None:
-                self._placement_status_msg = self._run_pending_placement(pending_fi)
-            else:
-                self._placement_status_msg = self._run_pending_placement(None)
-            self._pump_ui_before_reopen()
+            self._activate_revit_window()
 
 
 # ---------------------------------------------------------------------------

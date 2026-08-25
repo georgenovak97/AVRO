@@ -104,17 +104,22 @@ def prune_preview_cache(max_files=5000, max_age_days=30, force=False):
 
 
 def _cache_key(rfa_path):
-    st = os.stat(rfa_path)
+    try:
+        st = os.stat(rfa_path)
+    except (IOError, OSError):
+        return None
     raw = u"{}|{}".format(os.path.normcase(rfa_path), int(st.st_mtime)).encode("utf-8")
     return hashlib.md5(raw).hexdigest()
 
 
 def _cache_path(rfa_path):
-    return os.path.join(THUMB_CACHE_DIR, _cache_key(rfa_path) + ".png")
+    key = _cache_key(rfa_path)
+    return os.path.join(THUMB_CACHE_DIR, key + ".png") if key else None
 
 
 def _cache_path_jpeg(rfa_path):
-    return os.path.join(THUMB_CACHE_DIR, _cache_key(rfa_path) + ".jpg")
+    key = _cache_key(rfa_path)
+    return os.path.join(THUMB_CACHE_DIR, key + ".jpg") if key else None
 
 
 def _write_cache_jpeg(cache_path, jpeg_bytes):
@@ -125,7 +130,7 @@ def _write_cache_jpeg(cache_path, jpeg_bytes):
 
 
 def _read_cache_jpeg(cache_path):
-    if not os.path.isfile(cache_path):
+    if not cache_path or not os.path.isfile(cache_path):
         return None
     try:
         data = _read_file_bytes(cache_path)
@@ -149,7 +154,7 @@ def _write_cache(cache_path, png_bytes):
 
 
 def _read_cache(cache_path):
-    if not os.path.isfile(cache_path):
+    if not cache_path or not os.path.isfile(cache_path):
         return None
     try:
         data = _read_file_bytes(cache_path)

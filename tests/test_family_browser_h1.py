@@ -15,9 +15,12 @@ SCRIPT = os.path.join(
 
 
 class FamilyBrowserH1Tests(unittest.TestCase):
-    def test_restore_window_focus_computes_cache_total(self):
+    def _source_tree(self):
         with open(SCRIPT, "r") as stream:
-            tree = ast.parse(stream.read(), filename=SCRIPT)
+            return ast.parse(stream.read(), filename=SCRIPT)
+
+    def test_restore_window_focus_computes_cache_total(self):
+        tree = self._source_tree()
 
         methods = [
             node
@@ -42,6 +45,37 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIsInstance(value, ast.Call)
         self.assertIsInstance(value.func, ast.Name)
         self.assertEqual(value.func.id, "len")
+
+    def test_placement_flow_does_not_sleep_or_push_nested_dispatcher(self):
+        tree = self._source_tree()
+        names = [
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "time"
+        ]
+        self.assertNotIn("sleep", names)
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        self.assertNotIn("Dispatcher.PushFrame", source)
+
+    def test_reopen_has_loading_fallback_and_final_revit_activation(self):
+        tree = self._source_tree()
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        reopen_source = ast.get_source_segment(
+            source, methods["_restore_ui_after_reopen"])
+        self.assertIn("_publish_pending_loads", reopen_source)
+        show_source = ast.get_source_segment(
+            source, methods["show"])
+        self.assertIn("_activate_revit_window", show_source)
 
 
 if __name__ == "__main__":

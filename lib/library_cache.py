@@ -11,6 +11,7 @@ import os
 import json
 import hashlib
 import codecs
+import threading
 
 import config
 import avro_log
@@ -26,6 +27,7 @@ META_FILE = os.path.join(config.CONFIG_DIR, "library_meta.json")
 PICKLE_FILE = os.path.join(config.CONFIG_DIR, "library_index.pkl")
 INDEX_FILE = os.path.join(config.CONFIG_DIR, "library_index.json")
 LOG_FILE = os.path.join(config.CONFIG_DIR, "cache.log")
+_CACHE_IO_LOCK = threading.RLock()
 
 
 def _log(msg):
@@ -350,7 +352,7 @@ def _read_meta():
         return None
 
 
-def save(key_tuple, scan, preview_miss=None, write_json=True):
+def _save(key_tuple, scan, preview_miss=None, write_json=True):
     if not key_tuple or not scan or not scan.get("all"):
         _log(u"save skipped: empty key or scan")
         return False, u"empty_scan"
@@ -427,6 +429,17 @@ def save(key_tuple, scan, preview_miss=None, write_json=True):
     return False, msg
 
 
+def save(key_tuple, scan, preview_miss=None, write_json=True):
+    """Serialize one cache write at a time.
+
+    Scan completion and window cleanup can request persistence concurrently.
+    The fixed IronPython-compatible temporary names are safe only while this
+    lock is held.
+    """
+    with _CACHE_IO_LOCK:
+        return _save(key_tuple, scan, preview_miss, write_json)
+
+
 def _load_blob_file(path):
     if path.endswith(".pkl"):
         with open(path, "rb") as f:
@@ -490,16 +503,17 @@ def load(key_tuple):
 
 
 def clear():
-    for path in (META_FILE, PICKLE_FILE, PICKLE_FILE + u".tmp",
-                 INDEX_FILE, INDEX_FILE + u".tmp"):
-        if os.path.isfile(path):
-            try:
-                os.remove(path)
-            except Exception:
-                pass
-    try:
-        import rfa_preview
-        rfa_preview.clear_preview_cache()
-    except Exception as ex:
-        _log(u"preview cache clear failed: {}".format(_u(ex)))
-    _log(u"cache cleared")
+    with _CACHE_IO_LOCK:
+        for path in (META_FILE, PICKLE_FILE, PICKLE_FILE + u".tmp",
+                     INDEX_FILE, INDEX_FILE + u".tmp"):
+            if os.path.isfile(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+        try:
+            import rfa_preview
+            rfa_preview.clear_preview_cache()
+        except Exception as ex:
+            _log(u"preview cache clear failed: {}".format(_u(ex)))
+        _log(u"cache cleared")
