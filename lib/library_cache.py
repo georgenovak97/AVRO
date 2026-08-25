@@ -12,6 +12,7 @@ import json
 import hashlib
 import codecs
 import threading
+import glob
 
 import config
 import avro_log
@@ -27,6 +28,7 @@ META_FILE = os.path.join(config.CONFIG_DIR, "library_meta.json")
 PICKLE_FILE = os.path.join(config.CONFIG_DIR, "library_index.pkl")
 INDEX_FILE = os.path.join(config.CONFIG_DIR, "library_index.json")
 LOG_FILE = os.path.join(config.CONFIG_DIR, "cache.log")
+PREVIEW_MISS_VERSION = 1
 _CACHE_IO_LOCK = threading.RLock()
 
 
@@ -146,6 +148,95 @@ def key_hash(key_tuple):
         return u""
     raw = u"|".join(_u(p) for p in key_tuple).encode("utf-8")
     return hashlib.md5(raw).hexdigest()
+
+
+def preview_miss_file(key_tuple):
+    """Return the small persistent negative-preview cache for one library."""
+    kh = key_hash(key_tuple)
+    if not kh:
+        return None
+    return os.path.join(config.CONFIG_DIR, "preview_miss_{}.json".format(kh))
+
+
+def _normalize_preview_misses(entries):
+    """Normalize path->mtime entries; legacy path-only entries are ignored."""
+    if not isinstance(entries, dict):
+        return {}
+    result = {}
+    for path, value in entries.items():
+        path = _norm_path(path)
+        if not path or not isinstance(value, dict):
+            continue
+        try:
+            mtime = float(value.get("mtime"))
+            size = int(value.get("size"))
+        except (TypeError, ValueError):
+            continue
+        if mtime < 0 or size < 0:
+            continue
+        result[path] = {"mtime": mtime, "size": size}
+    return result
+
+
+def load_preview_misses(key_tuple):
+    """Load validated-format negative preview entries for a library key."""
+    path = preview_miss_file(key_tuple)
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with codecs.open(path, "r", "utf-8") as f:
+            data = json.load(f)
+        if data.get("version") != PREVIEW_MISS_VERSION:
+            return {}
+        if data.get("key_hash") != key_hash(key_tuple):
+            return {}
+        return _normalize_preview_misses(data.get("entries"))
+    except Exception as ex:
+        _log(u"preview miss load failed: {}".format(ex))
+        return {}
+
+
+def save_preview_misses(key_tuple, entries):
+    """Atomically save a compact negative preview cache for one library key."""
+    path = preview_miss_file(key_tuple)
+    if not path:
+        return False
+    normalized = _normalize_preview_misses(entries)
+    payload = {
+        "version": PREVIEW_MISS_VERSION,
+        "key_hash": key_hash(key_tuple),
+        "entries": normalized,
+    }
+    tmp = path + u".tmp"
+    with _CACHE_IO_LOCK:
+        try:
+            config._ensure_dir()
+            _write_json_file(tmp, payload, indent=2)
+            if os.path.isfile(path):
+                os.remove(path)
+            os.rename(tmp, path)
+            return True
+        except Exception as ex:
+            _log(u"preview miss save failed: {}".format(ex))
+            try:
+                if os.path.isfile(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+            return False
+
+
+def clear_preview_misses(key_tuple):
+    """Remove the persistent negative preview cache for a library key."""
+    path = preview_miss_file(key_tuple)
+    if not path:
+        return
+    with _CACHE_IO_LOCK:
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+        except Exception as ex:
+            _log(u"preview miss clear failed: {}".format(ex))
 
 
 def _collect_dir_mtimes(root_path, max_depth=2):
@@ -511,6 +602,12 @@ def clear():
                     os.remove(path)
                 except Exception:
                     pass
+        for path in glob.glob(os.path.join(
+                config.CONFIG_DIR, "preview_miss_*.json*")):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
         try:
             import rfa_preview
             rfa_preview.clear_preview_cache()

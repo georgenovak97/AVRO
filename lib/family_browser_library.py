@@ -9,6 +9,7 @@ from System.Windows.Forms import FolderBrowserDialog, DialogResult, NativeWindow
 from System.Windows.Interop import WindowInteropHelper
 import i18n
 import config
+import library_cache
 
 
 class LibraryController(object):
@@ -36,7 +37,7 @@ class LibraryController(object):
             config.clear_recent()
             self.dialog.cfg = config.load()
             self.dialog._preview_mem = {}
-            self.dialog._preview_miss = set()
+            self.dialog._preview_miss = {}
             self.dialog._preview_gen += 1
             self.dialog._show_catalog_after_scan = True
             self.dialog._schedule_scan()
@@ -46,9 +47,11 @@ class LibraryController(object):
             self.dialog._set_status(i18n.t("library_path_required"))
             return
         config.clear_recent()
+        library_cache.clear_preview_misses(
+            library_cache.cache_key(self.dialog._library_paths()))
         self.dialog.cfg = config.load()
         self.dialog._preview_mem = {}
-        self.dialog._preview_miss = set()
+        self.dialog._preview_miss = {}
         self.dialog._preview_gen += 1
         self.dialog._card_build_gen += 1
         self.dialog._show_catalog_after_scan = True

@@ -123,6 +123,8 @@ _CARD_UI_BATCH = 80
 _CARD_UI_BATCH_THRESHOLD = 100
 _CARD_UI_BUDGET_S = 0.020
 _PREVIEW_MEM_LIMIT = 512
+_PREVIEW_FLUSH_BATCH = 5
+_PREVIEW_STATUS_INTERVAL_S = 0.15
 # Above this count only visible cards are created (virtual scroll).
 _VIRTUAL_THRESHOLD = 250
 _VIRTUAL_ROW_BUFFER = 2
@@ -154,9 +156,12 @@ def _load_sticky_session():
         sk = data.get("key")
         if sk is not None and not isinstance(sk, tuple):
             sk = tuple(sk)
-        return sk, {}, set(data.get("preview_miss", []))
+        misses = data.get("preview_miss", {})
+        if not isinstance(misses, dict):
+            misses = {}
+        return sk, {}, misses
     except Exception:
-        return None, {}, set()
+        return None, {}, {}
 
 
 def _save_sticky_session(key, preview_mem, preview_miss):
@@ -167,7 +172,7 @@ def _save_sticky_session(key, preview_mem, preview_miss):
                 "key": list(key),
                 # BitmapImage instances are WPF objects and are not sticky-safe.
                 "preview_mem": {},
-                "preview_miss": sorted(preview_miss),
+                "preview_miss": dict(preview_miss or {}),
             }
         if hasattr(script, "set_sticky"):
             script.set_sticky(_STICKY_KEY, payload)
@@ -194,6 +199,39 @@ def _apply_card_metrics(card, preview_img, card_w, card_h):
 # Dialog class
 # ---------------------------------------------------------------------------
 class FamilyBrowserDialog(object):
+
+    def _file_signature(self, path):
+        try:
+            stat = os.stat(path)
+            return {"mtime": float(stat.st_mtime), "size": int(stat.st_size)}
+        except (IOError, OSError):
+            return None
+
+    def _valid_preview_misses(self, entries):
+        result = {}
+        for path, expected in (entries or {}).items():
+            signature = self._file_signature(path)
+            if signature is None or not isinstance(expected, dict):
+                continue
+            try:
+                if (float(expected.get("mtime")) == signature["mtime"]
+                        and int(expected.get("size")) == signature["size"]):
+                    result[path] = signature
+            except (TypeError, ValueError):
+                continue
+        return result
+
+    def _restore_preview_misses(self, key=None):
+        key = key or self._cache_key()
+        disk_entries = libcache.load_preview_misses(key)
+        sticky_key, _sticky_mem, sticky_entries = _load_sticky_session()
+        sticky_norm = libcache.cache_key(list(sticky_key)) if sticky_key else None
+        restored = dict(disk_entries)
+        if sticky_norm == key:
+            restored.update(sticky_entries)
+        validated = self._valid_preview_misses(restored)
+        with self._preview_mem_lock:
+            self._preview_miss = validated
 
     def _release_number(self, value):
         """Return a two-digit Revit release number from R23 or 2023 text."""
@@ -233,7 +271,7 @@ class FamilyBrowserDialog(object):
         self._preview_mem = {}
         self._preview_mem_lock = threading.RLock()
         self._preview_order = []
-        self._preview_miss = set()
+        self._preview_miss = {}
         self._card_views = {}
         self._preview_worker_lock = threading.Lock()
         self._state_lock = threading.RLock()
@@ -670,7 +708,11 @@ class FamilyBrowserDialog(object):
         key = self._cache_key()
         if not key or not self._scan.get("all"):
             return
-        preview_miss = set(self._preview_miss)
+        with self._preview_mem_lock:
+            preview_miss = dict(self._preview_miss)
+        # The compact sidecar must survive normal Revit shutdown even when
+        # the larger library-index save is deferred to a daemon thread.
+        libcache.save_preview_misses(key, preview_miss)
         if async_save:
             scan = self._scan
             t = threading.Thread(
@@ -683,9 +725,8 @@ class FamilyBrowserDialog(object):
 
     def _persist_cache_worker(self, key, scan, preview_miss=None):
         try:
-            saved, msg = libcache.save(
-                key, scan, None)
-            _save_sticky_session(key, {}, preview_miss or set())
+            saved, msg = libcache.save(key, scan, None)
+            _save_sticky_session(key, {}, preview_miss or {})
             if saved:
                 config.patch_fields({
                     "library_cache_hash": libcache.key_hash(key),
@@ -769,8 +810,9 @@ class FamilyBrowserDialog(object):
             with self._preview_mem_lock:
                 self._preview_mem = {}
                 self._preview_order = []
-        # Never restore preview_miss (old disk-only sessions blocked all thumbnails).
-        self._preview_miss = set()
+        # Legacy path-only misses from the full index are intentionally not
+        # restored; the validated sidecar is the authoritative source.
+        self._restore_preview_misses()
 
         self._build_tree(self._scan)
         if self._show_catalog_after_scan:
@@ -911,7 +953,7 @@ class FamilyBrowserDialog(object):
         with self._preview_mem_lock:
             self._preview_mem.clear()
             self._preview_order = []
-        self._preview_miss.clear()
+        # Preview misses belong to the library, not to this temporary window.
         self._card_views.clear()
         self._card_by_path.clear()
         self._fi_by_path.clear()
@@ -1160,7 +1202,7 @@ class FamilyBrowserDialog(object):
             "families": len(self._scan.get("all", []))})
         total = len(self._scan.get("all", []))
         n_folders = len(self._scan.get("index", {}))
-        self._preview_miss = set()
+        self._restore_preview_misses()
         self._invalidate_project_family_index()
         self._build_tree(self._scan)
         if self._show_catalog_after_scan:
@@ -1174,12 +1216,12 @@ class FamilyBrowserDialog(object):
         t = threading.Thread(
             target=self._save_scan_cache,
             args=(self._scan, scan_gen, self.win, self._window_gen,
-                  total, n_folders, set(self._preview_miss)))
+                  total, n_folders))
         t.setDaemon(True)
         t.start()
 
     def _save_scan_cache(self, scan, scan_gen, win, window_gen,
-                         total, n_folders, preview_miss=None):
+                         total, n_folders):
         key = self._cache_key()
         saved, save_msg = libcache.save(key, scan, None)
         if saved:
@@ -1187,7 +1229,6 @@ class FamilyBrowserDialog(object):
                 "library_cache_hash": libcache.key_hash(key),
                 "library_cache_count": total,
             })
-        _save_sticky_session(key, {}, preview_miss or set())
         if scan_gen != self._scan_gen:
             return
         self._dispatch_current_window(
@@ -1756,7 +1797,6 @@ class FamilyBrowserDialog(object):
         visible = [families[i] for i in range(first_i, last_i)]
         self._preview_gen += 1
         self._schedule_previews(visible, disk_only=False)
-        self._set_status(i18n.t("families_count", n=n))
 
     def _add_family_card(self, fi, index=None):
         panel = self.ui.FamilyPanel
@@ -1810,7 +1850,6 @@ class FamilyBrowserDialog(object):
         self._card_views = {}
         self._card_by_path = {}
         self._fi_by_path = {}
-        self._preview_miss.clear()
         self._order_paths = [fi.path for fi in families]
         self._path_to_index = dict(
             (fi.path, i) for i, fi in enumerate(families))
@@ -1895,6 +1934,11 @@ class FamilyBrowserDialog(object):
         window_gen = self._window_gen
         if not families:
             return
+        try:
+            self._set_status(i18n.t("previews_progress", done=0,
+                                    total=len(families)))
+        except Exception:
+            pass
         request = (list(families), disk_only)
         self._preview_worker_lock.acquire()
         try:
@@ -1909,6 +1953,7 @@ class FamilyBrowserDialog(object):
         done = [0]
         loaded = [0]
         pending = []
+        last_status_at = [0.0]
 
         def flush_pending():
             if (not pending or gen != self._preview_gen
@@ -1935,41 +1980,70 @@ class FamilyBrowserDialog(object):
                         return
                     with self._preview_mem_lock:
                         preview_loaded = path in self._preview_mem
+                        miss = self._preview_miss.get(path)
                     if preview_loaded:
                         done[0] += 1
                         continue
+                    if miss is not None:
+                        current = self._file_signature(path)
+                        if current == miss:
+                            done[0] += 1
+                            continue
+                        with self._preview_mem_lock:
+                            self._preview_miss.pop(path, None)
+                    extraction_completed = False
                     try:
                         png = rfa_preview.read_cached_png_bytes(path)
                         if not png and not disk_only:
                             png = rfa_preview.extract_preview_png_bytes(path)
+                            extraction_completed = True
                     except Exception as ex:
                         png = None
                         libcache._log(u"preview file {}: {}".format(
                             path, as_unicode(ex)))
                     done[0] += 1
+                    current_request = (
+                        gen == self._preview_gen and self.win is win
+                        and window_gen == self._window_gen)
+                    if png and current_request:
+                        with self._preview_mem_lock:
+                            self._preview_miss.pop(path, None)
+                    elif extraction_completed and current_request:
+                        signature = self._file_signature(path)
+                        if signature is not None:
+                            with self._preview_mem_lock:
+                                self._preview_miss[path] = signature
                     if png and gen == self._preview_gen:
                         loaded[0] += 1
                         pending.append((path, png))
-                        if len(pending) >= 20:
+                        flush_batch = (5 if self._virtual_mode
+                                       else _PREVIEW_FLUSH_BATCH)
+                        if (len(pending) >= flush_batch
+                                or time.time() - last_status_at[0]
+                                >= _PREVIEW_STATUS_INTERVAL_S):
                             flush_pending()
-                    if (not self._virtual_mode and done[0] % 50 == 0) or done[0] == total:
+                    if done[0] == total:
                         flush_pending()
-                    if (gen == self._preview_gen and not self._virtual_mode
+                    now = time.time()
+                    if (gen == self._preview_gen
                             and self.win is win
-                            and window_gen == self._window_gen):
+                            and window_gen == self._window_gen
+                            and now - last_status_at[0]
+                            >= _PREVIEW_STATUS_INTERVAL_S):
                         msg = i18n.t("previews_progress",
                                        done=done[0], total=total)
+                        last_status_at[0] = now
                         try:
                             win.Dispatcher.BeginInvoke(
                                 System.Action(
                                     lambda m=msg: self._set_preview_status(
-                                        m, win, window_gen)))
+                                        m, win, window_gen, gen)))
                         except Exception as ex:
                             libcache._log(
                                 u"preview progress dispatch: {}".format(
                                     as_unicode(ex)))
                 flush_pending()
-                if (gen == self._preview_gen and not self._virtual_mode
+                if (gen == self._preview_gen
                         and self.win is win
                         and window_gen == self._window_gen):
                     msg = i18n.t("previews_done", n=total)
@@ -1977,7 +2051,7 @@ class FamilyBrowserDialog(object):
                         win.Dispatcher.BeginInvoke(
                             System.Action(
                                 lambda m=msg: self._set_preview_status(
-                                    m, win, window_gen)))
+                                    m, win, window_gen, gen)))
                     except Exception as ex:
                         libcache._log(
                             u"preview completion dispatch: {}".format(
@@ -1999,9 +2073,12 @@ class FamilyBrowserDialog(object):
         t.setDaemon(True)
         t.start()
 
-    def _set_preview_status(self, message, win, window_gen):
+    def _set_preview_status(self, message, win, window_gen,
+                            preview_gen=None):
         if (self.win is not win or window_gen != self._window_gen
                 or self.ui is None):
+            return
+        if preview_gen is not None and preview_gen != self._preview_gen:
             return
         try:
             self._set_status(message)

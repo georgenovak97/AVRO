@@ -118,6 +118,50 @@ class LibraryCacheTests(unittest.TestCase):
         self.assertEqual(loaded["all"][0].name, fi.name)
         self.assertIn(lc._norm_path(fi.path), miss)
 
+    def test_preview_miss_sidecar_roundtrip(self):
+        _scan, fi = self._make_scan()
+        key = lc.cache_key([fi.library_root])
+        signature = {
+            "mtime": os.path.getmtime(fi.path),
+            "size": os.path.getsize(fi.path),
+        }
+
+        self.assertTrue(lc.save_preview_misses(
+            key, {fi.path: signature}))
+        loaded = lc.load_preview_misses(key)
+        path = lc._norm_path(fi.path)
+        self.assertEqual(loaded[path], signature)
+
+    def test_preview_miss_sidecar_rejects_wrong_key_and_legacy_entries(self):
+        _scan, fi = self._make_scan()
+        key = lc.cache_key([fi.library_root])
+        path = lc.preview_miss_file(key)
+        config._ensure_dir()
+        with open(path, "w") as stream:
+            stream.write(
+                '{"version": 1, "key_hash": "wrong", '
+                '"entries": {"%s": [1, 2]}}' % fi.path)
+
+        self.assertEqual(lc.load_preview_misses(key), {})
+
+        with open(path, "w") as stream:
+            stream.write(
+                '{"version": 1, "key_hash": "%s", '
+                '"entries": {"%s": [1, 2]}}'
+                % (lc.key_hash(key), fi.path))
+        self.assertEqual(lc.load_preview_misses(key), {})
+
+    def test_preview_miss_sidecar_clear_removes_entries(self):
+        _scan, fi = self._make_scan()
+        key = lc.cache_key([fi.library_root])
+        self.assertTrue(lc.save_preview_misses(key, {
+            fi.path: {
+                "mtime": os.path.getmtime(fi.path),
+                "size": os.path.getsize(fi.path),
+            }}))
+        lc.clear_preview_misses(key)
+        self.assertEqual(lc.load_preview_misses(key), {})
+
 
 if __name__ == "__main__":
     unittest.main()
