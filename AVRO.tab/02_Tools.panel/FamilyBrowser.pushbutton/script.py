@@ -1228,7 +1228,6 @@ class FamilyBrowserDialog(object):
         avro_log.event("family_browser", "scan_ready", {
             "families": len(self._scan.get("all", []))})
         total = len(self._scan.get("all", []))
-        n_folders = len(self._scan.get("index", {}))
         self._restore_preview_misses()
         self._invalidate_project_family_index()
         self._build_tree(self._scan)
@@ -1243,12 +1242,11 @@ class FamilyBrowserDialog(object):
         t = threading.Thread(
             target=self._save_scan_cache,
             args=(self._scan, scan_gen, self.win, self._window_gen,
-                  total, n_folders))
+                  total))
         t.setDaemon(True)
         t.start()
 
-    def _save_scan_cache(self, scan, scan_gen, win, window_gen,
-                         total, n_folders):
+    def _save_scan_cache(self, scan, scan_gen, win, window_gen, total):
         key = self._cache_key()
         saved, save_msg = libcache.save(key, scan, None)
         if saved:
@@ -1259,12 +1257,12 @@ class FamilyBrowserDialog(object):
         if scan_gen != self._scan_gen:
             return
         self._dispatch_current_window(
-            lambda: self._cache_save_done(saved, save_msg, total, n_folders))
+            lambda: self._cache_save_done(saved, save_msg, total))
 
-    def _cache_save_done(self, saved, save_msg, total, n_folders):
+    def _cache_save_done(self, saved, save_msg, total):
         if saved:
             self._set_status(
-                i18n.t("loaded_saved", n=total, f=n_folders))
+                i18n.t("loaded_saved", n=total))
         else:
             self._set_status(i18n.t("loaded_no_cache", n=total))
 
