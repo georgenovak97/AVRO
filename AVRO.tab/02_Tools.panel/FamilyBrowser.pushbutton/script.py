@@ -1259,26 +1259,30 @@ class FamilyBrowserDialog(object):
         recent_item = TreeViewItem()
         recent_item.Header = i18n.t("recent")
         recent_item.Tag = "__recent__"
+        recent_item.Uid = "TreeRoot"
         recent_item.FontWeight = FontWeights.SemiBold
         tree.Items.Add(recent_item)
 
-        for root in scan.get("roots", []):
-            self._add_folder_node(tree.Items, root, is_root=True)
+        roots = list(scan.get("roots", []))
+        for root in roots:
+            self._add_folder_node(tree.Items, root, is_root=True,
+                                  is_last=(root is roots[-1]))
 
-    def _add_folder_node(self, parent_items, node, is_root=False):
+    def _add_folder_node(self, parent_items, node, is_root=False,
+                         is_last=False):
         item = TreeViewItem()
         count = node.count()
-        if is_root:
-            header = u"{} ({})".format(node.name, count)
-            item.IsExpanded = True
-        else:
-            header = u"{} ({})".format(node.name, count)
+        header = u"{} ({})".format(node.name, count)
         item.Header = header
         item.Tag = _TAG_FOLDER_PREFIX + node.path
+        item.Uid = "TreeRoot" if is_root else ("TreeLast" if is_last else "")
         parent_items.Add(item)
 
-        for name in sorted(node.children.keys(), key=lambda s: s.lower()):
-            self._add_folder_node(item.Items, node.children[name])
+        names = sorted(node.children.keys(), key=lambda s: s.lower())
+        for index, name in enumerate(names):
+            self._add_folder_node(
+                item.Items, node.children[name],
+                is_last=(index == len(names) - 1))
 
     def _stop_search_timer(self):
         if self._search_timer is not None:

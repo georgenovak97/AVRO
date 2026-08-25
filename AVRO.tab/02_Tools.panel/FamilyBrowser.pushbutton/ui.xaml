@@ -27,69 +27,108 @@
         <SolidColorBrush x:Key="BtnPressed"    Color="#B9D7F5"/>
         <SolidColorBrush x:Key="BtnPrimary"    Color="#E1E1E1"/>
         <SolidColorBrush x:Key="TreeHoverBg"   Color="#EDEDED"/>
-        <SolidColorBrush x:Key="TreeBackground" Color="#FAFAFA"/>
-        <SolidColorBrush x:Key="TreeText"       Color="#424242"/>
-        <SolidColorBrush x:Key="TreeIcon"       Color="#4B4B4B"/>
+        <SolidColorBrush x:Key="TreeIcon"       Color="#666666"/>
         <SolidColorBrush x:Key="TreeConnector"  Color="#D2D2D2"/>
         <SolidColorBrush x:Key="ClearBtnHover" Color="#E8E8E8"/>
         <SolidColorBrush x:Key="ClearBtnPressed" Color="#D0D0D0"/>
 
-        <Geometry x:Key="FolderClosed">M2,5 L7,5 L9,3 L16,3 C17.1,3 18,3.9 18,5 L18,15 C18,16.1 17.1,17 16,17 L2,17 C0.9,17 0,16.1 0,15 L0,7 C0,5.9 0.9,5 2,5 Z</Geometry>
-        <Geometry x:Key="FolderOpen">M1,6 L6,6 L8,4 L17,4 C18.1,4 18.6,5 18.2,6 L16.1,15 C15.9,16.1 15.1,17 14,17 L2,17 C0.9,17 0,16.1 0,15 L0,8 C0,6.9 0.4,6 1,6 Z</Geometry>
+        <Geometry x:Key="FolderIcon">M1,4 L6,4 L8,6 L17,6 L17,16 L1,16 Z</Geometry>
+        <Geometry x:Key="HistoryIcon">M9,2 A7,7 0 1 0 16,9 M9,5 L9,9 L12,11</Geometry>
+
+        <Style x:Key="TreeExpander" TargetType="ToggleButton">
+            <Setter Property="Width" Value="11"/>
+            <Setter Property="Height" Value="11"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="{DynamicResource BgSidebar}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource TreeIcon}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Grid>
+                                <Line x:Name="PlusVertical" X1="5" Y1="2" X2="5" Y2="8"
+                                      Stroke="{DynamicResource TreeIcon}" StrokeThickness="1"/>
+                                <Line X1="2" Y1="5" X2="8" Y2="5"
+                                      Stroke="{DynamicResource TreeIcon}" StrokeThickness="1"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="PlusVertical" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style TargetType="TreeView">
-            <Setter Property="Background" Value="{DynamicResource TreeBackground}"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
         <Style TargetType="TreeViewItem">
-            <Setter Property="Foreground" Value="{DynamicResource TreeText}"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMain}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TreeViewItem">
                         <StackPanel>
-                            <Border x:Name="Row" Background="Transparent" Padding="2,2">
-                                <Grid Height="25">
+                            <Border x:Name="Row" Background="Transparent" Padding="0,1">
+                                <Grid Height="19" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="20"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Canvas Grid.Column="0" Width="24" Height="25">
-                                        <Line X1="11" Y1="0" X2="11" Y2="25"
+                                    <Canvas Grid.Column="0" Width="16" Height="19">
+                                        <Line x:Name="BranchLine" X1="7" Y1="0" X2="7" Y2="19"
                                               Stroke="{DynamicResource TreeConnector}"
-                                              StrokeThickness="1" StrokeDashArray="2,3"/>
-                                        <Line X1="11" Y1="12" X2="24" Y2="12"
+                                              StrokeThickness="1" StrokeDashArray="1,2"/>
+                                        <Line X1="7" Y1="9" X2="16" Y2="9"
                                               Stroke="{DynamicResource TreeConnector}"
-                                              StrokeThickness="1" StrokeDashArray="2,3"/>
-                                        <ToggleButton x:Name="Expander" Width="21" Height="21"
-                                                      Canvas.Left="1" Canvas.Top="2"
-                                                      Background="Transparent" BorderThickness="0"
-                                                      Padding="0" Focusable="False"
+                                              StrokeThickness="1" StrokeDashArray="1,2"/>
+                                        <ToggleButton x:Name="Expander" Canvas.Left="1" Canvas.Top="4"
+                                                      Style="{StaticResource TreeExpander}"
                                                       IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                                                       IsEnabled="{Binding HasItems, RelativeSource={RelativeSource TemplatedParent}}">
-                                            <Path x:Name="FolderIcon" Width="19" Height="19"
-                                                  Stretch="Fill" Data="{StaticResource FolderClosed}"
-                                                  Fill="Transparent" Stroke="{DynamicResource TreeIcon}"
-                                                  StrokeThickness="1.6" StrokeLineJoin="Round"/>
                                         </ToggleButton>
                                     </Canvas>
-                                    <ContentPresenter Grid.Column="1" VerticalAlignment="Center"
+                                    <Path x:Name="NodeIcon" Grid.Column="1" Width="16" Height="16"
+                                          Margin="1,1,3,1" Stretch="Fill"
+                                          Data="{StaticResource FolderIcon}" Fill="Transparent"
+                                          Stroke="{DynamicResource TreeIcon}" StrokeThickness="1.2"/>
+                                    <ContentPresenter Grid.Column="2" VerticalAlignment="Center"
                                                       ContentSource="Header"
-                                                      TextElement.Foreground="{DynamicResource TreeText}"/>
+                                                      TextElement.Foreground="{DynamicResource TextMain}"
+                                                      Margin="0,0,2,0"/>
                                 </Grid>
                             </Border>
-                            <ItemsPresenter Margin="24,0,0,0"/>
+                            <ItemsPresenter Margin="16,0,0,0"/>
                         </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsExpanded" Value="True">
-                                <Setter TargetName="FolderIcon" Property="Data" Value="{StaticResource FolderOpen}"/>
+                                <Setter TargetName="NodeIcon" Property="Opacity" Value="0.85"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Row" Property="Background" Value="{DynamicResource TreeHoverBg}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Row" Property="Background" Value="{DynamicResource SelBg}"/>
+                            </Trigger>
+                            <Trigger Property="Uid" Value="TreeRoot">
+                                <Setter TargetName="BranchLine" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="Uid" Value="TreeLast">
+                                <Setter TargetName="BranchLine" Property="Y2" Value="9"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

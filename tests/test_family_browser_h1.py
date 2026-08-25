@@ -156,6 +156,25 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             and value.operand.id == "loaded"
             for value in skipped_conditions[0].values))
 
+    def test_folder_roots_are_collapsed_by_default(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_add_folder_node"
+        ]
+        self.assertEqual(len(methods), 1)
+        self.assertFalse(any(
+            isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Attribute)
+                    and target.attr == "IsExpanded"
+                    for target in node.targets)
+            for node in ast.walk(methods[0])
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,8 +19,8 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         self.assertIsNotNone(resources)
         keys = [node.attrib.get("{http://schemas.microsoft.com/winfx/2006/xaml}Key")
                 for node in resources]
-        self.assertIn("FolderClosed", keys)
-        self.assertIn("FolderOpen", keys)
+        self.assertIn("FolderIcon", keys)
+        self.assertIn("HistoryIcon", keys)
         tree_style = next(node for node in resources
                           if node.tag == NS + "Style"
                           and node.attrib.get("TargetType") == "TreeViewItem")
@@ -30,7 +30,11 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         template_text = ElementTree.tostring(template, encoding="unicode")
         self.assertIn("ToggleButton", template_text)
         self.assertIn("StrokeDashArray", template_text)
-        self.assertIn("FolderIcon", template_text)
+        self.assertIn("Expander", template_text)
+        self.assertIn("Uid", template_text)
+        self.assertIn("TreeLast", template_text)
+        all_text = ElementTree.tostring(root, encoding="unicode")
+        self.assertIn("PlusVertical", all_text)
 
     def test_tree_theme_resources_exist_in_both_palettes(self):
         with open(THEME, "r") as stream:
@@ -41,7 +45,7 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
                 target = node.targets[0]
                 if isinstance(target, ast.Name) and target.id in ("LIGHT", "DARK"):
                     palettes[target.id] = ast.literal_eval(node.value)
-        keys = ("TreeBackground", "TreeText", "TreeIcon", "TreeConnector")
+        keys = ("TreeIcon", "TreeConnector")
         for palette in palettes.values():
             for key in keys:
                 self.assertIn(key, palette)
