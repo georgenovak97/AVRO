@@ -26,10 +26,10 @@ from System.Windows import (
     TextWrapping, FontWeights,
 )
 from System.Windows.Controls import (
-    TreeViewItem, TextBlock, Canvas, Border,
+    TreeViewItem, TextBlock, Canvas, Border, Button,
 )
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
-from System.Windows.Input import Key, MouseButton
+from System.Windows.Input import Key, MouseButton, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherTimer
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -108,7 +108,7 @@ _UI_CONTROL_NAMES = [
     "SearchBox", "SearchHint", "LblFolder",
     "BtnRunSearch", "BtnResetSearch",
     "PropsTitle", "PropsHint", "PropsPanel",
-    "CategoryTree", "BtnSettings", "BtnReload",
+    "CategoryTree", "BtnSettings", "BtnReload", "BtnLoad",
     "FamilyPanel", "FamilyScrollViewer",
     "BreadcrumbText", "CountText", "StatusText",
 ]
@@ -237,6 +237,7 @@ class FamilyBrowserDialog(object):
         self._path_to_index = {}
         self._selected_paths = set()
         self._anchor_path = None
+        self._load_mode = False
         self._hover_card = None
         self._family_panel_bound = None
         self._folder_scope = []
@@ -279,6 +280,7 @@ class FamilyBrowserDialog(object):
         self._grid_relayout_timer = None
         self._grid_relayout_gen = 0
         self._last_escape_press_at = 0.0
+        self._load_mode = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self._restore_window_geometry()
@@ -339,6 +341,7 @@ class FamilyBrowserDialog(object):
         if getattr(self, "_props_controller", None) is not None:
             self._props_controller.brushes = self._card_brushes
         self._refresh_cards_theme()
+        self._set_load_button_label()
         self._refresh_recent_header()
         if persist:
             config.set_value("ui_theme", "dark" if dark else "light")
@@ -371,6 +374,7 @@ class FamilyBrowserDialog(object):
         self.ui.BtnSettings.ToolTip = i18n.t("btn_library_tooltip")
         self.ui.BtnReload.Content = i18n.t("btn_reload")
         self.ui.BtnReload.ToolTip = i18n.t("btn_reload_tooltip")
+        self._set_load_button_label()
         self._refresh_live_labels()
 
     def _on_external_language_changed(self):
@@ -851,6 +855,18 @@ class FamilyBrowserDialog(object):
             self._last_escape_press_at = 0.0
             return
 
+        if self._load_mode:
+            self._load_mode = False
+            self._clear_selection()
+            self._anchor_path = None
+            self._last_escape_press_at = 0.0
+            self._set_load_button_label()
+            if self._hover_card is not None:
+                self._hover_card.Background = COL_CARD_HOV
+            self._set_status(i18n.t("status_ready"))
+            e.Handled = True
+            return
+
         now = time.time()
         if ((now - self._last_escape_press_at)
                 <= _DOUBLE_ESC_CLOSE_WINDOW_S):
@@ -870,6 +886,7 @@ class FamilyBrowserDialog(object):
         u.FamilyScrollViewer.SizeChanged   += self._on_family_panel_resize
         u.BtnSettings.Click                += self._library_controller.on_settings
         u.BtnReload.Click                  += self._library_controller.on_reload
+        u.BtnLoad.Click                    += self._on_btn_load
         btn_run = getattr(u, "BtnRunSearch", None)
         if btn_run is not None:
             btn_run.Click += self._on_run_search
@@ -877,6 +894,75 @@ class FamilyBrowserDialog(object):
         if btn_reset is not None:
             btn_reset.Click += self._on_reset_search
         self._props_controller.reset()
+
+
+    def _set_load_button_label(self):
+        """Keep the load button visibly active while selecting families."""
+        if self.ui is None:
+            return
+        btn = getattr(self.ui, "BtnLoad", None)
+        if btn is None:
+            return
+        btn.Content = i18n.t("btn_load")
+        if self._load_mode:
+            btn.Background = COL_CARD_SEL
+            btn.BorderBrush = COL_CARD_SEL_BORDER
+            btn.ToolTip = i18n.t("btn_load_tooltip_sel")
+        else:
+            try:
+                btn.ClearValue(Button.BackgroundProperty)
+                btn.ClearValue(Button.BorderBrushProperty)
+            except Exception:
+                btn.Background = COL_CARD
+                btn.BorderBrush = COL_BORDER
+            btn.ToolTip = i18n.t("btn_load_tooltip")
+
+    def _update_load_selection_status(self):
+        self._set_status(
+            i18n.t("selected_count", n=len(self._selected_paths)))
+
+    def _on_btn_load(self, sender, e):
+        if not self._load_mode:
+            self._load_mode = True
+            self._clear_selection()
+            self._anchor_path = None
+            self._set_load_button_label()
+            self._update_load_selection_status()
+            return
+
+        paths = [path for path in self._order_paths
+                 if path in self._selected_paths]
+        self._load_mode = False
+        self._clear_selection()
+        self._anchor_path = None
+        self._set_load_button_label()
+        if self._hover_card is not None:
+            self._hover_card.Background = COL_CARD_HOV
+        if paths:
+            self._load_families(paths)
+        else:
+            self._set_status(i18n.t("status_ready"))
+
+    def _on_load_mode_card_click(self, fi, e):
+        shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
+        if shift and self._anchor_path is not None:
+            try:
+                anchor_i = self._path_to_index[self._anchor_path]
+                target_i = self._path_to_index[fi.path]
+                start = min(anchor_i, target_i)
+                end = max(anchor_i, target_i) + 1
+                self._select_paths(self._order_paths[start:end], replace=True)
+            except (KeyError, TypeError):
+                self._select_paths([fi.path], replace=True)
+        else:
+            if fi.path in self._selected_paths:
+                self._selected_paths.remove(fi.path)
+                self._set_card_selected(fi.path, False)
+            else:
+                self._select_paths([fi.path], replace=False)
+            self._anchor_path = fi.path
+        self._update_load_selection_status()
+        e.Handled = True
 
 
     def _host_label(self, key):
@@ -1435,6 +1521,9 @@ class FamilyBrowserDialog(object):
         if card is None or fi is None:
             return
         if e.ChangedButton == MouseButton.Left:
+            if self._load_mode:
+                self._on_load_mode_card_click(fi, e)
+                return
             self._select_paths([fi.path], replace=True)
             family_browser_props._yield_ui()
             self._on_card_click(card, fi, e)
@@ -1612,6 +1701,8 @@ class FamilyBrowserDialog(object):
                 Canvas.SetLeft(card, x)
                 Canvas.SetTop(card, y)
         panel.Children.Add(card)
+        if fi.path in self._selected_paths:
+            self._set_card_selected(fi.path, True)
 
     def _show_families(self, families):
         self._stop_grid_relayout_timer()
@@ -1818,7 +1909,8 @@ class FamilyBrowserDialog(object):
         if replace:
             self._clear_selection()
         for path in paths:
-            if path not in self._fi_by_path:
+            if (path not in self._fi_by_path
+                    and path not in self._order_paths):
                 continue
             self._selected_paths.add(path)
             self._set_card_selected(path, True)
@@ -1841,7 +1933,8 @@ class FamilyBrowserDialog(object):
                 i18n.t("explorer_failed", err=as_unicode(ex)))
 
     def _on_card_right_click(self, card, fi, e):
-        self._select_paths([fi.path], replace=True)
+        if not self._load_mode:
+            self._select_paths([fi.path], replace=True)
         self._props_controller.inspect(fi)
         e.Handled = True
 
@@ -2103,6 +2196,11 @@ class FamilyBrowserDialog(object):
             t.Start()
             for path in paths:
                 fi = self._fi_by_path.get(path)
+                if fi is None:
+                    for active_fi in self._active:
+                        if active_fi.path == path:
+                            fi = active_fi
+                            break
                 if fi is None:
                     continue
                 try:

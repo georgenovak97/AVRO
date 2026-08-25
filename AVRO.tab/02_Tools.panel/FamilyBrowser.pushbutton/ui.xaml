@@ -311,6 +311,10 @@
                             Content="Обновить" Style="{StaticResource RevitButton}"
                             MinWidth="88" Margin="6,0,0,0"
                             ToolTip="Пересканировать библиотеку"/>
+                    <Button x:Name="BtnLoad"
+                            Content="Загрузить" Style="{StaticResource RevitButton}"
+                            MinWidth="88" Margin="6,0,0,0"
+                            ToolTip="Выбрать семейства для загрузки"/>
                 </StackPanel>
             </Grid>
         </Border>
