@@ -96,6 +96,17 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("_allow_close_after_save", close_source)
         self.assertIn("not self._allow_close_after_save", close_source)
         self.assertIn("def _close_after_save", source)
+        close_method = next(node for node in ast.walk(tree)
+                            if isinstance(node, ast.FunctionDef)
+                            and node.name == "_on_window_closing")
+        cleanup_tries = [node for node in ast.walk(close_method)
+                         if isinstance(node, ast.Try)
+                         and any("_cleanup_window_resources" in ast.get_source_segment(
+                             source, stmt) for stmt in node.finalbody)]
+        self.assertEqual(len(cleanup_tries), 1)
+        terminal_source = ast.get_source_segment(
+            source, cleanup_tries[0])
+        self.assertIn("self._window_closing = True", terminal_source)
 
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:

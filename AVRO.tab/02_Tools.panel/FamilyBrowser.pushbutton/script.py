@@ -874,31 +874,31 @@ class FamilyBrowserDialog(object):
         return True
 
     def _on_window_closing(self, sender, e):
-        try:
-            # Placement closes the window and reopens it; async cache save must
-            # not overwrite recent_families written right after placement.
-            is_placement = (self._pending_symbol_id
-                            or self._pending_placement_fi is not None)
-            if (not is_placement and self._close_requested
-                    and not self._allow_close_after_save):
-                e.Cancel = True
-                return
-            if not is_placement and not self._close_requested:
-                self._close_requested = True
-                self._window_gen += 1
-                self._stop_search_timer()
-                self._stop_grid_relayout_timer()
-                self._set_status(i18n.t("saving_state"))
-                e.Cancel = True
-                try:
-                    self._persist_cache(
-                        async_save=True, on_done=self._close_after_save)
-                except Exception as ex:
-                    libcache._log(u"deferred cache save: {}".format(
-                        as_unicode(ex)))
-                    self._close_after_save()
-                return
+        # Placement closes the window and reopens it; async cache save must
+        # not overwrite recent_families written right after placement.
+        is_placement = (self._pending_symbol_id
+                        or self._pending_placement_fi is not None)
+        if (not is_placement and self._close_requested
+                and not self._allow_close_after_save):
+            e.Cancel = True
+            return
+        if not is_placement and not self._close_requested:
+            self._close_requested = True
+            self._window_gen += 1
+            self._stop_search_timer()
+            self._stop_grid_relayout_timer()
+            self._set_status(i18n.t("saving_state"))
+            e.Cancel = True
+            try:
+                self._persist_cache(
+                    async_save=True, on_done=self._close_after_save)
+            except Exception as ex:
+                libcache._log(u"deferred cache save: {}".format(
+                    as_unicode(ex)))
+                self._close_after_save()
+            return
 
+        try:
             self._window_closing = True
             self._allow_close_after_save = False
             self._window_gen += 1
