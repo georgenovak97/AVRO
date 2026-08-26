@@ -88,7 +88,12 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("not self._window_closing", preview_source)
         self.assertIn("pending_request is not None", preview_source)
         self.assertIn("preview_thread.join", show_source)
-        self.assertNotIn("async_save=True", source)
+        close_source = ast.get_source_segment(
+            source, methods["_on_window_closing"])
+        self.assertIn("saving_state", close_source)
+        self.assertIn("e.Cancel = True", close_source)
+        self.assertIn("on_done=self._close_after_save", close_source)
+        self.assertIn("def _close_after_save", source)
 
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:

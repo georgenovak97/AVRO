@@ -326,6 +326,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._window_gen = 0
         self._window_closing = False
+        self._close_requested = False
         self._scan_gen = 0
         self._show_catalog_after_scan = False
 
@@ -337,6 +338,7 @@ class FamilyBrowserDialog(object):
         self._last_escape_press_at = 0.0
         self._load_mode = False
         self._window_closing = False
+        self._close_requested = False
         self._cleanup_done = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
@@ -714,9 +716,11 @@ class FamilyBrowserDialog(object):
         self._store_project_family_index(idx)
         return idx
 
-    def _persist_cache(self, async_save=False):
+    def _persist_cache(self, async_save=False, on_done=None):
         key = self._cache_key()
         if not key or not self._scan.get("all"):
+            if on_done is not None:
+                self._dispatch_current_window(on_done)
             return
         with self._preview_mem_lock:
             preview_miss = dict(self._preview_miss)
@@ -727,13 +731,13 @@ class FamilyBrowserDialog(object):
             scan = self._scan
             t = threading.Thread(
                 target=self._persist_cache_worker,
-                args=(key, scan, preview_miss))
+                args=(key, scan, preview_miss, on_done))
             t.setDaemon(True)
             t.start()
             return
-        self._persist_cache_worker(key, self._scan, preview_miss)
+        self._persist_cache_worker(key, self._scan, preview_miss, on_done)
 
-    def _persist_cache_worker(self, key, scan, preview_miss=None):
+    def _persist_cache_worker(self, key, scan, preview_miss=None, on_done=None):
         try:
             saved, msg = libcache.save(key, scan, None)
             _save_sticky_session(key, {}, preview_miss or {})
@@ -746,6 +750,9 @@ class FamilyBrowserDialog(object):
                 libcache._log(u"persist failed: {}".format(msg))
         except Exception as ex:
             libcache._log(u"persist worker: {}".format(as_unicode(ex)))
+        finally:
+            if on_done is not None:
+                self._dispatch_current_window(on_done)
 
     def _start_initial_load(self):
         if self._initial_load_started or self._load_state not in ("idle", "error"):
@@ -866,6 +873,26 @@ class FamilyBrowserDialog(object):
 
     def _on_window_closing(self, sender, e):
         try:
+            # Placement closes the window and reopens it; async cache save must
+            # not overwrite recent_families written right after placement.
+            is_placement = (self._pending_symbol_id
+                            or self._pending_placement_fi is not None)
+            if not is_placement and not self._close_requested:
+                self._close_requested = True
+                self._window_gen += 1
+                self._stop_search_timer()
+                self._stop_grid_relayout_timer()
+                self._set_status(i18n.t("saving_state"))
+                e.Cancel = True
+                try:
+                    self._persist_cache(
+                        async_save=True, on_done=self._close_after_save)
+                except Exception as ex:
+                    libcache._log(u"deferred cache save: {}".format(
+                        as_unicode(ex)))
+                    self._close_after_save()
+                return
+
             self._window_closing = True
             self._window_gen += 1
             self._stop_search_timer()
@@ -882,16 +909,11 @@ class FamilyBrowserDialog(object):
                     }
             except Exception:
                 pass
-            # Placement closes the window and reopens it; async cache save must
-            # not overwrite recent_families written right after placement.
-            is_placement = (self._pending_symbol_id
-                            or self._pending_placement_fi is not None)
             if not is_placement:
                 ui_notify.unregister_language_listener(
                     self._on_external_language_changed)
                 ui_notify.unregister_theme_listener(
                     self._on_external_theme_changed)
-                self._persist_cache(async_save=False)
         except Exception as ex:
             libcache._log(u"window closing: {}".format(as_unicode(ex)))
         finally:
@@ -899,6 +921,14 @@ class FamilyBrowserDialog(object):
                 self._cleanup_window_resources()
             except Exception as ex:
                 libcache._log(u"window cleanup: {}".format(as_unicode(ex)))
+
+    def _close_after_save(self):
+        if self.win is None or self._window_closing:
+            return
+        try:
+            self.win.Close()
+        except Exception as ex:
+            libcache._log(u"close after save: {}".format(as_unicode(ex)))
 
     def _cleanup_window_resources(self):
         """Stop window work and release references before WPF teardown."""
