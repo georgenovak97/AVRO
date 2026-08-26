@@ -1474,7 +1474,16 @@ class FamilyBrowserDialog(object):
                 source = None
 
         if expander is not None and item is not None:
-            item.IsExpanded = not item.IsExpanded
+            was_expanded = item.IsExpanded
+            selected = self.ui.CategoryTree.SelectedItem
+            self._suppress_tree_events = True
+            try:
+                item.IsExpanded = not was_expanded
+                if was_expanded and selected is not None and selected is not item:
+                    selected.IsSelected = True
+                    selected.Focus()
+            finally:
+                self._suppress_tree_events = False
             e.Handled = True
         elif (item is not None and item.IsSelected
               and not self._suppress_tree_events):
