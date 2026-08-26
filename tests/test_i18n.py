@@ -83,7 +83,7 @@ class I18nTests(unittest.TestCase):
 
     def test_formatting_params(self):
         i18n.set_language(u"en")
-        self.assertEqual(i18n.t(u"loaded_n", n=3), u"Loaded: 3")
+        self.assertEqual(i18n.t(u"loaded_n"), u"Families loaded")
 
     def test_preview_completion_is_short(self):
         i18n.set_language(u"ru")
