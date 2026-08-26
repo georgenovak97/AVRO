@@ -83,8 +83,22 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TreeViewItem">
-                        <StackPanel>
-                            <Border x:Name="Row" Background="Transparent" Padding="0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Line x:Name="BranchLine" Grid.Column="0" Grid.RowSpan="2"
+                                  X1="9" Y1="0" X2="9" Y2="1"
+                                  Stroke="{DynamicResource TreeConnector}"
+                                  StrokeThickness="1.2" StrokeDashArray="2,2"
+                                  Stretch="Fill" VerticalAlignment="Stretch"/>
+                            <Border x:Name="Row" Grid.Row="0" Grid.ColumnSpan="2"
+                                    Background="Transparent" Padding="0,1">
                                 <Grid Height="19" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="20"/>
@@ -92,9 +106,10 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <Canvas Grid.Column="0" Width="20" Height="19">
-                                        <Line x:Name="BranchLine" X1="9" Y1="0" X2="9" Y2="19"
+                                        <Line x:Name="BranchLastLine" X1="9" Y1="0" X2="9" Y2="9"
                                               Stroke="{DynamicResource TreeConnector}"
-                                              StrokeThickness="1.2" StrokeDashArray="2,2"/>
+                                              StrokeThickness="1.2" StrokeDashArray="2,2"
+                                              Visibility="Collapsed"/>
                                         <Line x:Name="BranchArm" X1="9" Y1="9" X2="20" Y2="9"
                                               Stroke="{DynamicResource TreeConnector}"
                                               StrokeThickness="1.2" StrokeDashArray="2,2"/>
@@ -115,9 +130,9 @@
                                                       Margin="2,0,2,0"/>
                                 </Grid>
                             </Border>
-                            <ItemsPresenter x:Name="ChildItems" Margin="20,0,0,0"
+                            <ItemsPresenter x:Name="ChildItems" Grid.Row="1" Grid.Column="1"
                                             Visibility="Collapsed"/>
-                        </StackPanel>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsExpanded" Value="True">
                                 <Setter TargetName="ChildItems" Property="Visibility" Value="Visible"/>
@@ -137,7 +152,8 @@
                                 <Setter TargetName="BranchArm" Property="Visibility" Value="Collapsed"/>
                             </Trigger>
                             <Trigger Property="Uid" Value="TreeLast">
-                                <Setter TargetName="BranchLine" Property="Y2" Value="9"/>
+                                <Setter TargetName="BranchLine" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="BranchLastLine" Property="Visibility" Value="Visible"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

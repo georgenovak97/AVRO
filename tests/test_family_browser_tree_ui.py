@@ -39,6 +39,8 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         self.assertIn('Value="Visible"', template_text)
         self.assertIn('Stretch="Uniform"', template_text)
         self.assertIn("BranchArm", template_text)
+        self.assertIn("BranchLastLine", template_text)
+        self.assertIn('Grid.RowSpan="2"', template_text)
         self.assertIn('Value="TreeRecent"', template_text)
         self.assertIn('Width="20"', template_text)
         self.assertIn('Width="24"', template_text)
