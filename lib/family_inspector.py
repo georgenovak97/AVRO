@@ -378,7 +378,7 @@ def _hosting_from_owner(owner):
     return HOST_UNKNOWN, placement
 
 
-def _inspect_document(doc, rfa_path):
+def _inspect_document(doc, rfa_path, known_version=u""):
     meta = _empty_meta(rfa_path)
     meta["ok"] = True
 
@@ -515,13 +515,14 @@ def _inspect_document(doc, rfa_path):
         pass
 
     # Revit version: normalize to R22/R24 labels for stable filters
-    raw_ver = u""
-    try:
-        info = BasicFileInfo.Extract(rfa_path)
-        if info is not None and info.Format:
-            raw_ver = _u(info.Format)
-    except Exception:
-        raw_ver = u""
+    raw_ver = _u(known_version or u"")
+    if not raw_ver:
+        try:
+            info = BasicFileInfo.Extract(rfa_path)
+            if info is not None and info.Format:
+                raw_ver = _u(info.Format)
+        except Exception:
+            raw_ver = u""
     if not raw_ver:
         try:
             raw_ver = _u(doc.Application.VersionNumber)
@@ -593,7 +594,7 @@ def _is_family_shared(fam):
     return False
 
 
-def inspect(rfa_path, app=None, use_cache=True):
+def inspect(rfa_path, app=None, use_cache=True, known_version=u""):
     """
     Inspect .rfa. Returns meta dict (never None).
 
@@ -645,7 +646,7 @@ def inspect(rfa_path, app=None, use_cache=True):
             meta = _empty_meta(path)
             meta["error"] = u"open_failed"
             return meta
-        meta = _inspect_document(doc, path)
+        meta = _inspect_document(doc, path, known_version=known_version)
     except Exception as ex:
         meta = _empty_meta(path)
         meta["error"] = _u(ex)

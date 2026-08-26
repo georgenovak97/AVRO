@@ -9,6 +9,7 @@ import clr
 clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
+import System
 from System.Windows import Thickness, Visibility, TextWrapping, FontStyles
 from System.Windows.Controls import Border, TextBlock, StackPanel
 from System import Action
@@ -78,7 +79,9 @@ class PropsPanelController(object):
                 except Exception as ex:
                     avro_log.exception("props.inspect.app", ex)
                     app = None
-                meta = family_inspector.inspect(path, app=app, use_cache=True)
+                meta = family_inspector.inspect(
+                    path, app=app, use_cache=False,
+                    known_version=getattr(fi, "revit_version", u""))
             else:
                 self._props_path = path
             if self._props_path != path:
@@ -100,11 +103,18 @@ class PropsPanelController(object):
         win = self.dialog.win
         window_gen = self.dialog._window_gen
         try:
+            win.Cursor = System.Windows.Input.Cursors.Wait
+            win.Topmost = True
+            win.IsEnabled = False
+        except Exception:
+            pass
+        try:
             win.Dispatcher.BeginInvoke(
                 Action(lambda: self._inspect_if_current(fi, path, window_gen)),
                 DispatcherPriority.Loaded)
         except Exception as ex:
             avro_log.exception("props.inspect.dispatch", ex)
+            self._restore_after_inspect()
 
     def _inspect_if_current(self, fi, path, window_gen):
         if (self.dialog._window_closing
@@ -112,7 +122,23 @@ class PropsPanelController(object):
                     self.dialog.win, window_gen)
                 or self._props_path != path):
             return
-        self.inspect(fi)
+        try:
+            self.inspect(fi)
+        finally:
+            self._restore_after_inspect()
+
+    def _restore_after_inspect(self):
+        win = self.dialog.win
+        if win is None or self.dialog._window_closing:
+            return
+        try:
+            win.IsEnabled = True
+            win.Cursor = System.Windows.Input.Cursors.Arrow
+            win.Topmost = False
+            win.Activate()
+            win.Focus()
+        except Exception as ex:
+            avro_log.exception("props.inspect.restore", ex)
 
     def fill(self, fi, meta):
         """Render metadata into the panel."""

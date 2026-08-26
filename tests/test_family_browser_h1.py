@@ -114,6 +114,10 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         begin_source = ast.get_source_segment(props_source, begin)
         self.assertIn("self.set_loading(path)", inspect_source)
         self.assertIn("BeginInvoke", begin_source)
+        self.assertIn("Topmost", begin_source)
+        self.assertIn("Cursors.Wait", begin_source)
+        self.assertIn("known_version", inspect_source)
+        self.assertIn("_restore_after_inspect", begin_source)
 
     def test_catalog_batches_are_limited_to_fifty(self):
         with open(SCRIPT, "r") as stream:
