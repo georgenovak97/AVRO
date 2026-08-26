@@ -93,6 +93,8 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("saving_state", close_source)
         self.assertIn("e.Cancel = True", close_source)
         self.assertIn("on_done=self._close_after_save", close_source)
+        self.assertIn("_allow_close_after_save", close_source)
+        self.assertIn("not self._allow_close_after_save", close_source)
         self.assertIn("def _close_after_save", source)
 
     def test_right_click_defers_and_always_shows_properties_preparation(self):

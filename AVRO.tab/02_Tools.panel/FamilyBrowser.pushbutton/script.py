@@ -327,6 +327,7 @@ class FamilyBrowserDialog(object):
         self._window_gen = 0
         self._window_closing = False
         self._close_requested = False
+        self._allow_close_after_save = False
         self._scan_gen = 0
         self._show_catalog_after_scan = False
 
@@ -339,6 +340,7 @@ class FamilyBrowserDialog(object):
         self._load_mode = False
         self._window_closing = False
         self._close_requested = False
+        self._allow_close_after_save = False
         self._cleanup_done = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
@@ -877,6 +879,10 @@ class FamilyBrowserDialog(object):
             # not overwrite recent_families written right after placement.
             is_placement = (self._pending_symbol_id
                             or self._pending_placement_fi is not None)
+            if (not is_placement and self._close_requested
+                    and not self._allow_close_after_save):
+                e.Cancel = True
+                return
             if not is_placement and not self._close_requested:
                 self._close_requested = True
                 self._window_gen += 1
@@ -894,6 +900,7 @@ class FamilyBrowserDialog(object):
                 return
 
             self._window_closing = True
+            self._allow_close_after_save = False
             self._window_gen += 1
             self._stop_search_timer()
             self._stop_grid_relayout_timer()
@@ -926,6 +933,7 @@ class FamilyBrowserDialog(object):
         if self.win is None or self._window_closing:
             return
         try:
+            self._allow_close_after_save = True
             self.win.Close()
         except Exception as ex:
             libcache._log(u"close after save: {}".format(as_unicode(ex)))
