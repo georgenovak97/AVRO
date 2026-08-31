@@ -10,7 +10,7 @@ clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
 
 from System.Windows import Thickness, VerticalAlignment
-from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation
+from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
@@ -133,20 +133,15 @@ class HelpDialog(object):
     def _fill_toc(self):
         self.ui.TocTree.Items.Clear()
         if not self._headings:
-            empty = TreeViewItem()
-            empty.Header = i18n.t("help_toc_empty")
+            empty = TextBlock(Text=i18n.t("help_toc_empty"))
             self.ui.TocTree.Items.Add(empty)
             return
-        stack = [(0, self.ui.TocTree)]
         for level, title in self._headings:
-            while stack[-1][0] >= level:
-                stack.pop()
-            parent = stack[-1][1]
-            item = TreeViewItem(Header=TextBlock(Text=title), Tag=title)
-            item.Margin = Thickness((level - 1) * 8, 0, 0, 0)
+            text = TextBlock(Text=title)
+            text.Margin = Thickness((level - 1) * 12, 0, 0, 0)
+            item = ListBoxItem(Content=text, Tag=title)
             item.Selected += self._toc_selected
-            parent.Items.Add(item)
-            stack.append((level, item))
+            self.ui.TocTree.Items.Add(item)
 
     def _toc_selected(self, sender, args):
         title = getattr(sender, "Tag", None)
