@@ -34,6 +34,7 @@ class HelpDialog(object):
         self.ui = None
         self.root = None
         self.current_path = None
+        self._current_text = ""
         self._headings = []
 
     def _palette(self):
@@ -92,6 +93,7 @@ class HelpDialog(object):
         try:
             text = help_scanner.read_text(path)
             self.current_path = path
+            self._current_text = text
             self.ui.PathText.Text = path
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
@@ -122,9 +124,13 @@ class HelpDialog(object):
 
     def _toc_selected(self, sender, args):
         title = getattr(sender, "Tag", None)
-        if title:
-            self.ui.MarkdownBrowser.InvokeScript("eval", [
-                "window.location.hash='{}';".format(help_renderer._slug(title))])
+        if title and self.current_path:
+            self.ui.MarkdownBrowser.NavigateToString(
+                help_renderer.themed_html(
+                    self._current_text, self._palette(),
+                    os.path.basename(self.current_path),
+                    os.path.dirname(self.current_path),
+                    help_renderer._slug(title)))
 
     def _choose_documents(self, sender, args):
         dialog = FolderBrowserDialog()

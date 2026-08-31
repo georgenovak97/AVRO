@@ -34,7 +34,7 @@ def _slug(value):
     return re.sub(r"[^a-z0-9а-яё]+", "-", value.lower()).strip("-")
 
 
-def markdown_to_html(text, title="", base_path=""):
+def markdown_to_html(text, title="", base_path="", scroll_to=""):
     lines = (text or "").replace("\r\n", "\n").split("\n")
     html = []
     in_code = False
@@ -103,15 +103,20 @@ def markdown_to_html(text, title="", base_path=""):
     if base_path:
         base = '<base href="file:///{}/">'.format(
             base_path.replace("\\", "/").replace(" ", "%20").rstrip("/"))
+    scroll_script = ""
+    if scroll_to:
+        scroll_script = "<script>window.onload=function(){var e=document.getElementById('" \
+            + scroll_to + "');if(e){e.scrollIntoView();}}</script>"
     return """<!doctype html><html><head><meta charset="utf-8">@@base@@<style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:@@bg@@;color:@@text@@;margin:26px 34px;line-height:1.55;font-size:14px}
 h1,h2,h3,h4{color:@@text@@;font-weight:600}a{color:@@link@@}code,pre,blockquote{background:@@codebg@@}code{padding:2px 5px}pre{padding:14px;overflow:auto;border-left:3px solid @@link@@}blockquote{border-left:4px solid @@link@@;padding:4px 14px}mark{background:#d9b44a}.wikilink{color:@@link@@}img{max-width:100%}.table-row{display:flex;border-bottom:1px solid @@border@@}.table-row span{flex:1;padding:6px 9px}.callout{padding:10px 14px;margin:12px 0;border-left:4px solid @@link@@;background:@@codebg@@}
-</style></head><body>@@content@@</body></html>""".replace(
-        "@@base@@", base).replace("@@content@@", "\n".join(html))
+</style></head><body>@@content@@@@scroll@@</body></html>""".replace(
+        "@@base@@", base).replace("@@content@@", "\n".join(html)).replace(
+        "@@scroll@@", scroll_script)
 
 
-def themed_html(text, palette, title="", base_path=""):
-    html = markdown_to_html(text, title, base_path)
+def themed_html(text, palette, title="", base_path="", scroll_to=""):
+    html = markdown_to_html(text, title, base_path, scroll_to)
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
                        ("border", palette["BorderLight"])):
