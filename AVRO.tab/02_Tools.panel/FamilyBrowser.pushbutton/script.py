@@ -32,7 +32,7 @@ from System.Windows.Controls import (
 from System.Windows.Controls.Primitives import ToggleButton
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
 from System.Windows.Input import Key, MouseButton, Keyboard, ModifierKeys
-from System.Windows.Threading import DispatcherTimer
+from System.Windows.Threading import DispatcherTimer, DispatcherPriority
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     Family as RevitFamily,
@@ -745,7 +745,8 @@ class FamilyBrowserDialog(object):
         self._store_project_family_index(idx)
         return idx
 
-    def _persist_cache(self, async_save=False, on_done=None):
+    def _persist_cache(self, async_save=False, on_done=None,
+                       write_pickle=True):
         key = self._cache_key()
         if not key or not self._scan.get("all"):
             if on_done is not None:
@@ -760,15 +761,18 @@ class FamilyBrowserDialog(object):
             scan = self._scan
             t = threading.Thread(
                 target=self._persist_cache_worker,
-                args=(key, scan, preview_miss, on_done))
+                args=(key, scan, preview_miss, on_done, write_pickle))
             t.setDaemon(True)
             t.start()
             return
-        self._persist_cache_worker(key, self._scan, preview_miss, on_done)
+        self._persist_cache_worker(
+            key, self._scan, preview_miss, on_done, write_pickle)
 
-    def _persist_cache_worker(self, key, scan, preview_miss=None, on_done=None):
+    def _persist_cache_worker(self, key, scan, preview_miss=None, on_done=None,
+                              write_pickle=True):
         try:
-            saved, msg = libcache.save(key, scan, None)
+            saved, msg = libcache.save(
+                key, scan, None, write_json=True, write_pickle=write_pickle)
             _save_sticky_session(key, {}, preview_miss or {})
             if saved:
                 config.patch_fields({
@@ -938,14 +942,16 @@ class FamilyBrowserDialog(object):
                     return
                 try:
                     self._persist_cache(
-                        async_save=True, on_done=self._close_after_save)
+                        async_save=True, on_done=self._close_after_save,
+                        write_pickle=False)
                 except Exception as ex:
                     libcache._log(u"deferred cache save: {}".format(
                         as_unicode(ex)))
                     self._close_after_save()
 
             try:
-                self.win.Dispatcher.BeginInvoke(System.Action(start_save))
+                self.win.Dispatcher.BeginInvoke(
+                    System.Action(start_save), DispatcherPriority.ContextIdle)
             except Exception as ex:
                 libcache._log(u"deferred cache save: {}".format(
                     as_unicode(ex)))

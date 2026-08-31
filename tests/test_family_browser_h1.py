@@ -126,6 +126,8 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("SearchBox.IsEnabled = False", close_source)
         self.assertIn('"BtnLoad"', close_source)
         self.assertIn("Dispatcher.BeginInvoke", close_source)
+        self.assertIn("write_pickle=False", close_source)
+        self.assertIn("DispatcherPriority.ContextIdle", close_source)
         self.assertIn("_close_after_save_timeout", close_source)
         self.assertIn("_close_requested", place_source)
         self.assertIn("_window_closing", place_source)

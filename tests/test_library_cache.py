@@ -119,6 +119,14 @@ class LibraryCacheTests(unittest.TestCase):
         self.assertEqual(loaded["all"][0].revit_version, fi.revit_version)
         self.assertIn(lc._norm_path(fi.path), miss)
 
+    def test_save_can_skip_pickle_when_json_is_current(self):
+        scan, fi = self._make_scan()
+        key = lc.cache_key([fi.library_root])
+        ok, msg = lc.save(key, scan, write_pickle=False)
+        self.assertTrue(ok, msg)
+        self.assertTrue(os.path.isfile(lc.INDEX_FILE))
+        self.assertFalse(os.path.isfile(lc.PICKLE_FILE))
+
     def test_preview_miss_sidecar_roundtrip(self):
         _scan, fi = self._make_scan()
         key = lc.cache_key([fi.library_root])

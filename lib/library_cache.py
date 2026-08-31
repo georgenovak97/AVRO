@@ -443,7 +443,8 @@ def _read_meta():
         return None
 
 
-def _save(key_tuple, scan, preview_miss=None, write_json=True):
+def _save(key_tuple, scan, preview_miss=None, write_json=True,
+          write_pickle=True):
     if not key_tuple or not scan or not scan.get("all"):
         _log(u"save skipped: empty key or scan")
         return False, u"empty_scan"
@@ -479,7 +480,7 @@ def _save(key_tuple, scan, preview_miss=None, write_json=True):
 
     ok_pkl = False
     err_pkl = u""
-    if ok_json:
+    if ok_json and write_pickle:
         try:
             blob_store = _unicode_to_utf8(blob)
             tmp = PICKLE_FILE + u".tmp"
@@ -520,7 +521,8 @@ def _save(key_tuple, scan, preview_miss=None, write_json=True):
     return False, msg
 
 
-def save(key_tuple, scan, preview_miss=None, write_json=True):
+def save(key_tuple, scan, preview_miss=None, write_json=True,
+         write_pickle=True):
     """Serialize one cache write at a time.
 
     Scan completion and window cleanup can request persistence concurrently.
@@ -528,7 +530,8 @@ def save(key_tuple, scan, preview_miss=None, write_json=True):
     lock is held.
     """
     with _CACHE_IO_LOCK:
-        return _save(key_tuple, scan, preview_miss, write_json)
+        return _save(
+            key_tuple, scan, preview_miss, write_json, write_pickle)
 
 
 def _load_blob_file(path):
