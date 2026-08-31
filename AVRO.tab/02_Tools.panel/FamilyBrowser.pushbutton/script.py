@@ -322,6 +322,7 @@ class FamilyBrowserDialog(object):
         self._last_scroll_width = -1.0
         self._reopen_window_geometry = None
         self._catalog_changing = False
+        self._grid_relayout_pending = False
         self._project_family_index = None
         self._project_family_index_doc = None
         self._last_escape_press_at = 0.0
@@ -846,7 +847,7 @@ class FamilyBrowserDialog(object):
             self._show_recents_default()
         self._restore_window_focus()
 
-    def _restore_window_focus(self):
+    def _restore_window_focus(self, status_key="from_cache", raise_window=False):
         if self.win is None:
             return
         try:
@@ -855,11 +856,16 @@ class FamilyBrowserDialog(object):
         except Exception:
             pass
         try:
+            if raise_window:
+                self.win.Topmost = True
             self.win.Activate()
             self.win.Focus()
+            if raise_window:
+                self.win.Topmost = False
         except Exception:
             pass
-        self._set_status(i18n.t("from_cache"))
+        if status_key:
+            self._set_status(i18n.t(status_key))
 
     def _try_restore_cache(self):
         paths = self._library_paths()
@@ -1650,7 +1656,10 @@ class FamilyBrowserDialog(object):
 
     def _schedule_grid_relayout(self):
         """Rebuild card grid after window/panel resize (coalesced)."""
-        if self._catalog_changing or not self._active or self.ui is None:
+        if self._catalog_changing:
+            self._grid_relayout_pending = True
+            return
+        if not self._active or self.ui is None:
             return
         if self.win is None:
             return
@@ -1660,7 +1669,10 @@ class FamilyBrowserDialog(object):
 
     def _on_grid_relayout_debounced(self, sender, e):
         self._stop_grid_relayout_timer()
-        if self._catalog_changing or not self._active or self.ui is None:
+        if self._catalog_changing:
+            self._grid_relayout_pending = True
+            return
+        if not self._active or self.ui is None:
             return
         if not hasattr(self, "_grid_relayout_gen"):
             self._grid_relayout_gen = 0
@@ -1840,10 +1852,12 @@ class FamilyBrowserDialog(object):
             if self._reopen_scroll_offset is None:
                 self._force_scroll_top()
             self._catalog_changing = False
+            pending_relayout = self._grid_relayout_pending
+            self._grid_relayout_pending = False
             if run_virtual:
                 self._reopen_layout_pending = False
                 self._virtual_sync_viewport()
-            elif self._reopen_layout_pending:
+            elif self._reopen_layout_pending or pending_relayout:
                 self._reopen_layout_pending = False
                 self._relayout_family_grid()
             saved_offset = self._reopen_scroll_offset
@@ -2024,6 +2038,7 @@ class FamilyBrowserDialog(object):
         if not families:
             self._virtual_mode = False
             self._catalog_changing = False
+            self._grid_relayout_pending = False
             return
 
         if self._virtual_mode:
@@ -2631,6 +2646,7 @@ class FamilyBrowserDialog(object):
             parts.append(i18n.t("not_loaded", n=len(errors)))
         self._set_status(
             u"  |  ".join(parts) if parts else i18n.t("done"))
+        self._restore_window_focus(status_key=None, raise_window=True)
 
     def _set_status(self, text):
         self._status_controller.set_status(text)

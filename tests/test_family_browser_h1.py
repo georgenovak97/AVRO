@@ -32,7 +32,8 @@ class FamilyBrowserH1Tests(unittest.TestCase):
 
         with open(SCRIPT, "r") as stream:
             source = ast.get_source_segment(stream.read(), methods[0])
-        self.assertIn('i18n.t("from_cache")', source)
+        self.assertIn('status_key="from_cache"', source)
+        self.assertIn("i18n.t(status_key)", source)
 
     def test_placement_flow_does_not_sleep_or_push_nested_dispatcher(self):
         tree = self._source_tree()
@@ -136,6 +137,42 @@ class FamilyBrowserH1Tests(unittest.TestCase):
                        and node.name == "_cleanup_window_resources")
         cleanup_source = ast.get_source_segment(source, cleanup)
         self.assertIn("_cancel_close_timeout", cleanup_source)
+
+    def test_batch_load_raises_window_without_overwriting_status(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        load_source = ast.get_source_segment(source, methods["_load_families"])
+        focus_source = ast.get_source_segment(
+            source, methods["_restore_window_focus"])
+        self.assertIn("raise_window=True", load_source)
+        self.assertIn("status_key=None", load_source)
+        self.assertIn("Topmost", focus_source)
+
+    def test_resize_during_catalog_change_is_replayed(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        schedule_source = ast.get_source_segment(
+            source, methods["_schedule_grid_relayout"])
+        debounce_source = ast.get_source_segment(
+            source, methods["_on_grid_relayout_debounced"])
+        finish_source = ast.get_source_segment(
+            source, methods["_finish_family_view_layout"])
+        self.assertIn("_grid_relayout_pending = True", schedule_source)
+        self.assertIn("_grid_relayout_pending = True", debounce_source)
+        self.assertIn("pending_relayout", finish_source)
+        self.assertIn("_relayout_family_grid", finish_source)
 
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:
