@@ -205,6 +205,14 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn('reading_family', begin_source)
         self.assertIn('status_ready', source)
 
+        set_loading = next(node for node in ast.walk(props_tree)
+                           if isinstance(node, ast.FunctionDef)
+                           and node.name == "set_loading")
+        set_loading_source = ast.get_source_segment(
+            props_source, set_loading)
+        self.assertIn('hint.Text = u""', set_loading_source)
+        self.assertIn("Visibility.Collapsed", set_loading_source)
+
         reset = next(node for node in ast.walk(props_tree)
                      if isinstance(node, ast.FunctionDef)
                      and node.name == "reset")

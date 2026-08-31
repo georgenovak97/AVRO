@@ -53,13 +53,13 @@ class PropsPanelController(object):
         self._props_path = None
 
     def set_loading(self, path):
-        """Show the loading state for the given family path."""
+        """Clear the panel while properties are being inspected."""
         self._props_path = path
         panel = self.dialog.ui.PropsPanel
         hint = self.dialog.ui.PropsHint
         panel.Children.Clear()
-        hint.Text = i18n.t("props_loading")
-        hint.Visibility = Visibility.Visible
+        hint.Text = u""
+        hint.Visibility = Visibility.Collapsed
 
     def inspect(self, fi):
         """Inspect *fi* and render its metadata in the panel."""
