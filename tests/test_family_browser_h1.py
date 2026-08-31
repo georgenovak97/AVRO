@@ -66,6 +66,22 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source, methods["show"])
         self.assertNotIn("_activate_revit_window", show_source)
 
+    def test_cached_catalog_build_is_deferred_and_window_guarded(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        apply_source = ast.get_source_segment(source, methods["_apply_cache"])
+        self.assertIn("build_cached_ui", apply_source)
+        self.assertIn("_window_is_current", apply_source)
+        self.assertIn("DispatcherPriority.Loaded", apply_source)
+        self.assertIn("_set_cache_ui_enabled(False)", apply_source)
+        self.assertIn("_set_cache_ui_enabled(True)", apply_source)
+
     def test_close_invalidates_background_work_and_guards_dispatch(self):
         tree = self._source_tree()
         methods = {
@@ -93,10 +109,10 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source, methods["_on_window_closing"])
         self.assertIn("saving_state", close_source)
         self.assertIn("e.Cancel = True", close_source)
-        self.assertIn("on_done=self._close_after_save", close_source)
         self.assertIn("_allow_close_after_save", close_source)
         self.assertIn("not self._allow_close_after_save", close_source)
         self.assertIn("def _close_after_save", source)
+        self.assertIn("def _persist_close_state", source)
         close_method = next(node for node in ast.walk(tree)
                             if isinstance(node, ast.FunctionDef)
                             and node.name == "_on_window_closing")
@@ -126,8 +142,13 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("SearchBox.IsEnabled = False", close_source)
         self.assertIn('"BtnLoad"', close_source)
         self.assertIn("Dispatcher.BeginInvoke", close_source)
-        self.assertIn("write_pickle=False", close_source)
-        self.assertIn("DispatcherPriority.ContextIdle", close_source)
+        persist_close = ast.get_source_segment(
+            source, methods["_persist_close_state"])
+        self.assertIn("write_pickle=False", persist_close)
+        self.assertIn("on_done=self._close_after_save", persist_close)
+        self.assertIn("_library_cache_saved", persist_close)
+        self.assertIn("save_preview_misses", persist_close)
+        self.assertIn("DispatcherPriority.ContextIdle", source)
         self.assertIn("_close_after_save_timeout", close_source)
         self.assertIn("_close_requested", place_source)
         self.assertIn("_window_closing", place_source)

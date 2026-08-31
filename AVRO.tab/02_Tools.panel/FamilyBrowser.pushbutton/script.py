@@ -307,6 +307,8 @@ class FamilyBrowserDialog(object):
         self._load_state = "idle"
         self._initial_load_result = None
         self._pending_scan_result = None
+        self._library_cache_saved = False
+        self._cache_ui_pending = False
         self._pending_symbol_id = None
         self._pending_family_name = u""
         self._pending_family_path = None
@@ -863,16 +865,45 @@ class FamilyBrowserDialog(object):
         # Legacy path-only misses from the full index are intentionally not
         # restored; the validated sidecar is the authoritative source.
         self._restore_preview_misses()
+        self._library_cache_saved = True
+        self._cache_ui_pending = True
+        self._set_cache_ui_enabled(False)
+        win = self.win
+        window_gen = self._window_gen
 
-        self._build_tree(self._scan)
-        if self._show_catalog_after_scan:
-            self._show_catalog_after_scan = False
-            self._open_catalog(
-                self._scan.get("all", []),
-                os.path.basename(os.path.normpath(self._library_path())))
-        else:
-            self._show_recents_default()
-        self._restore_window_focus()
+        def build_cached_ui():
+            if (not self._window_is_current(win, window_gen)
+                    or self._window_closing):
+                return
+            self._build_tree(self._scan)
+            if self._show_catalog_after_scan:
+                self._show_catalog_after_scan = False
+                self._open_catalog(
+                    self._scan.get("all", []),
+                    os.path.basename(os.path.normpath(self._library_path())))
+            else:
+                self._show_recents_default()
+            self._cache_ui_pending = False
+            self._set_cache_ui_enabled(True)
+            self._restore_window_focus()
+
+        try:
+            win.Dispatcher.BeginInvoke(
+                System.Action(build_cached_ui), DispatcherPriority.Loaded)
+        except Exception:
+            build_cached_ui()
+
+    def _set_cache_ui_enabled(self, enabled):
+        """Keep actions disabled until the initial catalog UI is ready."""
+        if self.ui is None:
+            return
+        for name in ("SearchBox", "BtnSettings", "BtnReload", "BtnLoad"):
+            control = getattr(self.ui, name, None)
+            if control is not None:
+                try:
+                    control.IsEnabled = enabled
+                except Exception:
+                    pass
 
     def _restore_window_focus(self, status_key="from_cache", raise_window=False):
         if self.win is None:
@@ -941,9 +972,7 @@ class FamilyBrowserDialog(object):
                 if self.win is None or self._window_closing:
                     return
                 try:
-                    self._persist_cache(
-                        async_save=True, on_done=self._close_after_save,
-                        write_pickle=False)
+                    self._persist_close_state()
                 except Exception as ex:
                     libcache._log(u"deferred cache save: {}".format(
                         as_unicode(ex)))
@@ -992,6 +1021,27 @@ class FamilyBrowserDialog(object):
                 self._cleanup_window_resources()
             except Exception as ex:
                 libcache._log(u"window cleanup: {}".format(as_unicode(ex)))
+
+    def _persist_close_state(self):
+        """Persist only session data when the library index is already saved."""
+        key = self._cache_key()
+        with self._preview_mem_lock:
+            preview_miss = dict(self._preview_miss)
+        if key:
+            libcache.save_preview_misses(key, preview_miss)
+
+        with self._state_lock:
+            cache_saved = self._library_cache_saved
+        if cache_saved:
+            _save_sticky_session(key, {}, preview_miss)
+            self._dispatch_current_window(self._close_after_save)
+            return
+
+        # A first scan may still be saving, or may not have produced data.
+        # Keep the full persistence path as a safety fallback in that case.
+        self._persist_cache(
+            async_save=True, on_done=self._close_after_save,
+            write_pickle=False)
 
     def _close_after_save(self):
         if self.win is None or self._window_closing:
@@ -1348,6 +1398,7 @@ class FamilyBrowserDialog(object):
         self._scan = self._normalize_scan(scan)
         self._all_fi_by_path = dict(
             (fi.path, fi) for fi in self._scan.get("all", []))
+        self._library_cache_saved = False
         self._load_state = "ready"
         avro_log.event("family_browser", "scan_ready", {
             "families": len(self._scan.get("all", []))})
@@ -1373,6 +1424,9 @@ class FamilyBrowserDialog(object):
     def _save_scan_cache(self, scan, scan_gen, win, window_gen, total):
         key = self._cache_key()
         saved, save_msg = libcache.save(key, scan, None)
+        with self._state_lock:
+            if saved:
+                self._library_cache_saved = True
         if saved:
             config.patch_fields({
                 "library_cache_hash": libcache.key_hash(key),
