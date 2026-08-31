@@ -132,11 +132,19 @@ _STRINGS = {
         u"props_hint": u"Нажмите правой кнопкой для загрузки свойств",
         u"props_loading": u"Подготовка свойств…",
         u"props_help": (
-            u"ЛКМ — разместить семейство\n"
-            u"ПКМ — показать свойства\n"
-            u"СКМ — открыть файл в проводнике\n"
-            u"Двойное Esc — закрыть окно\n"
-            u"Shift + ЛКМ в режиме загрузки — выбрать диапазон"),
+            u"Работа с семействами\n\n"
+            u"ЛКМ по карточке — разместить семейство в проекте\n"
+            u"ПКМ по карточке — показать свойства семейства "
+            u"(размеры, типы, количество параметров)\n"
+            u"СКМ (колесо мыши) по карточке — открыть файл семейства "
+            u"в проводнике Windows\n\n"
+            u"Прочее\n\n"
+            u"Двойной Esc — закрыть окно / прервать текущее действие\n"
+            u"Строка состояния (снизу по центру) — здесь отображаются "
+            u"подсказки и статус текущей операции\n"
+            u"Загрузка (кнопка справа снизу) — режим массовой загрузки: "
+            u"выбрать и закинуть в Revit сразу пачку семейств\n"
+            u"Shift + ЛКМ в режиме загрузки — выбрать диапазон семейств"),
         u"reading_family": u"Идет чтение семейства…",
         u"props_error": u"Не удалось прочитать: {err}",
         u"props_name": u"Имя",
@@ -356,11 +364,19 @@ _STRINGS = {
         u"props_hint": u"Right-click to load properties",
         u"props_loading": u"Preparing properties…",
         u"props_help": (
-            u"Left-click — place family\n"
-            u"Right-click — show properties\n"
-            u"Middle-click — open file in Explorer\n"
-            u"Double Esc — close window\n"
-            u"Shift + left-click in load mode — select a range"),
+            u"Working with families\n\n"
+            u"Left-click on a card — place the family in the project\n"
+            u"Right-click on a card — show family properties "
+            u"(dimensions, types, parameter count)\n"
+            u"Middle-click (scroll wheel) on a card — open the family "
+            u"file in Windows Explorer\n\n"
+            u"Other\n\n"
+            u"Double Esc — close window / cancel the current action\n"
+            u"Status bar (bottom center) — displays hints and the status "
+            u"of the current operation\n"
+            u"Load (button at the bottom right) — batch load mode: select "
+            u"and load multiple families into Revit at once\n"
+            u"Shift + left-click in load mode — select a range of families"),
         u"reading_family": u"Reading family…",
         u"props_error": u"Could not read: {err}",
         u"props_name": u"Name",

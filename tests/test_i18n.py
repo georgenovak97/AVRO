@@ -85,11 +85,13 @@ class I18nTests(unittest.TestCase):
 
     def test_properties_help(self):
         i18n.set_language(u"ru")
-        self.assertIn(u"ЛКМ", i18n.t(u"props_help"))
-        self.assertIn(u"ПКМ", i18n.t(u"props_help"))
+        self.assertIn(u"Работа с семействами", i18n.t(u"props_help"))
+        self.assertIn(u"Прочее", i18n.t(u"props_help"))
+        self.assertIn(u"проводнике Windows", i18n.t(u"props_help"))
         i18n.set_language(u"en")
-        self.assertIn(u"Left-click", i18n.t(u"props_help"))
-        self.assertIn(u"Right-click", i18n.t(u"props_help"))
+        self.assertIn(u"Working with families", i18n.t(u"props_help"))
+        self.assertIn(u"Status bar", i18n.t(u"props_help"))
+        self.assertIn(u"Windows Explorer", i18n.t(u"props_help"))
 
     def test_saving_state_status(self):
         i18n.set_language(u"ru")
