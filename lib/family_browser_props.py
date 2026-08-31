@@ -45,8 +45,8 @@ class PropsPanelController(object):
         hint = self.dialog.ui.PropsHint
         panel.Children.Clear()
         if hint_text is None:
-            hint.Text = u""
-            hint.Visibility = Visibility.Collapsed
+            hint.Text = i18n.t("props_help")
+            hint.Visibility = Visibility.Visible
         else:
             hint.Text = hint_text
             hint.Visibility = Visibility.Visible

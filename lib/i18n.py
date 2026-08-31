@@ -131,6 +131,12 @@ _STRINGS = {
         u"props_title": u"Свойства",
         u"props_hint": u"Нажмите правой кнопкой для загрузки свойств",
         u"props_loading": u"Подготовка свойств…",
+        u"props_help": (
+            u"ЛКМ — разместить семейство\n"
+            u"ПКМ — показать свойства\n"
+            u"СКМ — открыть файл в проводнике\n"
+            u"Двойное Esc — закрыть окно\n"
+            u"Shift + ЛКМ в режиме загрузки — выбрать диапазон"),
         u"reading_family": u"Идет чтение семейства…",
         u"props_error": u"Не удалось прочитать: {err}",
         u"props_name": u"Имя",
@@ -349,6 +355,12 @@ _STRINGS = {
         u"props_title": u"Properties",
         u"props_hint": u"Right-click to load properties",
         u"props_loading": u"Preparing properties…",
+        u"props_help": (
+            u"Left-click — place family\n"
+            u"Right-click — show properties\n"
+            u"Middle-click — open file in Explorer\n"
+            u"Double Esc — close window\n"
+            u"Shift + left-click in load mode — select a range"),
         u"reading_family": u"Reading family…",
         u"props_error": u"Could not read: {err}",
         u"props_name": u"Name",

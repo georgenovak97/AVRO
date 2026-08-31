@@ -83,6 +83,14 @@ class I18nTests(unittest.TestCase):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"reading_family"), u"Reading family…")
 
+    def test_properties_help(self):
+        i18n.set_language(u"ru")
+        self.assertIn(u"ЛКМ", i18n.t(u"props_help"))
+        self.assertIn(u"ПКМ", i18n.t(u"props_help"))
+        i18n.set_language(u"en")
+        self.assertIn(u"Left-click", i18n.t(u"props_help"))
+        self.assertIn(u"Right-click", i18n.t(u"props_help"))
+
     def test_saving_state_status(self):
         i18n.set_language(u"ru")
         self.assertEqual(
