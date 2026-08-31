@@ -10,7 +10,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
 
-from System.Windows import Thickness, VerticalAlignment
+from System.Windows import Thickness, VerticalAlignment, Visibility
 from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Shapes import Path as WpfPath
@@ -135,6 +135,7 @@ class HelpDialog(object):
 
     def _search_selected(self, sender, args):
         self.search_mode = True
+        self.ui.SearchBar.Visibility = Visibility.Visible
         self.ui.PathText.Text = u"{} {}".format(
             self.doc_count, i18n.t("help_documents_label"))
         self.ui.SearchBox.Text = ""
@@ -211,6 +212,7 @@ class HelpDialog(object):
             self.current_path = path
             self._current_text = text
             self.search_mode = False
+            self.ui.SearchBar.Visibility = Visibility.Collapsed
             config.add_recent_document(path)
             self.ui.PathText.Text = path
             self.ui.MarkdownBrowser.NavigateToString(
@@ -259,7 +261,7 @@ class HelpDialog(object):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
-                       "BtnForward", "SearchBox",
+                       "BtnForward", "SearchBar", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh"))
         ui_theme.apply_window_theme(self.win, self._palette())
