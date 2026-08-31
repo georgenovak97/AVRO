@@ -217,7 +217,7 @@ class FamilyBrowserH1Tests(unittest.TestCase):
                      if isinstance(node, ast.FunctionDef)
                      and node.name == "reset")
         reset_source = ast.get_source_segment(props_source, reset)
-        self.assertIn('i18n.t("props_help")', reset_source)
+        self.assertIn("_show_help", reset_source)
         self.assertIn("Visibility.Visible", reset_source)
 
     def test_catalog_batches_are_limited_to_fifty(self):

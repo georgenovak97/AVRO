@@ -10,8 +10,10 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 
 import System
-from System.Windows import Thickness, Visibility, TextWrapping, FontStyles
+from System.Windows import (
+    Thickness, Visibility, TextWrapping, FontStyles, FontWeights)
 from System.Windows.Controls import Border, TextBlock, StackPanel
+from System.Windows.Documents import Run
 from System import Action
 from System.Windows.Threading import DispatcherPriority
 
@@ -45,12 +47,25 @@ class PropsPanelController(object):
         hint = self.dialog.ui.PropsHint
         panel.Children.Clear()
         if hint_text is None:
-            hint.Text = i18n.t("props_help")
+            self._show_help(hint)
             hint.Visibility = Visibility.Visible
         else:
             hint.Text = hint_text
             hint.Visibility = Visibility.Visible
         self._props_path = None
+
+    def _show_help(self, hint):
+        """Render the startup help with distinct bold section headings."""
+        hint.Inlines.Clear()
+        for text, bold in (
+                (i18n.t("props_help_work"), True),
+                (u"\n\n" + i18n.t("props_help_work_body") + u"\n\n", False),
+                (i18n.t("props_help_other"), True),
+                (u"\n\n" + i18n.t("props_help_other_body"), False)):
+            run = Run(text)
+            if bold:
+                run.FontWeight = FontWeights.Bold
+            hint.Inlines.Add(run)
 
     def set_loading(self, path):
         """Clear the panel while properties are being inspected."""
