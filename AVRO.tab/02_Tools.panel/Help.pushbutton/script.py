@@ -59,6 +59,7 @@ class HelpDialog(object):
         item = TreeViewItem()
         item.Header = TextBlock(Text=os.path.splitext(os.path.basename(path))[0])
         item.Tag = path
+        item.Uid = "file"
         item.Selected += self._file_selected
         parent.Items.Add(item)
 
@@ -66,7 +67,8 @@ class HelpDialog(object):
         item = TreeViewItem()
         item.Header = TextBlock(Text=node.name)
         item.Tag = node.path
-        item.IsExpanded = True
+        item.Uid = "folder"
+        item.IsExpanded = False
         for folder in node.folders:
             self._add_folder(item, folder)
         for path in node.files:
