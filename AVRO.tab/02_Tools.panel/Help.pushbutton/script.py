@@ -156,7 +156,11 @@ class HelpDialog(object):
         self._history_index -= 1
         self._history_navigating = True
         try:
-            self._show_file(self._history[self._history_index])
+            target = self._history[self._history_index]
+            if target == "__search__":
+                self._search_selected(None, None)
+            else:
+                self._show_file(target)
         finally:
             self._history_navigating = False
             self._update_navigation_buttons()
@@ -167,7 +171,11 @@ class HelpDialog(object):
         self._history_index += 1
         self._history_navigating = True
         try:
-            self._show_file(self._history[self._history_index])
+            target = self._history[self._history_index]
+            if target == "__search__":
+                self._search_selected(None, None)
+            else:
+                self._show_file(target)
         finally:
             self._history_navigating = False
             self._update_navigation_buttons()
@@ -206,6 +214,9 @@ class HelpDialog(object):
             text = help_scanner.read_text(path)
             if not self._history_navigating:
                 self._history = self._history[:self._history_index + 1]
+                if self.search_mode and (
+                        not self._history or self._history[-1] != "__search__"):
+                    self._history.append("__search__")
                 if not self._history or self._history[-1].lower() != path.lower():
                     self._history.append(path)
                 self._history_index = len(self._history) - 1
