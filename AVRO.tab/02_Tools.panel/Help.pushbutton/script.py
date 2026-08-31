@@ -41,6 +41,9 @@ class HelpDialog(object):
         self._headings = []
         self.search_mode = False
         self.doc_count = 0
+        self._history = []
+        self._history_index = -1
+        self._history_navigating = False
 
     def _palette(self):
         return ui_theme.DARK if config.load().get("ui_theme") == "dark" else ui_theme.LIGHT
@@ -96,7 +99,12 @@ class HelpDialog(object):
         item.Header = self._header(i18n.t("help_search"), "M2,2 L16,2 L16,16 L2,16 Z M5,6 L13,6 M5,9 L13,9 M5,12 L10,12")
         item.Tag = "__search__"
         item.Selected += self._search_selected
+        item.PreviewMouseLeftButtonDown += self._search_mouse_down
         self.ui.DocumentTree.Items.Add(item)
+
+    def _search_mouse_down(self, sender, args):
+        if sender.IsSelected:
+            self._search_selected(sender, args)
 
     def _add_folder(self, parent, node, is_root=False):
         item = TreeViewItem()
@@ -133,6 +141,36 @@ class HelpDialog(object):
         self.ui.SearchBox.Focus()
         self._run_search("")
 
+    def _update_navigation_buttons(self):
+        if self.ui is None:
+            return
+        self.ui.BtnBack.IsEnabled = self._history_index > 0
+        self.ui.BtnForward.IsEnabled = (
+            self._history_index >= 0
+            and self._history_index < len(self._history) - 1)
+
+    def _go_back(self, sender=None, args=None):
+        if self._history_index <= 0:
+            return
+        self._history_index -= 1
+        self._history_navigating = True
+        try:
+            self._show_file(self._history[self._history_index])
+        finally:
+            self._history_navigating = False
+            self._update_navigation_buttons()
+
+    def _go_forward(self, sender=None, args=None):
+        if self._history_index >= len(self._history) - 1:
+            return
+        self._history_index += 1
+        self._history_navigating = True
+        try:
+            self._show_file(self._history[self._history_index])
+        finally:
+            self._history_navigating = False
+            self._update_navigation_buttons()
+
     def _run_search(self, query):
         path = config.load().get("docs_path") or ""
         query = (query or "").strip()
@@ -165,6 +203,11 @@ class HelpDialog(object):
     def _show_file(self, path):
         try:
             text = help_scanner.read_text(path)
+            if not self._history_navigating:
+                self._history = self._history[:self._history_index + 1]
+                if not self._history or self._history[-1].lower() != path.lower():
+                    self._history.append(path)
+                self._history_index = len(self._history) - 1
             self.current_path = path
             self._current_text = text
             self.search_mode = False
@@ -175,6 +218,7 @@ class HelpDialog(object):
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
             self._headings = help_toc.extract_headings(text)
             self._fill_toc()
+            self._update_navigation_buttons()
         except Exception as ex:
             self.ui.PathText.Text = u"{}: {}".format(i18n.t("help_select_file"), ex)
 
@@ -214,13 +258,16 @@ class HelpDialog(object):
     def _init_window(self):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(
-            self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "SearchBox",
+            self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
+                       "BtnForward", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh"))
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents
         self.ui.BtnRefresh.Click += lambda sender, args: self._load_tree()
+        self.ui.BtnBack.Click += self._go_back
+        self.ui.BtnForward.Click += self._go_forward
         self.ui.MarkdownBrowser.Navigating += self._on_browser_navigating
         self.ui.SearchBox.TextChanged += lambda sender, args: self.search_mode and self._run_search(sender.Text)
         self.ui.BtnClearSearch.Click += lambda sender, args: self._clear_search()
