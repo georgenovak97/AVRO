@@ -50,3 +50,30 @@ def scan_documents(root):
             key=lambda value: os.path.basename(value).lower())
         total += len(target.files)
     return node, total
+
+
+def search_documents(root, query):
+    """Return Markdown files whose text contains the complete query."""
+    query = (query or u"").strip().lower()
+    if not query:
+        return []
+    results = []
+    for current, dirs, files in os.walk(os.path.abspath(root or "")):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for name in files:
+            if name.startswith(".") or not name.lower().endswith(".md"):
+                continue
+            path = os.path.join(current, name)
+            try:
+                text = read_text(path)
+            except Exception:
+                continue
+            position = text.lower().find(query)
+            if position < 0:
+                continue
+            start = max(0, position - 90)
+            end = min(len(text), position + len(query) + 130)
+            snippet = " ".join(text[start:end].split())
+            results.append((path, snippet))
+    results.sort(key=lambda item: os.path.basename(item[0]).lower())
+    return results

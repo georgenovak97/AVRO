@@ -251,6 +251,10 @@ _STRINGS = {
         u"help_status_loading": u"Загрузка документации…",
         u"help_status_files": u"Документов: {n}",
         u"help_toc_empty": u"Нет заголовков",
+        u"help_search": u"Поиск",
+        u"help_search_placeholder": u"Поиск по документам",
+        u"help_search_no_results": u"Совпадений не найдено.",
+        u"help_search_results": u"Документов найдено: {n}",
     },
     u"en": {
         u"app_title": u"Family Browser",
@@ -497,6 +501,10 @@ _STRINGS = {
         u"help_status_loading": u"Loading documentation…",
         u"help_status_files": u"Documents: {n}",
         u"help_toc_empty": u"No headings",
+        u"help_search": u"Search",
+        u"help_search_placeholder": u"Search documents",
+        u"help_search_no_results": u"No matching documents.",
+        u"help_search_results": u"Documents found: {n}",
     },
 }
 

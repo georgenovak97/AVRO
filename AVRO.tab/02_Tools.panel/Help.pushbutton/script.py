@@ -38,6 +38,7 @@ class HelpDialog(object):
         self.current_path = None
         self._current_text = ""
         self._headings = []
+        self.search_mode = False
 
     def _palette(self):
         return ui_theme.DARK if config.load().get("ui_theme") == "dark" else ui_theme.LIGHT
@@ -49,6 +50,7 @@ class HelpDialog(object):
         self.ui.BtnDocuments.ToolTip = i18n.t("help_btn_documents_tooltip")
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
         self.ui.BtnRefresh.ToolTip = i18n.t("help_btn_refresh_tooltip")
+        self.ui.SearchBox.ToolTip = i18n.t("help_search_placeholder")
 
     def _header(self, text, geometry):
         panel = StackPanel()
@@ -87,6 +89,13 @@ class HelpDialog(object):
         item.Selected += self._file_selected
         parent.Items.Add(item)
 
+    def _add_search_item(self):
+        item = TreeViewItem()
+        item.Header = self._header(i18n.t("help_search"), "M2,2 L16,2 L16,16 L2,16 Z M5,6 L13,6 M5,9 L13,9 M5,12 L10,12")
+        item.Tag = "__search__"
+        item.Selected += self._search_selected
+        self.ui.DocumentTree.Items.Add(item)
+
     def _add_folder(self, parent, node, is_root=False):
         item = TreeViewItem()
         item.Header = self._header(
@@ -101,6 +110,7 @@ class HelpDialog(object):
 
     def _load_tree(self):
         self.ui.DocumentTree.Items.Clear()
+        self._add_search_item()
         path = config.load().get("docs_path") or ""
         if not os.path.isdir(path):
             self.ui.StatusText.Text = i18n.t("help_no_documents")
@@ -115,11 +125,27 @@ class HelpDialog(object):
         if path and os.path.isfile(path):
             self._show_file(path)
 
+    def _search_selected(self, sender, args):
+        self.search_mode = True
+        self.ui.PathText.Text = i18n.t("help_search")
+        self.ui.SearchBox.Text = ""
+        self.ui.SearchBox.Focus()
+        self._run_search("")
+
+    def _run_search(self, query):
+        path = config.load().get("docs_path") or ""
+        results = help_scanner.search_documents(path, query)
+        self.ui.MarkdownBrowser.NavigateToString(help_renderer.search_results_html(
+            results, query, self._palette(), i18n.t("help_search"),
+            i18n.t("help_search_no_results"), i18n.t("help_search_results")))
+        self.ui.StatusText.Text = i18n.t("help_search_results", n=len(results))
+
     def _show_file(self, path):
         try:
             text = help_scanner.read_text(path)
             self.current_path = path
             self._current_text = text
+            self.search_mode = False
             self.ui.PathText.Text = path
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
@@ -166,16 +192,16 @@ class HelpDialog(object):
     def _init_window(self):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(
-            self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "TocTitle",
-                       "TocTree", "StatusText", "BtnDocuments", "BtnRefresh"))
+            self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "SearchBox",
+                       "TocTitle", "TocTree", "StatusText", "BtnDocuments", "BtnRefresh"))
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents
         self.ui.BtnRefresh.Click += lambda sender, args: self._load_tree()
+        self.ui.SearchBox.TextChanged += lambda sender, args: self.search_mode and self._run_search(sender.Text)
         ui_notify.register_theme_listener(self._theme_changed)
         self._load_tree()
-        if not self.current_path:
-            self.ui.PathText.Text = i18n.t("help_select_file")
+        self._search_selected(None, None)
 
     def show(self):
         i18n.init_from_config()
