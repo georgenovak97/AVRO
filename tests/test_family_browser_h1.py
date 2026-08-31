@@ -122,7 +122,9 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source, methods["_on_window_closing"])
         place_source = ast.get_source_segment(
             source, methods["_place_family"])
-        self.assertIn("self.win.IsEnabled = False", close_source)
+        self.assertIn("FamilyScrollViewer.IsEnabled = False", close_source)
+        self.assertIn("SearchBox.IsEnabled = False", close_source)
+        self.assertIn('"BtnLoad"', close_source)
         self.assertIn("Dispatcher.BeginInvoke", close_source)
         self.assertIn("_close_after_save_timeout", close_source)
         self.assertIn("_close_requested", place_source)
@@ -191,6 +193,18 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("CenterScreen", restore_source)
         self.assertIn("Screen.AllScreens", visible_source)
         self.assertIn("WorkingArea", visible_source)
+
+    def test_busy_properties_inspection_does_not_disable_the_tree(self):
+        props_path = os.path.join(ROOT, "lib", "family_browser_props.py")
+        with open(props_path, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=props_path)
+        begin = next(node for node in ast.walk(tree)
+                     if isinstance(node, ast.FunctionDef)
+                     and node.name == "begin_inspect")
+        begin_source = ast.get_source_segment(source, begin)
+        self.assertIn("Cursors.Wait", begin_source)
+        self.assertNotIn("win.IsEnabled = False", begin_source)
 
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:

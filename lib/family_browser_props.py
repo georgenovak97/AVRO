@@ -125,7 +125,6 @@ class PropsPanelController(object):
         try:
             win.Cursor = System.Windows.Input.Cursors.Wait
             win.Topmost = True
-            win.IsEnabled = False
         except Exception:
             pass
         try:
@@ -152,7 +151,6 @@ class PropsPanelController(object):
         if win is None or self.dialog._window_closing:
             return
         try:
-            win.IsEnabled = True
             win.Cursor = System.Windows.Input.Cursors.Arrow
             win.Topmost = False
             win.Activate()

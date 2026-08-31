@@ -921,7 +921,12 @@ class FamilyBrowserDialog(object):
             self._stop_grid_relayout_timer()
             self._set_status(i18n.t("saving_state"))
             try:
-                self.win.IsEnabled = False
+                self.ui.FamilyScrollViewer.IsEnabled = False
+                self.ui.SearchBox.IsEnabled = False
+                for name in ("BtnSettings", "BtnReload", "BtnLoad"):
+                    button = getattr(self.ui, name, None)
+                    if button is not None:
+                        button.IsEnabled = False
             except Exception:
                 pass
             e.Cancel = True
