@@ -9,6 +9,8 @@ def _escape(value):
 
 
 def _inline(value):
+    # Obsidian escapes punctuation in headings and list-like text.
+    value = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|~<>])", r"\1", value)
     value = _escape(value)
     value = re.sub(r"!\[\[([^]|]+)(?:\|([^]]+))?\]\]",
                    lambda m: '<img alt="{}" src="{}">'.format(
