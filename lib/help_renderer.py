@@ -73,6 +73,7 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
     in_code = False
     code = []
     list_type = None
+    list_class = None
     while index < len(lines):
         line = lines[index]
         fence = re.match(r"^\s*(```|~~~)\s*(.*)$", line)
@@ -83,8 +84,9 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
                 in_code = False
             else:
                 if list_type:
-                    html.append("</{}>".format(list_type))
+                    html.append("</ol>" if list_type == "ol" else "</ul>")
                     list_type = None
+                    list_class = None
                 in_code = True
             index += 1
             continue
@@ -107,8 +109,9 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
         heading = re.match(r"^\s*(#{1,6})\s+(.+?)\s*#*\s*$", line)
         if heading:
             if list_type:
-                html.append("</{}>".format(list_type))
+                html.append("</ol>" if list_type == "ol" else "</ul>")
                 list_type = None
+                list_class = None
             level = len(heading.group(1))
             value = heading.group(2).strip()
             html.append('<h{0} id="{1}">{2}</h{0}>'.format(
@@ -120,21 +123,31 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             index += 1
             continue
 
+        task = re.match(r"^\s*[-*+]\s+\[( |x|X)\]\s+(.+)$", line)
         numbered = re.match(r"^\s*\d+[.)]\s+(.+)$", line)
         bulleted = re.match(r"^\s*[-*+]\s+(.+)$", line)
-        if numbered or bulleted:
+        if task or numbered or bulleted:
             wanted = "ol" if numbered else "ul"
-            if list_type != wanted:
+            wanted_class = "task-list" if task else None
+            if list_type != wanted or list_class != wanted_class:
                 if list_type:
-                    html.append("</{}>".format(list_type))
-                html.append("<{}>".format(wanted))
+                    html.append("</ol>" if list_type == "ol" else "</ul>")
+                html.append("<ul class=\"task-list\">" if wanted_class
+                             else "<{}>".format(wanted))
                 list_type = wanted
-            html.append("<li>{}</li>".format(_inline((numbered or bulleted).group(1))))
+                list_class = wanted_class
+            if task:
+                checked = " checked" if task.group(1) != " " else ""
+                html.append('<li><input type="checkbox" disabled{}> {}</li>'.format(
+                    checked, _inline(task.group(2))))
+            else:
+                html.append("<li>{}</li>".format(_inline((numbered or bulleted).group(1))))
             index += 1
             continue
         if list_type:
-            html.append("</{}>".format(list_type))
+            html.append("</ol>" if list_type == "ol" else "</ul>")
             list_type = None
+            list_class = None
         quote = re.match(r"^\s*>\s*(.*)$", line)
         if quote:
             callout = re.match(r"\[!(\w+)\]\s*(.*)$", quote.group(1))
@@ -150,7 +163,7 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             html.append("<p>{}</p>".format(_inline(line)))
         index += 1
     if list_type:
-        html.append("</{}>".format(list_type))
+        html.append("</ol>" if list_type == "ol" else "</ul>")
     if in_code:
         html.append("<pre><code>{}</code></pre>".format(_escape("\n".join(code))))
     base = ""
@@ -164,7 +177,7 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
     return """<!doctype html><html><head><meta charset="utf-8">@@base@@<style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:@@bg@@;color:@@text@@;margin:26px 34px;line-height:1.45;font-size:14px}
 h1,h2,h3,h4,h5,h6{color:@@text@@;font-weight:600;margin:1.15em 0 .45em}h1{font-size:28px}h2{font-size:22px}h3{font-size:18px}
-p{margin:.55em 0}ol,ul{margin:8px 0;padding-left:26px}li{margin:1px 0;line-height:1.35}a{color:@@link@@}code,pre,blockquote{background:@@codebg@@}code{padding:2px 5px;border-radius:3px}pre{padding:14px;overflow:auto;border-left:3px solid @@link@@}blockquote{border-left:4px solid @@link@@;margin:12px 0;padding:4px 14px}mark{background:#d9b44a}.wikilink{color:@@link@@}img{max-width:100%}
+ p{margin:.55em 0}ol,ul{margin:8px 0;padding-left:26px}li{margin:1px 0;line-height:1.35}.task-list{list-style:none;padding-left:0}.task-list li{margin-left:0}.task-list input{margin-right:6px;width:14px;height:14px;vertical-align:middle}a{color:@@link@@}code,pre,blockquote{background:@@codebg@@}code{padding:2px 5px;border-radius:3px}pre{padding:14px;overflow:auto;border-left:3px solid @@link@@}blockquote{border-left:4px solid @@link@@;margin:12px 0;padding:4px 14px}mark{background:#d9b44a}.wikilink{color:@@link@@}img{max-width:100%}
 table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13px}th,td{border:1px solid @@border@@;padding:7px 10px;text-align:left;vertical-align:top}th{background:@@codebg@@;font-weight:600}.callout{padding:10px 14px;margin:12px 0;border-left:4px solid @@link@@;background:@@codebg@@}
 </style></head><body>@@content@@@@scroll@@</body></html>""".replace(
         "@@base@@", base).replace("@@content@@", "\n".join(html)).replace(
