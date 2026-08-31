@@ -255,6 +255,7 @@ _STRINGS = {
         u"help_search_placeholder": u"Поиск по документам",
         u"help_search_no_results": u"Совпадений не найдено.",
         u"help_search_results": u"Документов найдено: {n}",
+        u"help_documents_label": u"Документов",
     },
     u"en": {
         u"app_title": u"Family Browser",
@@ -505,6 +506,7 @@ _STRINGS = {
         u"help_search_placeholder": u"Search documents",
         u"help_search_no_results": u"No matching documents.",
         u"help_search_results": u"Documents found: {n}",
+        u"help_documents_label": u"Documents",
     },
 }
 

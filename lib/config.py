@@ -14,6 +14,7 @@ TMP_DIR = os.path.join(EXTENSION_DIR, "tmp")
 CONFIG_DIR  = TMP_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 RECENT_FILE = os.path.join(CONFIG_DIR, "recent_families.json")
+DOCS_RECENT_FILE = os.path.join(CONFIG_DIR, "recent_documents.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "cache.log")
 THUMB_CACHE_DIR = os.path.join(CONFIG_DIR, "thumbs")
 
@@ -24,6 +25,7 @@ _IO_LOCK = threading.RLock()
 DEFAULTS = {
     "library_path": "",
     "docs_path": "",
+    "recent_documents": [],
     "thumbnail_size": 156,
     "recent_families": [],
     "library_cache_hash": "",
@@ -146,6 +148,45 @@ def save_recents(paths):
         if isinstance(text, str):
             text = _u(text)
         _atomic_write_text(RECENT_FILE, text)
+
+
+def load_recent_documents():
+    """Return the ten most recently opened Markdown documents."""
+    _ensure_dir()
+    with _IO_LOCK:
+        if not os.path.exists(DOCS_RECENT_FILE):
+            return []
+        try:
+            with codecs.open(DOCS_RECENT_FILE, "r", "utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return []
+            return [_u(p) for p in data if p][:10]
+        except Exception as ex:
+            _log(u"recent documents load failed: {}".format(_u(ex)))
+            return []
+
+
+def save_recent_documents(paths):
+    with _IO_LOCK:
+        paths = [_u(p) for p in (paths or []) if p][:10]
+        try:
+            text = json.dumps(paths, ensure_ascii=False, indent=2)
+        except Exception:
+            text = json.dumps(paths, ensure_ascii=True, indent=2)
+        if isinstance(text, str):
+            text = _u(text)
+        _atomic_write_text(DOCS_RECENT_FILE, text)
+
+
+def add_recent_document(path):
+    path = _u(path)
+    if not path:
+        return
+    recent = [item for item in load_recent_documents()
+              if item.lower() != path.lower()]
+    recent.insert(0, path)
+    save_recent_documents(recent)
 
 
 def _normalize_library_cfg(cfg):

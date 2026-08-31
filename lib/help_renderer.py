@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Small dependency-free Markdown renderer suitable for Obsidian notes."""
+import os
 import re
 
 
@@ -184,7 +185,7 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
     if not (query or "").strip():
         return themed_html("", palette)
     query = _escape(query or "")
-    blocks = ["<h1>{}</h1>".format(_escape(title)), "<p class=\"search-query\">{}</p>".format(query)]
+    blocks = []
     if not results:
         blocks.append("<p class=\"empty\">{}</p>".format(_escape(no_results)))
     else:
@@ -193,7 +194,9 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
         for path, snippet in results:
             href = path.replace("\\", "/").replace(" ", "%20")
             blocks.append("<article class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a><p>{2}</p></article>".format(
-                _escape(href), _escape(path), _inline(snippet)))
+                _escape(href), _escape(os.path.splitext(os.path.basename(path))[0]),
+                _inline(snippet)))
+
     html = markdown_to_html("", base_path="")
     html = html.replace("</style>", "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
@@ -202,3 +205,9 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
                        ("border", palette["BorderLight"])):
         html = html.replace("@@" + key + "@@", value)
     return html
+
+
+def recent_results_html(results, palette):
+    """Render recently viewed documents without a search header."""
+    return search_results_html(results, "recent", palette,
+                               no_results="", count_label="")
