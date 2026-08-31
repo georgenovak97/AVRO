@@ -115,13 +115,10 @@ class HelpDialog(object):
         self._add_search_item()
         path = config.load().get("docs_path") or ""
         if not os.path.isdir(path):
-            self.ui.StatusText.Text = i18n.t("help_no_documents")
             return
-        self.ui.StatusText.Text = i18n.t("help_status_loading")
         self.root, count = help_scanner.scan_documents(path)
         self.doc_count = count
         self._add_folder(self.ui.DocumentTree, self.root, is_root=True)
-        self.ui.StatusText.Text = i18n.t("help_status_files", n=count)
 
     def _file_selected(self, sender, args):
         path = getattr(sender, "Tag", None)
@@ -144,13 +141,11 @@ class HelpDialog(object):
                       if os.path.isfile(path)]
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.recent_results_html(recent, self._palette()))
-            self.ui.StatusText.Text = ""
             return
         results = help_scanner.search_documents(path, query)
         self.ui.MarkdownBrowser.NavigateToString(help_renderer.search_results_html(
             results, query, self._palette(), i18n.t("help_search"),
             i18n.t("help_search_no_results"), i18n.t("help_search_results")))
-        self.ui.StatusText.Text = i18n.t("help_search_results", n=len(results))
 
     def _clear_search(self):
         self.ui.SearchBox.Text = ""
@@ -180,9 +175,8 @@ class HelpDialog(object):
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
             self._headings = help_toc.extract_headings(text)
             self._fill_toc()
-            self.ui.StatusText.Text = os.path.basename(path)
         except Exception as ex:
-            self.ui.StatusText.Text = u"{}: {}".format(i18n.t("help_select_file"), ex)
+            self.ui.PathText.Text = u"{}: {}".format(i18n.t("help_select_file"), ex)
 
     def _fill_toc(self):
         self.ui.TocTree.Items.Clear()
@@ -221,8 +215,8 @@ class HelpDialog(object):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "SearchBox",
-                       "BtnClearSearch", "TocTitle", "TocTree", "StatusText",
-                       "BtnDocuments", "BtnRefresh"))
+                       "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
+                       "BtnRefresh"))
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents

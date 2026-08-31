@@ -198,7 +198,7 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
                 _inline(snippet)))
 
     html = markdown_to_html("", base_path="")
-    html = html.replace("</style>", "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
+    html = html.replace("</style>", ".count{font-weight:600}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
@@ -209,5 +209,6 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
 
 def recent_results_html(results, palette):
     """Render recently viewed documents without a search header."""
-    return search_results_html(results, "recent", palette,
+    pairs = [(path, "") for path in results]
+    return search_results_html(pairs, "recent", palette,
                                no_results="", count_label="")
