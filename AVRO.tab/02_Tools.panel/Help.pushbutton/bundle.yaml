@@ -1,0 +1,8 @@
+title:
+  ru: Справка
+  en_us: Help
+tooltip:
+  ru: "Локальная документация AVRO в формате Markdown."
+  en_us: "Local AVRO documentation in Markdown format."
+author: AVRO Consulting
+min_revit_ver: 2020

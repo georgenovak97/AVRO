@@ -23,6 +23,7 @@ _IO_LOCK = threading.RLock()
 
 DEFAULTS = {
     "library_path": "",
+    "docs_path": "",
     "thumbnail_size": 156,
     "recent_families": [],
     "library_cache_hash": "",
