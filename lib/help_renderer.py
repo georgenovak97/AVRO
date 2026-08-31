@@ -182,7 +182,7 @@ def themed_html(text, palette, title="", base_path="", scroll_to=""):
 def search_results_html(results, query, palette, title="Search", no_results="No matching documents.", count_label="Documents found: {n}"):
     """Render the Help home page search results with the shared palette."""
     if not (query or "").strip():
-        return ""
+        return themed_html("", palette)
     query = _escape(query or "")
     blocks = ["<h1>{}</h1>".format(_escape(title)), "<p class=\"search-query\">{}</p>".format(query)]
     if not results:

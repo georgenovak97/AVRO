@@ -137,7 +137,8 @@ class HelpDialog(object):
         path = config.load().get("docs_path") or ""
         query = (query or "").strip()
         if not query:
-            self.ui.MarkdownBrowser.NavigateToString("")
+            self.ui.MarkdownBrowser.NavigateToString(
+                help_renderer.search_results_html([], "", self._palette()))
             self.ui.StatusText.Text = ""
             return
         results = help_scanner.search_documents(path, query)
