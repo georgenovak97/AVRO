@@ -133,6 +133,7 @@ _VIRTUAL_ITEM_LIMIT = 50
 _SEARCH_DEBOUNCE_MS = 400
 _GRID_RELOAD_DEBOUNCE_MS = 80
 _DOUBLE_ESC_CLOSE_WINDOW_S = 0.6
+_CLOSE_SAVE_TIMEOUT_S = 15.0
 _CARD_OUTER_PAD = 8
 _CARD_W = 156
 _CARD_H = 182
@@ -328,6 +329,7 @@ class FamilyBrowserDialog(object):
         self._window_closing = False
         self._close_requested = False
         self._allow_close_after_save = False
+        self._close_timeout_timer = None
         self._scan_gen = 0
         self._show_catalog_after_scan = False
 
@@ -341,6 +343,7 @@ class FamilyBrowserDialog(object):
         self._window_closing = False
         self._close_requested = False
         self._allow_close_after_save = False
+        self._close_timeout_timer = None
         self._cleanup_done = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
@@ -888,14 +891,35 @@ class FamilyBrowserDialog(object):
             self._stop_search_timer()
             self._stop_grid_relayout_timer()
             self._set_status(i18n.t("saving_state"))
-            e.Cancel = True
             try:
-                self._persist_cache(
-                    async_save=True, on_done=self._close_after_save)
+                self.win.IsEnabled = False
+            except Exception:
+                pass
+            e.Cancel = True
+
+            # Let WPF paint the status before starting disk I/O on the worker.
+            # This also makes the close state observable on slow machines.
+            def start_save():
+                if self.win is None or self._window_closing:
+                    return
+                try:
+                    self._persist_cache(
+                        async_save=True, on_done=self._close_after_save)
+                except Exception as ex:
+                    libcache._log(u"deferred cache save: {}".format(
+                        as_unicode(ex)))
+                    self._close_after_save()
+
+            try:
+                self.win.Dispatcher.BeginInvoke(System.Action(start_save))
             except Exception as ex:
                 libcache._log(u"deferred cache save: {}".format(
                     as_unicode(ex)))
-                self._close_after_save()
+                start_save()
+            self._close_timeout_timer = threading.Timer(
+                _CLOSE_SAVE_TIMEOUT_S, self._close_after_save_timeout)
+            self._close_timeout_timer.setDaemon(True)
+            self._close_timeout_timer.start()
             return
 
         try:
@@ -933,10 +957,32 @@ class FamilyBrowserDialog(object):
         if self.win is None or self._window_closing:
             return
         try:
+            self._cancel_close_timeout()
             self._allow_close_after_save = True
             self.win.Close()
         except Exception as ex:
             libcache._log(u"close after save: {}".format(as_unicode(ex)))
+
+    def _close_after_save_timeout(self):
+        """Do not leave the browser stuck if cache I/O never completes."""
+        if self.win is None or self._window_closing:
+            return
+        avro_log.event("family_browser", "close_save_timeout")
+        try:
+            self.win.Dispatcher.BeginInvoke(
+                System.Action(self._close_after_save))
+        except Exception as ex:
+            libcache._log(u"close timeout dispatch: {}".format(
+                as_unicode(ex)))
+
+    def _cancel_close_timeout(self):
+        timer = self._close_timeout_timer
+        self._close_timeout_timer = None
+        if timer is not None:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
 
     def _cleanup_window_resources(self):
         """Stop window work and release references before WPF teardown."""
@@ -1012,6 +1058,7 @@ class FamilyBrowserDialog(object):
                     event -= handler
                 except Exception:
                     pass
+        self._cancel_close_timeout()
 
         with self._preview_mem_lock:
             self._preview_mem.clear()
@@ -2455,6 +2502,8 @@ class FamilyBrowserDialog(object):
             raise
 
     def _place_family(self, fi):
+        if self._close_requested or self._window_closing:
+            return
         family_release = self._release_number(
             getattr(fi, "revit_version", u""))
         host_label = self._current_revit_label()

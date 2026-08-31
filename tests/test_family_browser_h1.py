@@ -108,6 +108,35 @@ class FamilyBrowserH1Tests(unittest.TestCase):
             source, cleanup_tries[0])
         self.assertIn("self._window_closing = True", terminal_source)
 
+    def test_close_disables_actions_and_has_save_timeout_fallback(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        close_source = ast.get_source_segment(
+            source, methods["_on_window_closing"])
+        place_source = ast.get_source_segment(
+            source, methods["_place_family"])
+        self.assertIn("self.win.IsEnabled = False", close_source)
+        self.assertIn("Dispatcher.BeginInvoke", close_source)
+        self.assertIn("_close_after_save_timeout", close_source)
+        self.assertIn("_close_requested", place_source)
+        self.assertIn("_window_closing", place_source)
+
+    def test_cleanup_cancels_close_timeout(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        cleanup = next(node for node in ast.walk(tree)
+                       if isinstance(node, ast.FunctionDef)
+                       and node.name == "_cleanup_window_resources")
+        cleanup_source = ast.get_source_segment(source, cleanup)
+        self.assertIn("_cancel_close_timeout", cleanup_source)
+
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:
             source = stream.read()
