@@ -174,6 +174,24 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("pending_relayout", finish_source)
         self.assertIn("_relayout_family_grid", finish_source)
 
+    def test_saved_window_geometry_is_checked_against_available_screens(self):
+        with open(SCRIPT, "r") as stream:
+            source = stream.read()
+        tree = ast.parse(source, filename=SCRIPT)
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+        }
+        restore_source = ast.get_source_segment(
+            source, methods["_restore_window_geometry"])
+        visible_source = ast.get_source_segment(
+            source, methods["_window_geometry_is_visible"])
+        self.assertIn("_window_geometry_is_visible", restore_source)
+        self.assertIn("CenterScreen", restore_source)
+        self.assertIn("Screen.AllScreens", visible_source)
+        self.assertIn("WorkingArea", visible_source)
+
     def test_right_click_defers_and_always_shows_properties_preparation(self):
         with open(SCRIPT, "r") as stream:
             source = stream.read()

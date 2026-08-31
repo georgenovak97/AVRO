@@ -45,6 +45,13 @@ class FamilyBrowserTreeUiTests(unittest.TestCase):
         all_text = ElementTree.tostring(root, encoding="unicode")
         self.assertIn("PlusVertical", all_text)
 
+    def test_tree_has_explicit_sidebar_background_and_grid_minimum(self):
+        root = ElementTree.parse(XAML).getroot()
+        all_text = ElementTree.tostring(root, encoding="unicode")
+        self.assertIn("CategoryTree", all_text)
+        self.assertIn('Background="{DynamicResource BgSidebar}"', all_text)
+        self.assertIn('Width="*" MinWidth="240"', all_text)
+
     def test_tree_theme_resources_exist_in_both_palettes(self):
         with open(THEME, "r") as stream:
             tree = ast.parse(stream.read(), filename=THEME)

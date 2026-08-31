@@ -21,6 +21,7 @@ clr.AddReference("RevitAPIUI")
 clr.AddReference("System.Windows.Forms")
 
 import System
+from System.Windows.Forms import Screen
 from System.Windows import (
     Thickness, HorizontalAlignment, VerticalAlignment, Visibility,
     TextWrapping, FontWeights,
@@ -418,6 +419,10 @@ class FamilyBrowserDialog(object):
         geometry = self._reopen_window_geometry
         if not geometry:
             return
+        if not self._window_geometry_is_visible(geometry):
+            self.win.WindowStartupLocation = (
+                System.Windows.WindowStartupLocation.CenterScreen)
+            return
         try:
             self.win.WindowStartupLocation = System.Windows.WindowStartupLocation.Manual
             self.win.Width = float(geometry.get("width"))
@@ -426,6 +431,24 @@ class FamilyBrowserDialog(object):
             self.win.Top = float(geometry.get("top"))
         except Exception:
             pass
+
+    def _window_geometry_is_visible(self, geometry):
+        """Return whether a saved window rectangle intersects a monitor."""
+        try:
+            left = float(geometry.get("left"))
+            top = float(geometry.get("top"))
+            width = max(120.0, float(geometry.get("width")))
+            height = max(120.0, float(geometry.get("height")))
+            right = left + width
+            bottom = top + height
+            for screen in Screen.AllScreens:
+                area = screen.WorkingArea
+                if (right > area.Left and left < area.Right
+                        and bottom > area.Top and top < area.Bottom):
+                    return True
+        except Exception:
+            pass
+        return False
 
     def _window_is_current(self, win, window_gen):
         return (self.win is win and self.ui is not None

@@ -236,7 +236,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="366" MinWidth="323"/>
                 <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*" MinWidth="240"/>
                 <ColumnDefinition Width="4"/>
                 <ColumnDefinition Width="366" MinWidth="323"/>
             </Grid.ColumnDefinitions>
@@ -245,6 +245,7 @@
             <Border Grid.Column="0" Background="{DynamicResource BgSidebar}"
                     BorderBrush="{DynamicResource BorderMain}" BorderThickness="0,0,1,0">
                 <TreeView x:Name="CategoryTree"
+                           Background="{DynamicResource BgSidebar}"
                            Margin="4,8,4,8"/>
             </Border>
 
