@@ -77,6 +77,12 @@ class I18nTests(unittest.TestCase):
         i18n.set_language(u"en")
         self.assertEqual(i18n.t(u"props_loading"), u"Preparing properties…")
 
+    def test_family_reading_status(self):
+        i18n.set_language(u"ru")
+        self.assertEqual(i18n.t(u"reading_family"), u"Идет чтение семейства…")
+        i18n.set_language(u"en")
+        self.assertEqual(i18n.t(u"reading_family"), u"Reading family…")
+
     def test_saving_state_status(self):
         i18n.set_language(u"ru")
         self.assertEqual(

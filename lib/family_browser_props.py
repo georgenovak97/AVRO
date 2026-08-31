@@ -44,8 +44,12 @@ class PropsPanelController(object):
         panel = self.dialog.ui.PropsPanel
         hint = self.dialog.ui.PropsHint
         panel.Children.Clear()
-        hint.Text = hint_text if hint_text is not None else i18n.t("props_hint")
-        hint.Visibility = Visibility.Visible
+        if hint_text is None:
+            hint.Text = u""
+            hint.Visibility = Visibility.Collapsed
+        else:
+            hint.Text = hint_text
+            hint.Visibility = Visibility.Visible
         self._props_path = None
 
     def set_loading(self, path):
@@ -100,6 +104,7 @@ class PropsPanelController(object):
             return
         path = fi.path
         self.set_loading(path)
+        self.dialog._set_status(i18n.t("reading_family"))
         win = self.dialog.win
         window_gen = self.dialog._window_gen
         try:
@@ -137,6 +142,7 @@ class PropsPanelController(object):
             win.Topmost = False
             win.Activate()
             win.Focus()
+            self.dialog._set_status(i18n.t("status_ready"))
         except Exception as ex:
             avro_log.exception("props.inspect.restore", ex)
 

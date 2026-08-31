@@ -202,6 +202,14 @@ class FamilyBrowserH1Tests(unittest.TestCase):
         self.assertIn("Cursors.Wait", begin_source)
         self.assertIn("known_version", inspect_source)
         self.assertIn("_restore_after_inspect", begin_source)
+        self.assertIn('reading_family', begin_source)
+        self.assertIn('status_ready', source)
+
+        reset = next(node for node in ast.walk(props_tree)
+                     if isinstance(node, ast.FunctionDef)
+                     and node.name == "reset")
+        reset_source = ast.get_source_segment(props_source, reset)
+        self.assertIn("Visibility.Collapsed", reset_source)
 
     def test_catalog_batches_are_limited_to_fifty(self):
         with open(SCRIPT, "r") as stream:
