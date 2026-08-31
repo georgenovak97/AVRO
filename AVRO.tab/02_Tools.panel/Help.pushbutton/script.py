@@ -2,6 +2,7 @@
 """AVRO Help: browse and read a local Obsidian Markdown vault."""
 import os
 import sys
+import System
 
 import clr
 clr.AddReference("PresentationFramework")
@@ -134,11 +135,27 @@ class HelpDialog(object):
 
     def _run_search(self, query):
         path = config.load().get("docs_path") or ""
+        query = (query or "").strip()
+        if not query:
+            self.ui.MarkdownBrowser.NavigateToString("")
+            self.ui.StatusText.Text = ""
+            return
         results = help_scanner.search_documents(path, query)
         self.ui.MarkdownBrowser.NavigateToString(help_renderer.search_results_html(
             results, query, self._palette(), i18n.t("help_search"),
             i18n.t("help_search_no_results"), i18n.t("help_search_results")))
         self.ui.StatusText.Text = i18n.t("help_search_results", n=len(results))
+
+    def _on_browser_navigating(self, sender, args):
+        uri = args.Uri
+        if uri is None or uri.Scheme != "help" or uri.Host != "open":
+            return
+        query = uri.Query
+        if query.startswith("?path="):
+            path = System.Uri.UnescapeDataString(query[6:]).replace("/", os.sep)
+            if os.path.isfile(path):
+                self._show_file(path)
+        args.Cancel = True
 
     def _show_file(self, path):
         try:
@@ -198,6 +215,7 @@ class HelpDialog(object):
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents
         self.ui.BtnRefresh.Click += lambda sender, args: self._load_tree()
+        self.ui.MarkdownBrowser.Navigating += self._on_browser_navigating
         self.ui.SearchBox.TextChanged += lambda sender, args: self.search_mode and self._run_search(sender.Text)
         ui_notify.register_theme_listener(self._theme_changed)
         self._load_tree()

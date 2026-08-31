@@ -181,6 +181,8 @@ def themed_html(text, palette, title="", base_path="", scroll_to=""):
 
 def search_results_html(results, query, palette, title="Search", no_results="No matching documents.", count_label="Documents found: {n}"):
     """Render the Help home page search results with the shared palette."""
+    if not (query or "").strip():
+        return ""
     query = _escape(query or "")
     blocks = ["<h1>{}</h1>".format(_escape(title)), "<p class=\"search-query\">{}</p>".format(query)]
     if not results:
@@ -189,9 +191,11 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
         blocks.append("<p class=\"count\">{}</p>".format(
             _escape(count_label.format(n=len(results)))))
         for path, snippet in results:
-            blocks.append("<article><h2>{}</h2><p>{}</p></article>".format(
-                _escape(path), _inline(snippet)))
+            href = path.replace("\\", "/").replace(" ", "%20")
+            blocks.append("<article class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a><p>{2}</p></article>".format(
+                _escape(href), _escape(path), _inline(snippet)))
     html = markdown_to_html("", base_path="")
+    html = html.replace("</style>", "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
