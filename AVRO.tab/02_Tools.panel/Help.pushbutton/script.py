@@ -9,8 +9,10 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
 
-from System.Windows import Thickness
-from System.Windows.Controls import TreeViewItem, TextBlock
+from System.Windows import Thickness, VerticalAlignment
+from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation
+from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
+from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,6 +50,26 @@ class HelpDialog(object):
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
         self.ui.BtnRefresh.ToolTip = i18n.t("help_btn_refresh_tooltip")
 
+    def _header(self, text, geometry):
+        panel = StackPanel()
+        panel.Orientation = Orientation.Horizontal
+        icon = WpfPath()
+        icon.Data = Geometry.Parse(geometry)
+        icon.Width = 16
+        icon.Height = 16
+        icon.Stretch = Stretch.Uniform
+        icon.Margin = Thickness(3, 1, 5, 1)
+        palette = self._palette()
+        color = palette["TreeIcon"].lstrip("#")
+        icon.Stroke = SolidColorBrush(Color.FromRgb(
+            int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)))
+        icon.StrokeThickness = 1.2
+        panel.Children.Add(icon)
+        label = TextBlock(Text=text)
+        label.VerticalAlignment = VerticalAlignment.Center
+        panel.Children.Add(label)
+        return panel
+
     def _theme_changed(self):
         if self.win is not None:
             palette = self._palette()
@@ -57,20 +79,22 @@ class HelpDialog(object):
 
     def _add_file(self, parent, path):
         item = TreeViewItem()
-        item.Header = TextBlock(Text=os.path.splitext(os.path.basename(path))[0])
+        item.Header = self._header(
+            os.path.splitext(os.path.basename(path))[0],
+            "M3,1 L12,1 L16,5 L16,17 L3,17 Z M12,1 L12,5 L16,5 M5,9 L14,9 M5,12 L14,12 M5,15 L11,15")
         item.Tag = path
         item.Uid = "file"
         item.Selected += self._file_selected
         parent.Items.Add(item)
 
-    def _add_folder(self, parent, node):
+    def _add_folder(self, parent, node, is_root=False):
         item = TreeViewItem()
-        item.Header = TextBlock(Text=node.name)
+        item.Header = self._header(
+            node.name, "M1,4 L6,4 L8,6 L17,6 L17,16 L1,16 Z")
         item.Tag = node.path
-        item.Uid = "folder"
-        item.IsExpanded = False
+        item.IsExpanded = is_root
         for folder in node.folders:
-            self._add_folder(item, folder)
+            self._add_folder(item, folder, is_root=False)
         for path in node.files:
             self._add_file(item, path)
         parent.Items.Add(item)
@@ -83,7 +107,7 @@ class HelpDialog(object):
             return
         self.ui.StatusText.Text = i18n.t("help_status_loading")
         self.root, count = help_scanner.scan_documents(path)
-        self._add_folder(self.ui.DocumentTree, self.root)
+        self._add_folder(self.ui.DocumentTree, self.root, is_root=True)
         self.ui.StatusText.Text = i18n.t("help_status_files", n=count)
 
     def _file_selected(self, sender, args):
