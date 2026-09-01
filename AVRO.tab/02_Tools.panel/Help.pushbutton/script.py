@@ -139,6 +139,8 @@ class HelpDialog(object):
         self.ui.SearchBar.Visibility = Visibility.Visible
         self.ui.PathText.Text = u"{} {}".format(
             self.doc_count, i18n.t("help_documents_label"))
+        self._headings = []
+        self._fill_toc()
         self.ui.SearchBox.Text = ""
         self.ui.SearchBox.Focus()
         self._run_search("")
