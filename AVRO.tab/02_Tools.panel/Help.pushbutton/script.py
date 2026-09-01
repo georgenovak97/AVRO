@@ -45,6 +45,7 @@ class HelpDialog(object):
         self._history = []
         self._history_index = -1
         self._history_navigating = False
+        self._selecting_tree_file = False
 
     def _palette(self):
         return ui_theme.DARK if config.load().get("ui_theme") == "dark" else ui_theme.LIGHT
@@ -131,8 +132,37 @@ class HelpDialog(object):
 
     def _file_selected(self, sender, args):
         path = getattr(sender, "Tag", None)
-        if path and os.path.isfile(path):
+        if (not self._selecting_tree_file and path and
+                os.path.isfile(path)):
             self._show_file(path)
+
+    def _select_file_in_tree(self, target_path):
+        """Expand the document path and highlight the opened file."""
+        target_path = os.path.normcase(os.path.abspath(target_path))
+
+        def find_in(items):
+            for item in items:
+                tag = getattr(item, "Tag", None)
+                if tag is None or tag == "__search__":
+                    continue
+                if getattr(item, "Uid", None) == "file":
+                    if os.path.normcase(os.path.abspath(tag)) == target_path:
+                        self._selecting_tree_file = True
+                        try:
+                            item.IsSelected = True
+                            item.BringIntoView()
+                        finally:
+                            self._selecting_tree_file = False
+                        return True
+                    continue
+                folder_path = os.path.normcase(os.path.abspath(tag))
+                if target_path.startswith(folder_path + os.sep):
+                    item.IsExpanded = True
+                    if find_in(item.Items):
+                        return True
+            return False
+
+        find_in(self.ui.DocumentTree.Items)
 
     def _search_selected(self, sender, args):
         self.search_mode = True
@@ -234,6 +264,7 @@ class HelpDialog(object):
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
             self._headings = help_toc.extract_headings(text)
             self._fill_toc()
+            self._select_file_in_tree(path)
             self._update_navigation_buttons()
         except Exception as ex:
             self.ui.PathText.Text = u"{}: {}".format(i18n.t("help_select_file"), ex)
