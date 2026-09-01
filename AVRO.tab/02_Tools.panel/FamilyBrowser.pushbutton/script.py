@@ -31,6 +31,7 @@ from System.Windows.Controls import (
 )
 from System.Windows.Controls.Primitives import ToggleButton
 from System.Windows.Media import SolidColorBrush, Color, VisualTreeHelper
+from System.Windows.Media.Imaging import BitmapImage
 from System.Windows.Input import Key, MouseButton, Keyboard, ModifierKeys
 from System.Windows.Threading import DispatcherTimer, DispatcherPriority
 from Autodesk.Revit.DB import (
@@ -351,6 +352,9 @@ class FamilyBrowserDialog(object):
         self._cleanup_done = False
         self._window_gen += 1
         self.win = ui_utils.load_xaml(_THIS_DIR)
+        icon_path = os.path.join(_THIS_DIR, "icon.png")
+        if os.path.isfile(icon_path):
+            self.win.Icon = BitmapImage(System.Uri(icon_path))
         self._restore_window_geometry()
         self._set_revit_window_owner()
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
