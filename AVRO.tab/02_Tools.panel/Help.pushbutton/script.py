@@ -295,6 +295,7 @@ class HelpDialog(object):
         self.ui.TocTree.Items.Clear()
         if not self._headings:
             empty = TextBlock(Text=i18n.t("help_toc_empty"))
+            empty.SetResourceReference(TextBlock.ForegroundProperty, "TextMain")
             self.ui.TocTree.Items.Add(empty)
             return
         for level, title in self._headings:
