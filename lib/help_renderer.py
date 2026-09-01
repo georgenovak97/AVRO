@@ -62,7 +62,7 @@ def _inline(value):
     value = re.sub(r"\*\*(.+?)\*\*|__(.+?)__",
                    lambda m: "<strong>{}</strong>".format(m.group(1) or m.group(2)), value)
     value = re.sub(r"~~(.+?)~~", r"<del>\1</del>", value)
-    value = re.sub(r"(?<!\*)\*([^*]+)\*|(?<!_)_([^_]+)_",
+    value = re.sub(r"(?<![*\w])\*([^*]+)\*(?!\w)|(?<![_\w])_([^_]+)_(?!\w)",
                    lambda m: "<em>{}</em>".format(m.group(1) or m.group(2)), value)
     for index, span in enumerate(spans):
         if span.lower().startswith("</span"):
