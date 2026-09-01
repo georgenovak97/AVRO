@@ -59,9 +59,9 @@ class PropsPanelController(object):
         hint.Inlines.Clear()
         for text, bold in (
                 (i18n.t("props_help_work"), True),
-                (u"\n\n" + i18n.t("props_help_work_body") + u"\n\n", False),
+                (u"\n" + i18n.t("props_help_work_body") + u"\n\n", False),
                 (i18n.t("props_help_other"), True),
-                (u"\n\n" + i18n.t("props_help_other_body"), False)):
+                (u"\n" + i18n.t("props_help_other_body"), False)):
             run = Run(text)
             if bold:
                 run.FontWeight = FontWeights.Bold

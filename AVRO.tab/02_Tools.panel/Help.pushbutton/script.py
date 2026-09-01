@@ -292,11 +292,12 @@ class HelpDialog(object):
         self.ui.TocTree.Items.Clear()
         guide = TextBlock()
         guide.TextWrapping = TextWrapping.Wrap
+        guide.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted")
         guide.Margin = Thickness(9, 8, 9, 8)
         guide.FontWeight = FontWeights.Normal
         for title, body in i18n.t("help_guide_sections"):
             guide.Inlines.Add(Bold(Run(title)))
-            guide.Inlines.Add(Run(u"\n\n{}\n\n".format(body)))
+            guide.Inlines.Add(Run(u"\n{}\n\n".format(body)))
         item = ListBoxItem(Content=guide)
         item.IsEnabled = False
         item.Focusable = False
