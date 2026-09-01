@@ -13,6 +13,7 @@ clr.AddReference("System.Windows.Forms")
 from System.Windows import Thickness, VerticalAlignment, Visibility
 from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
+from System.Windows.Media.Imaging import BitmapImage
 from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 
@@ -270,6 +271,9 @@ class HelpDialog(object):
 
     def _init_window(self):
         self.win = ui_utils.load_xaml(_THIS_DIR)
+        icon_path = os.path.join(_THIS_DIR, "icon.png")
+        if os.path.isfile(icon_path):
+            self.win.Icon = BitmapImage(System.Uri(icon_path))
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
                        "BtnForward", "SearchBar", "SearchBox",
