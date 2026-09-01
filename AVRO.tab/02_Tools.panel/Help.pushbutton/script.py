@@ -2,6 +2,7 @@
 """AVRO Help: browse and read a local Obsidian Markdown vault."""
 import os
 import sys
+import time
 import System
 
 import clr
@@ -15,6 +16,7 @@ from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orienta
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Media.Imaging import BitmapImage
 from System.Windows.Documents import Bold, Run
+from System.Windows.Input import Key
 from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 
@@ -47,6 +49,7 @@ class HelpDialog(object):
         self._history_index = -1
         self._history_navigating = False
         self._selecting_tree_file = False
+        self._last_escape_press_at = 0.0
 
     def _palette(self):
         return ui_theme.DARK if config.load().get("ui_theme") == "dark" else ui_theme.LIGHT
@@ -259,7 +262,7 @@ class HelpDialog(object):
             self.search_mode = False
             self.ui.SearchBar.Visibility = Visibility.Collapsed
             config.add_recent_document(path)
-            self.ui.PathText.Text = path
+            self.ui.PathText.Text = os.path.basename(path)
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
@@ -319,11 +322,24 @@ class HelpDialog(object):
             config.set_value("docs_path", dialog.SelectedPath)
             self._load_tree()
 
+    def _on_window_keydown(self, sender, args):
+        if args.Key != Key.Escape:
+            self._last_escape_press_at = 0.0
+            return
+        now = time.time()
+        if now - self._last_escape_press_at <= 0.6:
+            self._last_escape_press_at = 0.0
+            args.Handled = True
+            self.win.Close()
+            return
+        self._last_escape_press_at = now
+
     def _init_window(self):
         self.win = ui_utils.load_xaml(_THIS_DIR)
         icon_path = os.path.join(_THIS_DIR, "icon.png")
         if os.path.isfile(icon_path):
             self.win.Icon = BitmapImage(System.Uri(icon_path))
+        self.win.PreviewKeyDown += self._on_window_keydown
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
                        "BtnForward", "SearchBar", "SearchBox",
