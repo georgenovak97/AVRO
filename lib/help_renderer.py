@@ -214,8 +214,13 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             base_path.replace("\\", "/").replace(" ", "%20").rstrip("/"))
     scroll_script = ""
     if scroll_to:
-        scroll_script = "<script>window.onload=function(){var e=document.getElementById('" \
-            + scroll_to + "');if(e){e.scrollIntoView();}}</script>"
+        scroll_script = (
+            "<script>var _tc=!1;window.onload=function(){"
+            "var e=document.getElementById('" + scroll_to + "');"
+            "if(e)e.scrollIntoView();setTimeout(function(){_tc=!0},250);"
+            "};window.onscroll=function(){if(_tc){_tc=!1;"
+            "window.location='help://toc-clearselection'}}</script>"
+        )
     return """<!doctype html><html><head><meta charset="utf-8">@@base@@<style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:@@bg@@;color:@@text@@;margin:26px 34px;line-height:1.45;font-size:14px}
 h1,h2,h3,h4,h5,h6{color:@@text@@;font-weight:600;margin:1.15em 0 .45em}h1{font-size:28px}h2{font-size:22px}h3{font-size:18px}

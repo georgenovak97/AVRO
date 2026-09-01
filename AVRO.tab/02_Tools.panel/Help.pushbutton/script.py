@@ -237,6 +237,11 @@ class HelpDialog(object):
 
     def _on_browser_navigating(self, sender, args):
         uri = args.Uri
+        if (uri is not None and uri.Scheme == "help" and
+                uri.Host == "toc-clearselection"):
+            self.ui.TocTree.SelectedItem = None
+            args.Cancel = True
+            return
         if uri is None or uri.Scheme != "help" or uri.Host != "open":
             return
         query = uri.Query
@@ -312,7 +317,6 @@ class HelpDialog(object):
                     os.path.basename(self.current_path),
                     os.path.dirname(self.current_path),
                     help_renderer._slug(title)))
-            self.ui.TocTree.SelectedItem = None
 
     def _choose_documents(self, sender, args):
         dialog = FolderBrowserDialog()
