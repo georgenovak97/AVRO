@@ -16,6 +16,7 @@ def extract_headings(text):
         if match:
             title = re.sub(r"[*_`~]", "", match.group(2)).strip()
             title = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|~<>])", r"\1", title)
+            title = re.sub(r"<[^>]+>", "", title).strip()
             if title:
                 result.append((len(match.group(1)), title))
     return result

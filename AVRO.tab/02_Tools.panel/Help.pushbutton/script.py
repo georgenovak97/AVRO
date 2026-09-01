@@ -294,7 +294,10 @@ class HelpDialog(object):
         for title, body in i18n.t("help_guide_sections"):
             guide.Inlines.Add(Bold(Run(title)))
             guide.Inlines.Add(Run(u"\n\n{}\n\n".format(body)))
-        self.ui.TocTree.Items.Add(guide)
+        item = ListBoxItem(Content=guide)
+        item.IsEnabled = False
+        item.Focusable = False
+        self.ui.TocTree.Items.Add(item)
 
     def _toc_selected(self, sender, args):
         title = getattr(sender, "Tag", None)
