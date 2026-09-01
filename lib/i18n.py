@@ -256,27 +256,23 @@ _STRINGS = {
         u"help_search_no_results": u"Совпадений не найдено.",
         u"help_search_results": u"Документов найдено: {n}",
         u"help_documents_label": u"Документов",
-        u"help_guide_title": u"Как работать со справкой",
-        u"help_guide_text": (
-            u"Дерево документов\n\n"
-            u"Слева отображаются папки и Markdown-документы. Нажмите на папку, "
-            u"чтобы развернуть её, и на документ, чтобы открыть его. При открытии "
-            u"через поиск или недавние документы дерево автоматически раскроется "
-            u"до нужного файла.\n\n"
-            u"Поиск\n\n"
-            u"Введите текст в поле поиска. Поиск выполняется по содержимому всех "
-            u"документов в выбранной папке. Очистите поле кнопкой «×», чтобы снова "
-            u"увидеть недавние документы.\n\n"
-            u"Кнопки «Документы» и «Обновить»\n\n"
-            u"«Документы» позволяет выбрать папку с документацией. «Обновить» "
-            u"повторно сканирует выбранную папку и обновляет дерево файлов.\n\n"
-            u"Навигация\n\n"
-            u"Стрелка назад возвращает к предыдущей странице или документу. Стрелка "
-            u"вперёд повторно открывает следующий элемент истории.\n\n"
-            u"Содержание\n\n"
-            u"При открытом документе справа отображается его содержание. Нажмите "
-            u"на заголовок, чтобы перейти к соответствующему разделу."
-        ),
+        u"help_guide_title": u"Содержание",
+        u"help_guide_sections": [
+            (u"Дерево документов", u"Слева отображаются папки и Markdown-документы. "
+             u"Нажмите на папку, чтобы развернуть её, и на документ, чтобы открыть его. "
+             u"При открытии через поиск или недавние документы дерево автоматически "
+             u"раскроется до нужного файла."),
+            (u"Поиск", u"Введите текст в поле поиска. Поиск выполняется по содержимому "
+             u"всех документов в выбранной папке. Очистите поле кнопкой «×», чтобы снова "
+             u"увидеть недавние документы."),
+            (u"Кнопки «Документы» и «Обновить»", u"«Документы» позволяет выбрать папку "
+             u"с документацией. «Обновить» повторно сканирует выбранную папку и обновляет "
+             u"дерево файлов."),
+            (u"Навигация", u"Стрелка назад возвращает к предыдущей странице или документу. "
+             u"Стрелка вперёд повторно открывает следующий элемент истории."),
+            (u"Содержание", u"При открытом документе справа отображается его содержание. "
+             u"Нажмите на заголовок, чтобы перейти к соответствующему разделу."),
+        ],
     },
     u"en": {
         u"app_title": u"Family Browser",
@@ -528,26 +524,21 @@ _STRINGS = {
         u"help_search_no_results": u"No matching documents.",
         u"help_search_results": u"Documents found: {n}",
         u"help_documents_label": u"Documents",
-        u"help_guide_title": u"How to use Help",
-        u"help_guide_text": (
-            u"Document tree\n\n"
-            u"The left panel shows folders and Markdown documents. Click a folder "
-            u"to expand it and a document to open it. When a document is opened "
-            u"from search or recents, the tree expands to and highlights that file.\n\n"
-            u"Search\n\n"
-            u"Type text in the search field. Search looks through the contents of all "
-            u"documents in the selected folder. Clear the field with the «×» button "
-            u"to see recent documents again.\n\n"
-            u"Documents and Refresh\n\n"
-            u"Documents lets you choose the documentation folder. Refresh rescans "
-            u"the selected folder and updates the file tree.\n\n"
-            u"Navigation\n\n"
-            u"The back arrow returns to the previous page or document. The forward "
-            u"arrow opens the next item in the navigation history.\n\n"
-            u"Contents\n\n"
-            u"When a document is open, its table of contents appears on the right. "
-            u"Click a heading to jump to that section."
-        ),
+        u"help_guide_title": u"Contents",
+        u"help_guide_sections": [
+            (u"Document tree", u"The left panel shows folders and Markdown documents. "
+             u"Click a folder to expand it and a document to open it. When a document is "
+             u"opened from search or recents, the tree expands to and highlights that file."),
+            (u"Search", u"Type text in the search field. Search looks through the contents "
+             u"of all documents in the selected folder. Clear the field with the «×» button "
+             u"to see recent documents again."),
+            (u"Documents and Refresh", u"Documents lets you choose the documentation folder. "
+             u"Refresh rescans the selected folder and updates the file tree."),
+            (u"Navigation", u"The back arrow returns to the previous page or document. "
+             u"The forward arrow opens the next item in the navigation history."),
+            (u"Contents", u"When a document is open, its table of contents appears on the right. "
+             u"Click a heading to jump to that section."),
+        ],
     },
 }
 

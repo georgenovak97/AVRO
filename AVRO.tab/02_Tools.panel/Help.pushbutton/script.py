@@ -14,6 +14,7 @@ from System.Windows import Thickness, VerticalAlignment, Visibility, TextWrappin
 from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Media.Imaging import BitmapImage
+from System.Windows.Documents import Bold, Run
 from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
 
@@ -286,10 +287,13 @@ class HelpDialog(object):
     def _fill_help_guide(self):
         self.ui.TocTitle.Text = i18n.t("help_guide_title")
         self.ui.TocTree.Items.Clear()
-        guide = TextBlock(Text=i18n.t("help_guide_text"))
+        guide = TextBlock()
         guide.TextWrapping = TextWrapping.Wrap
         guide.Margin = Thickness(9, 8, 9, 8)
         guide.FontWeight = FontWeights.Normal
+        for title, body in i18n.t("help_guide_sections"):
+            guide.Inlines.Add(Bold(Run(title)))
+            guide.Inlines.Add(Run(u"\n\n{}\n\n".format(body)))
         self.ui.TocTree.Items.Add(guide)
 
     def _toc_selected(self, sender, args):
