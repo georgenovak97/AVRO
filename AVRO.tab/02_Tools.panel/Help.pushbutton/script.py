@@ -262,7 +262,7 @@ class HelpDialog(object):
             self.search_mode = False
             self.ui.SearchBar.Visibility = Visibility.Collapsed
             config.add_recent_document(path)
-            self.ui.PathText.Text = os.path.basename(path)
+            self.ui.PathText.Text = os.path.splitext(os.path.basename(path))[0]
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
