@@ -57,6 +57,7 @@ class HelpDialog(object):
     def _apply_text(self):
         self.win.Title = i18n.t("help_app_title")
         self.ui.TocTitle.Text = i18n.t("help_toc_title")
+        self.ui.StatusText.Text = i18n.t("help_status_ready")
         self.ui.BtnDocuments.Content = i18n.t("help_btn_documents")
         self.ui.BtnDocuments.ToolTip = i18n.t("help_btn_documents_tooltip")
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
@@ -173,6 +174,7 @@ class HelpDialog(object):
         self.ui.SearchBar.Visibility = Visibility.Visible
         self.ui.PathText.Text = u"{} {}".format(
             self.doc_count, i18n.t("help_documents_label"))
+        self.ui.StatusText.Text = i18n.t("help_status_ready")
         self._headings = []
         self._fill_help_guide()
         self.ui.SearchBox.Text = ""
@@ -227,6 +229,15 @@ class HelpDialog(object):
                 help_renderer.recent_results_html(recent, self._palette()))
             return
         results = help_scanner.search_documents(path, query)
+        if os.path.isfile(query) and query.lower().endswith(".md"):
+            try:
+                text = help_scanner.read_text(query)
+                result = (query, " ".join(text[:220].split()))
+                if not any(item[0].lower() == query.lower()
+                           for item in results):
+                    results.insert(0, result)
+            except Exception:
+                pass
         self.ui.MarkdownBrowser.NavigateToString(help_renderer.search_results_html(
             results, query, self._palette(), i18n.t("help_search"),
             i18n.t("help_search_no_results"), i18n.t("help_search_results")))
@@ -268,6 +279,7 @@ class HelpDialog(object):
             self.ui.SearchBar.Visibility = Visibility.Collapsed
             config.add_recent_document(path)
             self.ui.PathText.Text = os.path.splitext(os.path.basename(path))[0]
+            self.ui.StatusText.Text = path
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
@@ -350,7 +362,7 @@ class HelpDialog(object):
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
                        "BtnForward", "SearchBar", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
-                       "BtnRefresh"))
+                       "BtnRefresh", "StatusText"))
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents
