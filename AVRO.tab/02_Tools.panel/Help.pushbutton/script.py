@@ -312,6 +312,7 @@ class HelpDialog(object):
                     os.path.basename(self.current_path),
                     os.path.dirname(self.current_path),
                     help_renderer._slug(title)))
+            self.ui.TocTree.SelectedItem = None
 
     def _choose_documents(self, sender, args):
         dialog = FolderBrowserDialog()
