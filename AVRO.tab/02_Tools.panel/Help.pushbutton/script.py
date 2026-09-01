@@ -10,7 +10,7 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
 
-from System.Windows import Thickness, VerticalAlignment, Visibility
+from System.Windows import Thickness, VerticalAlignment, Visibility, TextWrapping, FontWeights
 from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Media.Imaging import BitmapImage
@@ -170,7 +170,7 @@ class HelpDialog(object):
         self.ui.PathText.Text = u"{} {}".format(
             self.doc_count, i18n.t("help_documents_label"))
         self._headings = []
-        self._fill_toc()
+        self._fill_help_guide()
         self.ui.SearchBox.Text = ""
         self.ui.SearchBox.Focus()
         self._run_search("")
@@ -263,6 +263,7 @@ class HelpDialog(object):
                 help_renderer.themed_html(
                     text, self._palette(), os.path.basename(path), os.path.dirname(path)))
             self._headings = help_toc.extract_headings(text)
+            self.ui.TocTitle.Text = i18n.t("help_toc_title")
             self._fill_toc()
             self._select_file_in_tree(path)
             self._update_navigation_buttons()
@@ -281,6 +282,15 @@ class HelpDialog(object):
             item = ListBoxItem(Content=text, Tag=title)
             item.Selected += self._toc_selected
             self.ui.TocTree.Items.Add(item)
+
+    def _fill_help_guide(self):
+        self.ui.TocTitle.Text = i18n.t("help_guide_title")
+        self.ui.TocTree.Items.Clear()
+        guide = TextBlock(Text=i18n.t("help_guide_text"))
+        guide.TextWrapping = TextWrapping.Wrap
+        guide.Margin = Thickness(9, 8, 9, 8)
+        guide.FontWeight = FontWeights.Normal
+        self.ui.TocTree.Items.Add(guide)
 
     def _toc_selected(self, sender, args):
         title = getattr(sender, "Tag", None)
