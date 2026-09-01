@@ -36,6 +36,16 @@ def _web_safe(value):
 def _inline(value):
     # Obsidian escapes punctuation in headings and list-like text.
     value = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|~<>])", r"\1", value)
+    spans = []
+
+    def protect_span(match):
+        spans.append(match.group(0))
+        return "@@AVROSPAN{}TOKEN@@".format(len(spans) - 1)
+
+    value = re.sub(r"<span\s+style\s*=\s*([\"'])([^\"']*)\1\s*>",
+                   lambda match: protect_span(match), value,
+                   flags=re.IGNORECASE)
+    value = re.sub(r"</span\s*>", protect_span, value, flags=re.IGNORECASE)
     value = _escape(value)
     value = re.sub(r"!\[\[([^]|]+)(?:\|([^]]+))?\]\]",
                    lambda m: '<img alt="{}" src="{}">'.format(
@@ -54,6 +64,14 @@ def _inline(value):
     value = re.sub(r"~~(.+?)~~", r"<del>\1</del>", value)
     value = re.sub(r"(?<!\*)\*([^*]+)\*|(?<!_)_([^_]+)_",
                    lambda m: "<em>{}</em>".format(m.group(1) or m.group(2)), value)
+    for index, span in enumerate(spans):
+        if span.lower().startswith("</span"):
+            replacement = "</span>"
+        else:
+            style = re.search(r"style\s*=\s*([\"'])([^\"']*)\1", span,
+                              flags=re.IGNORECASE).group(2)
+            replacement = '<span style="{}">'.format(_escape(style))
+        value = value.replace("@@AVROSPAN{}TOKEN@@".format(index), replacement)
     return value
 
 
