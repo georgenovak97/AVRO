@@ -9,6 +9,30 @@ def _escape(value):
             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
+def _web_safe(value):
+    """Remove unpaired UTF-16 surrogates rejected by WPF WebBrowser."""
+    if not value:
+        return value
+    result = []
+    index = 0
+    while index < len(value):
+        code = ord(value[index])
+        if 0xD800 <= code <= 0xDBFF:
+            if (index + 1 < len(value) and
+                    0xDC00 <= ord(value[index + 1]) <= 0xDFFF):
+                result.extend((value[index], value[index + 1]))
+                index += 2
+                continue
+            index += 1
+            continue
+        if 0xDC00 <= code <= 0xDFFF:
+            index += 1
+            continue
+        result.append(value[index])
+        index += 1
+    return "".join(result)
+
+
 def _inline(value):
     # Obsidian escapes punctuation in headings and list-like text.
     value = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|~<>])", r"\1", value)
@@ -190,7 +214,7 @@ def themed_html(text, palette, title="", base_path="", scroll_to=""):
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
                        ("border", palette["BorderLight"])):
         html = html.replace("@@" + key + "@@", value)
-    return html
+    return _web_safe(html)
 
 
 def search_results_html(results, query, palette, title="Search", no_results="No matching documents.", count_label="Documents found: {n}"):
@@ -217,7 +241,7 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
                        ("border", palette["BorderLight"])):
         html = html.replace("@@" + key + "@@", value)
-    return html
+    return _web_safe(html)
 
 
 def recent_results_html(results, palette):
