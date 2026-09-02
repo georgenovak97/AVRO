@@ -24,7 +24,7 @@ import System
 from System.Windows.Forms import Screen
 from System.Windows import (
     Thickness, HorizontalAlignment, VerticalAlignment, Visibility,
-    TextWrapping, FontWeights,
+    TextWrapping, FontWeights, GridLength, GridUnitType,
 )
 from System.Windows.Controls import (
     TreeViewItem, TextBlock, Canvas, Border, Button,
@@ -358,6 +358,7 @@ class FamilyBrowserDialog(object):
         self._restore_window_geometry()
         self._set_revit_window_owner()
         self.ui = ui_utils.NamedUiControls(self.win, _UI_CONTROL_NAMES)
+        self._restore_panel_widths()
         self._status_controller = family_browser_status.StatusController(self.ui)
         self._library_controller = family_browser_library.LibraryController(self)
         self._card_brushes = ui_theme.card_brushes(
@@ -455,6 +456,43 @@ class FamilyBrowserDialog(object):
         except Exception:
             pass
         return False
+
+    def _get_panel_grid(self):
+        try:
+            return self.ui.CategoryTree.Parent.Parent
+        except Exception:
+            return None
+
+    def _restore_panel_widths(self):
+        grid = self._get_panel_grid()
+        if grid is None:
+            return
+        try:
+            values = config.load()
+            left = float(values.get("family_browser_left_panel_width", 0))
+            right = float(values.get("family_browser_right_panel_width", 0))
+            if left > 0:
+                grid.ColumnDefinitions[0].Width = GridLength(
+                    left, GridUnitType.Pixel)
+            if right > 0:
+                grid.ColumnDefinitions[4].Width = GridLength(
+                    right, GridUnitType.Pixel)
+        except Exception:
+            pass
+
+    def _save_panel_widths(self):
+        grid = self._get_panel_grid()
+        if grid is None:
+            return
+        try:
+            left = float(grid.ColumnDefinitions[0].ActualWidth)
+            right = float(grid.ColumnDefinitions[4].ActualWidth)
+            if left > 0:
+                config.set_value("family_browser_left_panel_width", left)
+            if right > 0:
+                config.set_value("family_browser_right_panel_width", right)
+        except Exception:
+            pass
 
     def _window_is_current(self, win, window_gen):
         return (self.win is win and self.ui is not None
@@ -1013,6 +1051,7 @@ class FamilyBrowserDialog(object):
                     }
             except Exception:
                 pass
+            self._save_panel_widths()
             if not is_placement:
                 ui_notify.unregister_language_listener(
                     self._on_external_language_changed)

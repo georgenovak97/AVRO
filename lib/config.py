@@ -33,6 +33,10 @@ DEFAULTS = {
     "library_cache_count": 0,
     "ui_theme": "light",
     "family_browser_filters": {},
+    "family_browser_left_panel_width": 0,
+    "family_browser_right_panel_width": 0,
+    "help_left_panel_width": 0,
+    "help_right_panel_width": 0,
 }
 
 _RECENTS_MIGRATED = False

@@ -11,7 +11,10 @@ clr.AddReference("PresentationCore")
 clr.AddReference("WindowsBase")
 clr.AddReference("System.Windows.Forms")
 
-from System.Windows import Thickness, VerticalAlignment, Visibility, TextWrapping, FontWeights
+from System.Windows import (
+    Thickness, VerticalAlignment, Visibility, TextWrapping, FontWeights,
+    GridLength, GridUnitType,
+)
 from System.Windows.Controls import TreeViewItem, TextBlock, StackPanel, Orientation, ListBoxItem
 from System.Windows.Media import Color, Geometry, SolidColorBrush, Stretch
 from System.Windows.Media.Imaging import BitmapImage
@@ -433,8 +436,10 @@ class HelpDialog(object):
                        "SearchBar", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh", "StatusText"))
+        self._restore_panel_widths()
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
+        self.win.Closing += self._on_window_closing
         self.ui.BtnDocuments.Click += self._choose_documents
         self.ui.BtnRefresh.Click += self._refresh_documents
         self.ui.BtnBack.Click += self._go_back
@@ -447,6 +452,46 @@ class HelpDialog(object):
         ui_notify.register_theme_listener(self._theme_changed)
         self._load_tree()
         self._search_selected(None, None)
+
+    def _get_panel_grid(self):
+        try:
+            return self.ui.DocumentTree.Parent.Parent
+        except Exception:
+            return None
+
+    def _restore_panel_widths(self):
+        grid = self._get_panel_grid()
+        if grid is None:
+            return
+        try:
+            values = config.load()
+            left = float(values.get("help_left_panel_width", 0))
+            right = float(values.get("help_right_panel_width", 0))
+            if left > 0:
+                grid.ColumnDefinitions[0].Width = GridLength(
+                    left, GridUnitType.Pixel)
+            if right > 0:
+                grid.ColumnDefinitions[4].Width = GridLength(
+                    right, GridUnitType.Pixel)
+        except Exception:
+            pass
+
+    def _save_panel_widths(self):
+        grid = self._get_panel_grid()
+        if grid is None:
+            return
+        try:
+            left = float(grid.ColumnDefinitions[0].ActualWidth)
+            right = float(grid.ColumnDefinitions[4].ActualWidth)
+            if left > 0:
+                config.set_value("help_left_panel_width", left)
+            if right > 0:
+                config.set_value("help_right_panel_width", right)
+        except Exception:
+            pass
+
+    def _on_window_closing(self, sender, args):
+        self._save_panel_widths()
 
     def show(self):
         i18n.init_from_config()
