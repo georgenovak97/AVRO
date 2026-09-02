@@ -278,10 +278,10 @@ class HelpDialog(object):
         path = config.load().get("docs_path") or ""
         query = (query or "").strip()
         if not query:
-            bookmarks = [path for path in config.load_bookmarks()
-                         if os.path.isfile(path)]
-            recent = [path for path in config.load_recent_documents()
-                      if os.path.isfile(path)]
+            bookmarks = [item for item in config.documents_under_path(
+                config.load_bookmarks(), path) if os.path.isfile(item)]
+            recent = [item for item in config.documents_under_path(
+                config.load_recent_documents(), path) if os.path.isfile(item)]
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.home_page_html(
                     bookmarks, recent, self._palette(),
@@ -408,12 +408,20 @@ class HelpDialog(object):
             dialog.SelectedPath = current
         if dialog.ShowDialog() == DialogResult.OK:
             config.set_value("docs_path", dialog.SelectedPath)
+            config.prune_bookmarks(dialog.SelectedPath)
+            config.prune_recent_documents(dialog.SelectedPath)
+            self.current_path = None
+            self._current_text = ""
             self._load_tree()
+            self._go_home()
 
     def _refresh_documents(self, sender, args):
-        # Rewrite the bookmark file while refreshing the document tree.
-        config.save_bookmarks(config.load_bookmarks())
+        docs_path = config.load().get("docs_path") or ""
+        config.prune_bookmarks(docs_path)
+        config.prune_recent_documents(docs_path)
         self._load_tree()
+        if self.current_path and os.path.isfile(self.current_path):
+            self._show_file(self.current_path)
 
     def _on_window_keydown(self, sender, args):
         if args.Key != Key.Escape:

@@ -172,6 +172,33 @@ def load_recent_documents():
             return []
 
 
+def documents_under_path(paths, docs_path):
+    """Return document paths that belong to the selected documentation root."""
+    if not docs_path:
+        return list(paths or [])
+    root = os.path.normcase(os.path.abspath(docs_path)).rstrip(os.sep)
+    result = []
+    for path in (paths or []):
+        try:
+            candidate = os.path.normcase(os.path.abspath(path))
+            if candidate == root or candidate.startswith(root + os.sep):
+                result.append(path)
+        except Exception:
+            pass
+    return result
+
+
+def prune_bookmarks(docs_path):
+    if docs_path:
+        save_bookmarks(documents_under_path(load_bookmarks(), docs_path))
+
+
+def prune_recent_documents(docs_path):
+    if docs_path:
+        save_recent_documents(documents_under_path(
+            load_recent_documents(), docs_path))
+
+
 def save_recent_documents(paths):
     with _IO_LOCK:
         paths = [_u(p) for p in (paths or []) if p][:10]
