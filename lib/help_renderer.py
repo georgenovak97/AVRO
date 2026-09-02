@@ -258,7 +258,7 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
                 _inline(snippet)))
 
     html = markdown_to_html("", base_path="")
-    html = html.replace("</style>", ".count{font-weight:600}.search-result{display:block;font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}.search-result a{font-size:12px;font-weight:600;text-decoration:none}.search-result p{font-size:11px;margin:3px 0 0}</style>")
+    html = html.replace("</style>", ".count{font-weight:600}.search-result{display:block;font-size:12px;padding:4px 0;margin:0}.search-result a{font-size:12px;font-weight:600;text-decoration:none}.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
