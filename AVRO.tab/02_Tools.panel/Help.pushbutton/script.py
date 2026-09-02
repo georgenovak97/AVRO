@@ -19,6 +19,7 @@ from System.Windows.Documents import Bold, Run
 from System.Windows.Input import Key
 from System.Windows.Shapes import Path as WpfPath
 from System.Windows.Forms import FolderBrowserDialog, DialogResult
+from System.Diagnostics import Process
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _EXT_LIB = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", "..", "lib"))
@@ -312,6 +313,9 @@ class HelpDialog(object):
             args.Cancel = True
             return
         if uri is None or uri.Scheme != "help" or uri.Host != "open":
+            if uri is not None and uri.Scheme in ("http", "https"):
+                args.Cancel = True
+                Process.Start(uri.AbsoluteUri)
             return
         query = uri.Query
         if query.startswith("?path="):
