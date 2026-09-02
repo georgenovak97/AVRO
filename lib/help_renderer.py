@@ -290,7 +290,7 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
     html = markdown_to_html("", base_path="")
     html = html.replace(
         "</style>",
-        ".home-section h2{font-size:18px;margin:0 0 8px}.home-section{margin-bottom:24px}"
+        ".home-section h2{font-size:13px;margin:0 0 8px}.home-section{margin-bottom:24px}"
         "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
         "article.search-result a{font-size:12px;font-weight:600;text-decoration:none}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format(
