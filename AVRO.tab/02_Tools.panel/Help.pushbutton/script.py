@@ -180,7 +180,7 @@ class HelpDialog(object):
         self.ui.SearchBar.Visibility = Visibility.Visible
         self.ui.PathText.Text = u"{} {}".format(
             self.doc_count, i18n.t("help_documents_label"))
-        self.ui.StatusText.Text = i18n.t("help_status_ready")
+        self.ui.StatusText.Text = ""
         self._headings = []
         self._fill_help_guide()
         self._update_bookmark_button()

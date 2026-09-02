@@ -271,7 +271,7 @@ _STRINGS = {
              u"При открытии через поиск или недавние документы дерево автоматически "
              u"раскроется до нужного файла."),
              (u"Домашняя страница", u"Первый пункт дерева документов открывает домашнюю страницу. "
-              u"Здесь отображаются руководство по использованию справки и недавно открытые документы. "
+              u"Здесь отображаются руководство по использованию справки, избранные и недавно открытые документы. "
               u"Введите текст в поле поиска над областью просмотра, чтобы выполнить поиск по содержимому "
               u"всех документов. Очистите поле кнопкой «×», чтобы вернуться к списку недавних документов."),
             (u"Кнопки «Документы» и «Обновить»", u"«Документы» позволяет выбрать папку "
@@ -549,7 +549,7 @@ _STRINGS = {
              u"Click a folder to expand it and a document to open it. When a document is "
              u"opened from search or recents, the tree expands to and highlights that file."),
              (u"Home page", u"The first item in the document tree opens the home page. It shows this "
-              u"usage guide and a list of recently opened documents. Type text in the search field above "
+              u"usage guide, bookmarked and recently opened documents. Type text in the search field above "
               u"the viewer to search the contents of all documents. Clear the field with the «×» button "
               u"to return to recent documents."),
             (u"Documents and Refresh", u"Documents lets you choose the documentation folder. "
