@@ -253,12 +253,12 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
             _escape(count_label.format(n=len(results)))))
         for path, snippet in results:
             href = path.replace("\\", "/").replace(" ", "%20")
-            blocks.append("<article class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a><p>{2}</p></article>".format(
+            blocks.append("<div class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a><p>{2}</p></div>".format(
                 _escape(href), _escape(os.path.splitext(os.path.basename(path))[0]),
                 _inline(snippet)))
 
     html = markdown_to_html("", base_path="")
-    html = html.replace("</style>", ".count{font-weight:600}article{display:block}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
+    html = html.replace("</style>", ".count{font-weight:600}.search-result{display:block;font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}.search-result a{font-size:12px;font-weight:600;text-decoration:none}.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
@@ -271,7 +271,7 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
                    recent_title, bookmarks_empty, recent_empty):
     """Render the Help home page with bookmarks and recent documents."""
     def section(title, paths, empty):
-        blocks = ["<section class=\"home-section\"><h2>{}</h2>".format(
+        blocks = ["<div class=\"home-section\"><h2>{}</h2>".format(
             _escape(title))]
         if not paths:
             blocks.append("<p class=\"empty\">{}</p>".format(_escape(empty)))
@@ -279,10 +279,10 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
             for path in paths:
                 href = path.replace("\\", "/").replace(" ", "%20")
                 blocks.append(
-                    "<article class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a></article>".format(
+                    "<div class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a></div>".format(
                         _escape(href),
                         _escape(os.path.splitext(os.path.basename(path))[0])))
-        blocks.append("</section>")
+        blocks.append("</div>")
         return blocks
 
     blocks = section(bookmarks_title, bookmarks, bookmarks_empty)
@@ -290,9 +290,9 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
     html = markdown_to_html("", base_path="")
     html = html.replace(
         "</style>",
-        ".home-section h2{font-size:13px;margin:0 0 8px}.home-section{display:block;margin-bottom:24px}"
-        "article{display:block}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
-        "article.search-result a{font-size:12px;font-weight:600;text-decoration:none}</style>")
+        ".home-section h2{font-size:11px;margin:0 0 8px}.home-section{display:block;margin-bottom:24px}"
+        ".search-result{display:block;font-size:11px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
+        ".search-result a{font-size:11px;font-weight:600;text-decoration:none}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format(
         "\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
