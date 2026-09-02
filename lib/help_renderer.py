@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Small dependency-free Markdown renderer suitable for Obsidian notes."""
+import base64
 import os
 import re
 
@@ -44,6 +45,25 @@ def _file_url(path):
         _url_quote(part, safe=":") for part in path.split("/")))
 
 
+def _data_url(path):
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".svg": "image/svg+xml",
+        ".webp": "image/webp",
+    }.get(os.path.splitext(path)[1].lower(), "application/octet-stream")
+    with open(path, "rb") as stream:
+        encoded = base64.b64encode(stream.read())
+    try:
+        encoded = encoded.decode("ascii")
+    except AttributeError:
+        pass
+    return "data:{};base64,{}".format(mime, encoded)
+
+
 def _url_quote(value, safe=""):
     try:
         return quote(value.encode("utf-8"), safe=safe)
@@ -82,7 +102,7 @@ def _image_src(source, base_path, root_path):
 
     for candidate in candidates:
         if os.path.isfile(candidate):
-            return _file_url(candidate)
+            return _data_url(candidate)
 
     return "/".join(_url_quote(part, safe=":")
                     for part in source.replace("\\", "/").split("/"))
