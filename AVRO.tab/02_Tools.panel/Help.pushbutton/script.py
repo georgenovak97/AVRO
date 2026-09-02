@@ -49,6 +49,7 @@ class HelpDialog(object):
         self._history_index = -1
         self._history_navigating = False
         self._selecting_tree_file = False
+        self._selecting_search = False
         self._last_escape_press_at = 0.0
 
     def _palette(self):
@@ -62,6 +63,7 @@ class HelpDialog(object):
         self.ui.BtnDocuments.ToolTip = i18n.t("help_btn_documents_tooltip")
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
         self.ui.BtnRefresh.ToolTip = i18n.t("help_btn_refresh_tooltip")
+        self.ui.BtnHome.ToolTip = i18n.t("help_home_tooltip")
         self.ui.SearchBox.ToolTip = i18n.t("help_search_placeholder")
 
     def _header(self, text, geometry):
@@ -103,7 +105,9 @@ class HelpDialog(object):
 
     def _add_search_item(self):
         item = TreeViewItem()
-        item.Header = self._header(i18n.t("help_search"), "M2,2 L16,2 L16,16 L2,16 Z M5,6 L13,6 M5,9 L13,9 M5,12 L10,12")
+        item.Header = self._header(
+            i18n.t("help_home"),
+            "M2,9 L9,2 L16,9 M4,9 L4,16 L14,16 L14,9 M8,16 L8,12 L10,12 L10,16")
         item.Tag = "__search__"
         item.Selected += self._search_selected
         item.PreviewMouseLeftButtonDown += self._search_mouse_down
@@ -170,6 +174,8 @@ class HelpDialog(object):
         find_in(self.ui.DocumentTree.Items)
 
     def _search_selected(self, sender, args):
+        if self._selecting_search:
+            return
         self.search_mode = True
         self.ui.SearchBar.Visibility = Visibility.Visible
         self.ui.PathText.Text = u"{} {}".format(
@@ -180,6 +186,23 @@ class HelpDialog(object):
         self.ui.SearchBox.Text = ""
         self.ui.SearchBox.Focus()
         self._run_search("")
+
+    def _go_home(self, sender=None, args=None):
+        if not self._history or self._history[-1] != "__search__":
+            self._history = self._history[:self._history_index + 1]
+            self._history.append("__search__")
+            self._history_index = len(self._history) - 1
+        self._selecting_search = True
+        try:
+            for item in self.ui.DocumentTree.Items:
+                if getattr(item, "Tag", None) == "__search__":
+                    item.IsSelected = True
+                    item.BringIntoView()
+                    break
+        finally:
+            self._selecting_search = False
+        self._search_selected(None, None)
+        self._update_navigation_buttons()
 
     def _update_navigation_buttons(self):
         if self.ui is None:
@@ -361,7 +384,7 @@ class HelpDialog(object):
         self.win.PreviewKeyDown += self._on_window_keydown
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
-                       "BtnForward", "SearchBar", "SearchBox",
+                       "BtnForward", "BtnHome", "SearchBar", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh", "StatusText"))
         ui_theme.apply_window_theme(self.win, self._palette())
@@ -370,6 +393,7 @@ class HelpDialog(object):
         self.ui.BtnRefresh.Click += lambda sender, args: self._load_tree()
         self.ui.BtnBack.Click += self._go_back
         self.ui.BtnForward.Click += self._go_forward
+        self.ui.BtnHome.Click += self._go_home
         self.ui.MarkdownBrowser.Navigating += self._on_browser_navigating
         self.ui.SearchBox.TextChanged += lambda sender, args: self.search_mode and self._run_search(sender.Text)
         self.ui.BtnClearSearch.Click += lambda sender, args: self._clear_search()
