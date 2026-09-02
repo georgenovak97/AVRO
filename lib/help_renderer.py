@@ -3,6 +3,11 @@
 import os
 import re
 
+try:
+    from urllib.parse import quote
+except ImportError:
+    from urllib import quote
+
 
 def _escape(value):
     return (value.replace("&", "&amp;").replace("<", "&lt;")
@@ -33,7 +38,56 @@ def _web_safe(value):
     return "".join(result)
 
 
-def _inline(value):
+def _file_url(path):
+    path = os.path.abspath(path).replace("\\", "/")
+    return "file:///{}".format("/".join(
+        quote(part.encode("utf-8"), safe=":") for part in path.split("/")))
+
+
+def _decode_html(value):
+    return value.replace("&quot;", '"').replace("&gt;", ">") \
+        .replace("&lt;", "<").replace("&amp;", "&")
+
+
+def _image_src(source, base_path, root_path):
+    source = _decode_html(source).replace("\\", os.sep)
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", source):
+        return source
+
+    candidates = []
+    if os.path.isabs(source):
+        candidates.append(source)
+    else:
+        current = os.path.abspath(base_path) if base_path else ""
+        root = os.path.abspath(root_path) if root_path else ""
+        while current:
+            candidates.append(os.path.join(current, source))
+            if root and os.path.normcase(current) == os.path.normcase(root):
+                break
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
+        if root:
+            candidates.append(os.path.join(root, source))
+
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return _file_url(candidate)
+
+    # Obsidian resolves a bare attachment name anywhere in the vault.
+    if root_path and not os.path.isabs(source) and os.sep not in source:
+        wanted = os.path.normcase(os.path.basename(source))
+        for current, unused_dirs, files in os.walk(root_path):
+            for name in files:
+                if os.path.normcase(name) == wanted:
+                    return _file_url(os.path.join(current, name))
+
+    return "/".join(quote(part.encode("utf-8"), safe=":")
+                    for part in source.replace("\\", "/").split("/"))
+
+
+def _inline(value, base_path="", root_path=""):
     # Obsidian escapes punctuation in headings and list-like text.
     value = re.sub(r"\\([\\`*_{}\[\]()#+\-.!|~<>])", r"\1", value)
     spans = []
@@ -49,9 +103,12 @@ def _inline(value):
     value = _escape(value)
     value = re.sub(r"!\[\[([^]|]+)(?:\|([^]]+))?\]\]",
                    lambda m: '<img alt="{}" src="{}">'.format(
-                       m.group(2) or m.group(1), m.group(1)), value)
+                       m.group(2) or m.group(1),
+                       _image_src(m.group(1), base_path, root_path)), value)
     value = re.sub(r"!\[([^]]*)\]\(([^)]+)\)",
-                   r'<img alt="\1" src="\2">', value)
+                   lambda m: '<img alt="{}" src="{}">'.format(
+                       m.group(1), _image_src(m.group(2), base_path, root_path)),
+                   value)
     value = re.sub(r"\[([^]]+)\]\(([^)]+)\)",
                    r'<a href="\2">\1</a>', value)
     value = re.sub(r"\[\[([^]|]+)(?:\|([^]]+))?\]\]",
@@ -90,7 +147,7 @@ def _is_separator(cells):
     return bool(cells) and all(re.match(r"^:?-+:?$", cell) for cell in cells)
 
 
-def _render_table(rows):
+def _render_table(rows, base_path="", root_path=""):
     if len(rows) < 2 or _is_separator(rows[0]):
         return ""
     has_header = _is_separator(rows[1])
@@ -99,16 +156,18 @@ def _render_table(rows):
     result = ["<table>"]
     if header:
         result.append("<thead><tr>{}</tr></thead>".format(
-            "".join("<th>{}</th>".format(_inline(cell)) for cell in header)))
+            "".join("<th>{}</th>".format(_inline(cell, base_path, root_path))
+                    for cell in header)))
     result.append("<tbody>")
     for row in body:
         result.append("<tr>{}</tr>".format(
-            "".join("<td>{}</td>".format(_inline(cell)) for cell in row)))
+            "".join("<td>{}</td>".format(
+                _inline(cell, base_path, root_path)) for cell in row)))
     result.append("</tbody></table>")
     return "".join(result)
 
 
-def markdown_to_html(text, title="", base_path="", scroll_to=""):
+def markdown_to_html(text, title="", base_path="", scroll_to="", root_path=""):
     lines = (text or "").replace("\r\n", "\n").split("\n")
     html = []
     index = 0
@@ -143,7 +202,7 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             while index < len(lines) and _table_row(lines[index]) is not None:
                 rows.append(_table_row(lines[index]))
                 index += 1
-            table = _render_table(rows)
+            table = _render_table(rows, base_path, root_path)
             if table:
                 html.append(table)
             continue
@@ -157,7 +216,7 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             level = len(heading.group(1))
             value = heading.group(2).strip()
             html.append('<h{0} id="{1}">{2}</h{0}>'.format(
-                level, _slug(value), _inline(value)))
+                level, _slug(value), _inline(value, base_path, root_path)))
             index += 1
             continue
         if re.match(r"^\s*[-*_](\s*[-*_]){2,}\s*$", line):
@@ -181,9 +240,10 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             if task:
                 checked = " checked" if task.group(1) != " " else ""
                 html.append('<li><input type="checkbox" disabled{}> {}</li>'.format(
-                    checked, _inline(task.group(2))))
+                    checked, _inline(task.group(2), base_path, root_path)))
             else:
-                html.append("<li>{}</li>".format(_inline((numbered or bulleted).group(1))))
+                html.append("<li>{}</li>".format(_inline(
+                    (numbered or bulleted).group(1), base_path, root_path)))
             index += 1
             continue
         if list_type:
@@ -196,13 +256,14 @@ def markdown_to_html(text, title="", base_path="", scroll_to=""):
             if callout:
                 html.append('<div class="callout {}"><b>{}</b><br>{}</div>'.format(
                     callout.group(1).lower(), callout.group(1).title(),
-                    _inline(callout.group(2))))
+                    _inline(callout.group(2), base_path, root_path)))
             else:
-                html.append("<blockquote>{}</blockquote>".format(_inline(quote.group(1))))
+                html.append("<blockquote>{}</blockquote>".format(_inline(
+                    quote.group(1), base_path, root_path)))
             index += 1
             continue
         if line.strip():
-            html.append("<p>{}</p>".format(_inline(line)))
+            html.append("<p>{}</p>".format(_inline(line, base_path, root_path)))
         index += 1
     if list_type:
         html.append("</ol>" if list_type == "ol" else "</ul>")
@@ -231,8 +292,8 @@ table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13px}th,td{bor
         "@@scroll@@", scroll_script)
 
 
-def themed_html(text, palette, title="", base_path="", scroll_to=""):
-    html = markdown_to_html(text, title, base_path, scroll_to)
+def themed_html(text, palette, title="", base_path="", scroll_to="", root_path=""):
+    html = markdown_to_html(text, title, base_path, scroll_to, root_path)
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
                        ("border", palette["BorderLight"])):

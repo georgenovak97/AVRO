@@ -347,7 +347,9 @@ class HelpDialog(object):
             self.ui.StatusText.Text = path
             self.ui.MarkdownBrowser.NavigateToString(
                 help_renderer.themed_html(
-                    text, self._palette(), os.path.basename(path), os.path.dirname(path)))
+                    text, self._palette(), os.path.basename(path),
+                    os.path.dirname(path), "",
+                    config.load().get("docs_path") or ""))
             self._headings = help_toc.extract_headings(text)
             self.ui.TocTitle.Text = i18n.t("help_toc_title")
             self._fill_toc()
@@ -395,7 +397,8 @@ class HelpDialog(object):
                     self._current_text, self._palette(),
                     os.path.basename(self.current_path),
                     os.path.dirname(self.current_path),
-                    help_renderer._slug(title)))
+                    help_renderer._slug(title),
+                    config.load().get("docs_path") or ""))
 
     def _choose_documents(self, sender, args):
         dialog = FolderBrowserDialog()
