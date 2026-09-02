@@ -258,7 +258,7 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
                 _inline(snippet)))
 
     html = markdown_to_html("", base_path="")
-    html = html.replace("</style>", ".count{font-weight:600}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
+    html = html.replace("</style>", ".count{font-weight:600}article{display:block}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}article.search-result a{font-size:12px;font-weight:600;text-decoration:none}article.search-result p{font-size:11px;margin:3px 0 0}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format("\n".join(blocks)))
     for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
                        ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
@@ -290,8 +290,8 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
     html = markdown_to_html("", base_path="")
     html = html.replace(
         "</style>",
-        ".home-section h2{font-size:13px;margin:0 0 8px}.home-section{margin-bottom:24px}"
-        "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
+        ".home-section h2{font-size:13px;margin:0 0 8px}.home-section{display:block;margin-bottom:24px}"
+        "article{display:block}article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
         "article.search-result a{font-size:12px;font-weight:600;text-decoration:none}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format(
         "\n".join(blocks)))
