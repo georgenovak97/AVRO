@@ -264,14 +264,16 @@ _STRINGS = {
              u"Нажмите на папку, чтобы развернуть её, и на документ, чтобы открыть его. "
              u"При открытии через поиск или недавние документы дерево автоматически "
              u"раскроется до нужного файла."),
-            (u"Поиск", u"Введите текст в поле поиска. Поиск выполняется по содержимому "
-             u"всех документов в выбранной папке. Очистите поле кнопкой «×», чтобы снова "
-             u"увидеть недавние документы."),
+             (u"Домашняя страница", u"Первый пункт дерева документов открывает домашнюю страницу. "
+              u"Здесь отображаются руководство по использованию справки и недавно открытые документы. "
+              u"Введите текст в поле поиска над областью просмотра, чтобы выполнить поиск по содержимому "
+              u"всех документов. Очистите поле кнопкой «×», чтобы вернуться к списку недавних документов."),
             (u"Кнопки «Документы» и «Обновить»", u"«Документы» позволяет выбрать папку "
              u"с документацией. «Обновить» повторно сканирует выбранную папку и обновляет "
              u"дерево файлов."),
-            (u"Навигация", u"Стрелка назад возвращает к предыдущей странице или документу. "
-             u"Стрелка вперёд повторно открывает следующий элемент истории."),
+             (u"Навигация", u"Кнопка «домик» открывает домашнюю страницу. Стрелка назад возвращает "
+              u"к предыдущей странице или документу. Стрелка вперёд повторно открывает следующий "
+              u"элемент истории навигации."),
             (u"Содержание", u"При открытом документе справа отображается его содержание. "
              u"Нажмите на заголовок, чтобы перейти к соответствующему разделу."),
         ],
@@ -533,13 +535,14 @@ _STRINGS = {
             (u"Document tree", u"The left panel shows folders and Markdown documents. "
              u"Click a folder to expand it and a document to open it. When a document is "
              u"opened from search or recents, the tree expands to and highlights that file."),
-            (u"Search", u"Type text in the search field. Search looks through the contents "
-             u"of all documents in the selected folder. Clear the field with the «×» button "
-             u"to see recent documents again."),
+             (u"Home page", u"The first item in the document tree opens the home page. It shows this "
+              u"usage guide and a list of recently opened documents. Type text in the search field above "
+              u"the viewer to search the contents of all documents. Clear the field with the «×» button "
+              u"to return to recent documents."),
             (u"Documents and Refresh", u"Documents lets you choose the documentation folder. "
              u"Refresh rescans the selected folder and updates the file tree."),
-            (u"Navigation", u"The back arrow returns to the previous page or document. "
-             u"The forward arrow opens the next item in the navigation history."),
+             (u"Navigation", u"The home button opens the home page. The back arrow returns to the previous "
+              u"page or document. The forward arrow opens the next item in the navigation history."),
             (u"Contents", u"When a document is open, its table of contents appears on the right. "
              u"Click a heading to jump to that section."),
         ],
