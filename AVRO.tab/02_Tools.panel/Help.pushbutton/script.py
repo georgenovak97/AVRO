@@ -183,6 +183,7 @@ class HelpDialog(object):
         self.ui.StatusText.Text = i18n.t("help_status_ready")
         self._headings = []
         self._fill_help_guide()
+        self._update_bookmark_button()
         self.ui.SearchBox.Text = ""
         self.ui.SearchBox.Focus()
         self._run_search("")
@@ -203,6 +204,33 @@ class HelpDialog(object):
             self._selecting_search = False
         self._search_selected(None, None)
         self._update_navigation_buttons()
+
+    def _update_bookmark_button(self):
+        if self.ui is None:
+            return
+        if not self.current_path or self.search_mode:
+            self.ui.BtnBookmark.IsEnabled = False
+            self.ui.BookmarkIcon.Fill = None
+            return
+        self.ui.BtnBookmark.IsEnabled = True
+        bookmarked = config.is_bookmarked(self.current_path)
+        if bookmarked:
+            color = self._palette()["TreeConnector"].lstrip("#")
+            self.ui.BookmarkIcon.Fill = SolidColorBrush(Color.FromRgb(
+                int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)))
+            self.ui.BtnBookmark.ToolTip = i18n.t("help_bookmark_remove")
+        else:
+            self.ui.BookmarkIcon.Fill = None
+            self.ui.BtnBookmark.ToolTip = i18n.t("help_bookmark_add")
+
+    def _toggle_bookmark(self, sender=None, args=None):
+        if not self.current_path or self.search_mode:
+            return
+        if config.is_bookmarked(self.current_path):
+            config.remove_bookmark(self.current_path)
+        else:
+            config.add_bookmark(self.current_path)
+        self._update_bookmark_button()
 
     def _update_navigation_buttons(self):
         if self.ui is None:
@@ -246,10 +274,17 @@ class HelpDialog(object):
         path = config.load().get("docs_path") or ""
         query = (query or "").strip()
         if not query:
+            bookmarks = [path for path in config.load_bookmarks()
+                         if os.path.isfile(path)]
             recent = [path for path in config.load_recent_documents()
                       if os.path.isfile(path)]
             self.ui.MarkdownBrowser.NavigateToString(
-                help_renderer.recent_results_html(recent, self._palette()))
+                help_renderer.home_page_html(
+                    bookmarks, recent, self._palette(),
+                    i18n.t("help_bookmarks_section"),
+                    i18n.t("help_recent_section"),
+                    i18n.t("help_bookmarks_empty"),
+                    i18n.t("help_recent_empty")))
             return
         results = help_scanner.search_documents(path, query)
         if os.path.isfile(query) and query.lower().endswith(".md"):
@@ -311,6 +346,7 @@ class HelpDialog(object):
             self._fill_toc()
             self._select_file_in_tree(path)
             self._update_navigation_buttons()
+            self._update_bookmark_button()
         except Exception as ex:
             self.ui.PathText.Text = u"{}: {}".format(i18n.t("help_select_file"), ex)
 
@@ -364,6 +400,11 @@ class HelpDialog(object):
             config.set_value("docs_path", dialog.SelectedPath)
             self._load_tree()
 
+    def _refresh_documents(self, sender, args):
+        # Rewrite the bookmark file while refreshing the document tree.
+        config.save_bookmarks(config.load_bookmarks())
+        self._load_tree()
+
     def _on_window_keydown(self, sender, args):
         if args.Key != Key.Escape:
             self._last_escape_press_at = 0.0
@@ -384,16 +425,18 @@ class HelpDialog(object):
         self.win.PreviewKeyDown += self._on_window_keydown
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
-                       "BtnForward", "BtnHome", "SearchBar", "SearchBox",
+                       "BtnForward", "BtnHome", "BtnBookmark", "BookmarkIcon",
+                       "SearchBar", "SearchBox",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh", "StatusText"))
         ui_theme.apply_window_theme(self.win, self._palette())
         self._apply_text()
         self.ui.BtnDocuments.Click += self._choose_documents
-        self.ui.BtnRefresh.Click += lambda sender, args: self._load_tree()
+        self.ui.BtnRefresh.Click += self._refresh_documents
         self.ui.BtnBack.Click += self._go_back
         self.ui.BtnForward.Click += self._go_forward
         self.ui.BtnHome.Click += self._go_home
+        self.ui.BtnBookmark.Click += self._toggle_bookmark
         self.ui.MarkdownBrowser.Navigating += self._on_browser_navigating
         self.ui.SearchBox.TextChanged += lambda sender, args: self.search_mode and self._run_search(sender.Text)
         self.ui.BtnClearSearch.Click += lambda sender, args: self._clear_search()

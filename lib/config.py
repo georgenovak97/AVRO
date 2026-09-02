@@ -15,6 +15,7 @@ CONFIG_DIR  = TMP_DIR
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 RECENT_FILE = os.path.join(CONFIG_DIR, "recent_families.json")
 DOCS_RECENT_FILE = os.path.join(CONFIG_DIR, "recent_documents.json")
+BOOKMARKS_FILE = os.path.join(CONFIG_DIR, "help_bookmarks.json")
 LOG_FILE    = os.path.join(CONFIG_DIR, "cache.log")
 THUMB_CACHE_DIR = os.path.join(CONFIG_DIR, "thumbs")
 
@@ -187,6 +188,62 @@ def add_recent_document(path):
               if item.lower() != path.lower()]
     recent.insert(0, path)
     save_recent_documents(recent)
+
+
+def load_bookmarks():
+    """Return bookmarked Markdown paths, newest additions first."""
+    _ensure_dir()
+    with _IO_LOCK:
+        if not os.path.exists(BOOKMARKS_FILE):
+            return []
+        try:
+            with codecs.open(BOOKMARKS_FILE, "r", "utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return []
+            return [_u(p) for p in data if p][:50]
+        except Exception as ex:
+            _log(u"bookmarks load failed: {}".format(_u(ex)))
+            return []
+
+
+def save_bookmarks(paths):
+    """Persist bookmarked paths atomically."""
+    with _IO_LOCK:
+        values = []
+        for path in (paths or []):
+            path = _u(path)
+            if path and not any(item.lower() == path.lower() for item in values):
+                values.append(path)
+        try:
+            text = json.dumps(values[:50], ensure_ascii=False, indent=2)
+        except Exception:
+            text = json.dumps(values[:50], ensure_ascii=True, indent=2)
+        if isinstance(text, str):
+            text = _u(text)
+        _atomic_write_text(BOOKMARKS_FILE, text)
+
+
+def add_bookmark(path):
+    path = _u(path)
+    if not path:
+        return
+    bookmarks = [item for item in load_bookmarks()
+                 if item.lower() != path.lower()]
+    bookmarks.insert(0, path)
+    save_bookmarks(bookmarks)
+
+
+def remove_bookmark(path):
+    path = _u(path)
+    save_bookmarks([item for item in load_bookmarks()
+                    if item.lower() != path.lower()])
+
+
+def is_bookmarked(path):
+    path = _u(path)
+    return bool(path and any(item.lower() == path.lower()
+                             for item in load_bookmarks()))
 
 
 def _normalize_library_cfg(cfg):

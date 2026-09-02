@@ -253,6 +253,12 @@ _STRINGS = {
         u"help_toc_empty": u"Нет заголовков",
         u"help_home": u"Домашняя страница",
         u"help_home_tooltip": u"Перейти на домашнюю страницу",
+        u"help_bookmark_add": u"Добавить в закладки",
+        u"help_bookmark_remove": u"Удалить из закладок",
+        u"help_bookmarks_section": u"Избранное",
+        u"help_recent_section": u"Последнее просмотренное",
+        u"help_bookmarks_empty": u"Нет закладок",
+        u"help_recent_empty": u"Нет недавно просмотренных документов",
         u"help_search": u"Поиск",
         u"help_search_placeholder": u"Поиск по документам",
         u"help_search_no_results": u"Совпадений не найдено.",
@@ -271,9 +277,10 @@ _STRINGS = {
             (u"Кнопки «Документы» и «Обновить»", u"«Документы» позволяет выбрать папку "
              u"с документацией. «Обновить» повторно сканирует выбранную папку и обновляет "
              u"дерево файлов."),
-             (u"Навигация", u"Кнопка «домик» открывает домашнюю страницу. Стрелка назад возвращает "
-              u"к предыдущей странице или документу. Стрелка вперёд повторно открывает следующий "
-              u"элемент истории навигации."),
+             (u"Навигация и закладки", u"Кнопка «домик» открывает домашнюю страницу. Стрелка назад "
+              u"возвращает к предыдущей странице или документу. Стрелка вперёд повторно открывает "
+              u"следующий элемент истории навигации. Кнопка закладки добавляет открытый документ "
+              u"в избранное или удаляет его оттуда."),
             (u"Содержание", u"При открытом документе справа отображается его содержание. "
              u"Нажмите на заголовок, чтобы перейти к соответствующему разделу."),
         ],
@@ -525,6 +532,12 @@ _STRINGS = {
         u"help_toc_empty": u"No headings",
         u"help_home": u"Home page",
         u"help_home_tooltip": u"Go to home page",
+        u"help_bookmark_add": u"Add to bookmarks",
+        u"help_bookmark_remove": u"Remove from bookmarks",
+        u"help_bookmarks_section": u"Bookmarks",
+        u"help_recent_section": u"Recently viewed",
+        u"help_bookmarks_empty": u"No bookmarks",
+        u"help_recent_empty": u"No recently viewed documents",
         u"help_search": u"Search",
         u"help_search_placeholder": u"Search documents",
         u"help_search_no_results": u"No matching documents.",
@@ -541,8 +554,9 @@ _STRINGS = {
               u"to return to recent documents."),
             (u"Documents and Refresh", u"Documents lets you choose the documentation folder. "
              u"Refresh rescans the selected folder and updates the file tree."),
-             (u"Navigation", u"The home button opens the home page. The back arrow returns to the previous "
-              u"page or document. The forward arrow opens the next item in the navigation history."),
+             (u"Navigation and bookmarks", u"The home button opens the home page. The back arrow returns "
+              u"to the previous page or document. The forward arrow opens the next item in the navigation "
+              u"history. The bookmark button adds the open document to or removes it from bookmarks."),
             (u"Contents", u"When a document is open, its table of contents appears on the right. "
              u"Click a heading to jump to that section."),
         ],

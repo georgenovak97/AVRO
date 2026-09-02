@@ -267,6 +267,41 @@ def search_results_html(results, query, palette, title="Search", no_results="No 
     return _web_safe(html)
 
 
+def home_page_html(bookmarks, recent, palette, bookmarks_title,
+                   recent_title, bookmarks_empty, recent_empty):
+    """Render the Help home page with bookmarks and recent documents."""
+    def section(title, paths, empty):
+        blocks = ["<section class=\"home-section\"><h2>{}</h2>".format(
+            _escape(title))]
+        if not paths:
+            blocks.append("<p class=\"empty\">{}</p>".format(_escape(empty)))
+        else:
+            for path in paths:
+                href = path.replace("\\", "/").replace(" ", "%20")
+                blocks.append(
+                    "<article class=\"search-result\"><a href=\"help://open?path={0}\">{1}</a></article>".format(
+                        _escape(href),
+                        _escape(os.path.splitext(os.path.basename(path))[0])))
+        blocks.append("</section>")
+        return blocks
+
+    blocks = section(bookmarks_title, bookmarks, bookmarks_empty)
+    blocks.extend(section(recent_title, recent, recent_empty))
+    html = markdown_to_html("", base_path="")
+    html = html.replace(
+        "</style>",
+        ".home-section h2{font-size:18px;margin:0 0 8px}.home-section{margin-bottom:24px}"
+        "article.search-result{font-size:12px;border-bottom:1px solid @@border@@;padding:7px 0;margin:0}"
+        "article.search-result a{font-size:12px;font-weight:600;text-decoration:none}</style>")
+    html = html.replace("<body></body>", "<body>{}</body>".format(
+        "\n".join(blocks)))
+    for key, value in (("bg", palette["BgPanel"]), ("text", palette["TextMain"]),
+                       ("link", palette["SelBorder"]), ("codebg", palette["BgToolbar"]),
+                       ("border", palette["BorderLight"])):
+        html = html.replace("@@" + key + "@@", value)
+    return _web_safe(html)
+
+
 def recent_results_html(results, palette):
     """Render recently viewed documents without a search header."""
     pairs = [(path, "") for path in results]
