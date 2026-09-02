@@ -291,7 +291,7 @@ def home_page_html(bookmarks, recent, palette, bookmarks_title,
     html = html.replace(
         "</style>",
         ".home-section h2{font-size:13px;margin:0 0 8px}.home-section{display:block;margin-bottom:24px}"
-        ".search-result{display:block;font-size:12px;padding:7px 0;margin:0}"
+        ".search-result{display:block;font-size:12px;padding:4px 0;margin:0}"
         ".search-result a{font-size:12px;font-weight:600;text-decoration:none}</style>")
     html = html.replace("<body></body>", "<body>{}</body>".format(
         "\n".join(blocks)))

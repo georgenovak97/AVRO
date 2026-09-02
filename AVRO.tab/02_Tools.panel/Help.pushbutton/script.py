@@ -58,7 +58,7 @@ class HelpDialog(object):
     def _apply_text(self):
         self.win.Title = i18n.t("help_app_title")
         self.ui.TocTitle.Text = i18n.t("help_toc_title")
-        self.ui.StatusText.Text = i18n.t("help_status_ready")
+        self.ui.StatusText.Text = ""
         self.ui.BtnDocuments.Content = i18n.t("help_btn_documents")
         self.ui.BtnDocuments.ToolTip = i18n.t("help_btn_documents_tooltip")
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
