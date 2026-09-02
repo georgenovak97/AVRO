@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Small dependency-free Markdown renderer suitable for Obsidian notes."""
 import os
+import json
 import re
 
 try:
@@ -41,7 +42,14 @@ def _web_safe(value):
 def _file_url(path):
     path = os.path.abspath(path).replace("\\", "/")
     return "file:///{}".format("/".join(
-        quote(part.encode("utf-8"), safe=":") for part in path.split("/")))
+        _url_quote(part, safe=":") for part in path.split("/")))
+
+
+def _url_quote(value, safe=""):
+    try:
+        return quote(value.encode("utf-8"), safe=safe)
+    except (AttributeError, TypeError):
+        return quote(value, safe=safe)
 
 
 def _decode_html(value):
@@ -55,36 +63,70 @@ def _image_src(source, base_path, root_path):
         return source
 
     candidates = []
+    search_roots = []
     if os.path.isabs(source):
         candidates.append(source)
     else:
         current = os.path.abspath(base_path) if base_path else ""
         root = os.path.abspath(root_path) if root_path else ""
+        vault_root = root
         while current:
             candidates.append(os.path.join(current, source))
+            search_roots.append(current)
+            for folder in ("attachments", "assets", "_attachments", "_resources",
+                           "resources", "media", "images", "img"):
+                candidates.append(os.path.join(current, folder, source))
+            if not vault_root and os.path.isdir(os.path.join(current, ".obsidian")):
+                vault_root = current
             if root and os.path.normcase(current) == os.path.normcase(root):
                 break
             parent = os.path.dirname(current)
             if parent == current:
                 break
             current = parent
-        if root:
-            candidates.append(os.path.join(root, source))
+        if vault_root:
+            candidates.append(os.path.join(vault_root, source))
+            attachment_folder = _obsidian_attachment_folder(vault_root)
+            if attachment_folder:
+                candidates.append(os.path.join(vault_root, attachment_folder, source))
 
     for candidate in candidates:
         if os.path.isfile(candidate):
             return _file_url(candidate)
 
     # Obsidian resolves a bare attachment name anywhere in the vault.
-    if root_path and not os.path.isabs(source) and os.sep not in source:
+    if not os.path.isabs(source) and os.sep not in source:
         wanted = os.path.normcase(os.path.basename(source))
-        for current, unused_dirs, files in os.walk(root_path):
-            for name in files:
-                if os.path.normcase(name) == wanted:
-                    return _file_url(os.path.join(current, name))
+        roots = [root_path] if root_path else []
+        if not roots and vault_root:
+            roots.append(vault_root)
+        checked = set()
+        for search_root in roots:
+            search_root = os.path.abspath(search_root)
+            if search_root in checked:
+                continue
+            checked.add(search_root)
+            for current, unused_dirs, files in os.walk(search_root):
+                for name in files:
+                    if os.path.normcase(name) == wanted:
+                        return _file_url(os.path.join(current, name))
 
-    return "/".join(quote(part.encode("utf-8"), safe=":")
+    return "/".join(_url_quote(part, safe=":")
                     for part in source.replace("\\", "/").split("/"))
+
+
+def _obsidian_attachment_folder(root_path):
+    try:
+        app_path = os.path.join(root_path, ".obsidian", "app.json")
+        with open(app_path, "rb") as stream:
+            settings = json.loads(stream.read().decode("utf-8"))
+        folder = settings.get("attachmentFolderPath", "")
+        if folder in ("", "/"):
+            return "" if folder == "/" else None
+        return folder.replace("/", os.sep).replace("\\", os.sep).lstrip(
+            os.sep).rstrip(os.sep)
+    except Exception:
+        return None
 
 
 def _inline(value, base_path="", root_path=""):
