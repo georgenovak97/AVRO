@@ -68,6 +68,7 @@ class HelpDialog(object):
         self.ui.BtnRefresh.Content = i18n.t("help_btn_refresh")
         self.ui.BtnRefresh.ToolTip = i18n.t("help_btn_refresh_tooltip")
         self.ui.BtnHome.ToolTip = i18n.t("help_home_tooltip")
+        self.ui.SearchHint.Text = i18n.t("help_search_placeholder")
         self.ui.SearchBox.ToolTip = i18n.t("help_search_placeholder")
 
     def _header(self, text, geometry):
@@ -444,7 +445,7 @@ class HelpDialog(object):
         self.ui = ui_utils.NamedUiControls(
             self.win, ("DocumentTree", "MarkdownBrowser", "PathText", "BtnBack",
                        "BtnForward", "BtnHome", "BtnBookmark", "BookmarkIcon",
-                       "SearchBar", "SearchBox",
+                       "SearchBar", "SearchBox", "SearchHint",
                        "BtnClearSearch", "TocTitle", "TocTree", "BtnDocuments",
                        "BtnRefresh", "StatusText"))
         self._restore_panel_widths()
